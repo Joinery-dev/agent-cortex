@@ -1,0 +1,29 @@
+---
+title: Tension Balance Radar — Evaluation Circle
+---
+%% Each axis = one activated sense's evaluation score (1-10)
+%% The polygon shape reveals balance:
+%%   - Even polygon = healthy tension equilibrium
+%%   - Dented polygon = one perspective is being sacrificed
+%%   - Spiky polygon = over-optimizing some dimensions at others' expense
+
+%% Mermaid doesn't natively do radar charts, so here's the conceptual structure:
+
+graph TD
+    subgraph "Radar Concept"
+        CENTER((CENTER))
+
+        CENTER --- |"8/10"| A["Color Harmony"]
+        CENTER --- |"7/10"| B["Typography"]
+        CENTER --- |"9/10"| C["Brand Voice"]
+        CENTER --- |"6/10"| D["Accessibility"]
+        CENTER --- |"8/10"| E["Call to Action"]
+        CENTER --- |"5/10"| F["Spacing"]
+        CENTER --- |"7/10"| G["Performance"]
+    end
+
+    subgraph "What the shape tells you"
+        EVEN["Fat even polygon<br/>= balanced tension"]
+        DENT["Dent on one axis<br/>= perspective sacrificed"]
+        SPIKE["Spike on one axis<br/>= over-optimization"]
+    end

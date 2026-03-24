@@ -1,0 +1,76 @@
+---
+title: "What Makes Agent Cortex Different"
+---
+graph LR
+    subgraph TYPICAL["Typical AI Agent"]
+        direction TB
+        A1["Receives a task"]
+        A2["Generates output"]
+        A3["Returns it"]
+        A4["No memory of previous tasks"]
+        A1 --> A2 --> A3
+        A3 -.-> A4
+    end
+
+    subgraph CORTEX["Agent Cortex"]
+        direction TB
+
+        subgraph PLAN["Planning"]
+            B1["Receives a project"]
+            B2["Planner decomposes into<br/>task graph with dependencies"]
+            B3["Inhibitor suppresses<br/>irrelevant senses"]
+            B4["Norepinephrine sets arousal:<br/>how much attention each task gets"]
+        end
+
+        subgraph EXEC["Per-Task Execution"]
+            B5["Thalamus routes context<br/>from all brain regions"]
+            B6["Senses consult — each<br/>with its own project memory"]
+            B6b["Explore: generate divergent<br/>approaches before committing<br/>(skipped for routine tasks)"]
+            B7["Motor Cortex: plans approach,<br/>builds, self-corrects mid-build"]
+            B8["Evaluate from competing<br/>perspectives → resolve tensions"]
+        end
+
+        subgraph LEARN["Learning Between Tasks"]
+            B9["Working Memory tracks<br/>patterns + score trends"]
+            B10["Dopamine: prediction error<br/>signals what to learn from"]
+            B11["Hippocampus records episodes"]
+            B11b["Crystallization: clusters<br/>episodes into principles"]
+            B12["Basal Ganglia strengthens<br/>or weakens routines"]
+            B13["Cerebellum calibrates<br/>predictions for next task"]
+        end
+
+        subgraph PARTNER["Human Partnership"]
+            B14["Drift Monitor catches<br/>divergence from intent"]
+            B15["Detects taste divergence:<br/>stated vs. demonstrated"]
+            B16["Escalates low-confidence<br/>decisions at the right time"]
+        end
+
+        B1 --> B2 --> B3 --> B4
+        B4 --> B5 --> B6 --> B6b --> B7 --> B8
+        B8 -->|"not good enough"| B7
+        B8 --> B9 --> B10
+        B10 --> B11 --> B11b
+        B10 --> B12 & B13
+        B11b --> B5
+        B13 --> B5
+        B12 -->|"routine? skip explore"| B6b
+        B9 --> B14
+        B14 --> B15
+        B14 -->|"needs human input"| B16
+        B16 --> B9
+        B9 -->|"next task"| B5
+    end
+
+    classDef typical fill:#f5f5f5,stroke:#999,color:#666
+    classDef plan fill:#e3d5f0,stroke:#9b7dc4,color:#333
+    classDef exec fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef learn fill:#fff2cc,stroke:#d6b656,color:#333
+    classDef partner fill:#f5e6d3,stroke:#d4a574,color:#333
+    classDef dead fill:#eee,stroke:#ccc,color:#999
+
+    class A1,A2,A3 typical
+    class A4 dead
+    class B1,B2,B3,B4 plan
+    class B5,B6,B6b,B7,B8 exec
+    class B9,B10,B11,B11b,B12,B13 learn
+    class B14,B15,B16 partner

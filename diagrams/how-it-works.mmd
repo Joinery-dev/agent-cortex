@@ -1,0 +1,113 @@
+---
+title: "How Agent Cortex Works"
+---
+graph TB
+    subgraph HUMAN["👤 HUMAN"]
+        direction LR
+        Brief["Project Brief<br/><i>what you want built</i>"]
+        Intent["Intent + Taste Profile<br/><i>goals, audience, style preferences</i>"]
+        Decisions["Escalated Decisions<br/><i>low-confidence calls, drift alerts,<br/>urgent issues, open questions</i>"]
+    end
+
+    subgraph PFC["🧠 PREFRONTAL CORTEX — plans, learns, adapts"]
+        direction TB
+        Planner["PLANNER<br/><i>decomposes project into a task graph<br/>with dependencies + parallel tracks</i>"]
+        WM["WORKING MEMORY<br/><i>what's established so far: patterns,<br/>score trends, decisions, conventions</i>"]
+        PM["PROSPECTIVE MEMORY<br/><i>future intentions waiting to fire<br/>'when booking page starts → ask about Calendly'</i>"]
+        Inhibitor["INHIBITOR<br/><i>suppresses senses that don't apply<br/>'scalability irrelevant for a 5-page site'</i>"]
+        Flex["COGNITIVE FLEXIBILITY<br/><i>detects when an approach is stuck<br/>forces strategy reset, not just revision</i>"]
+        Drift["DRIFT MONITOR<br/><i>catches slow divergence from intent<br/>that no single task reveals</i>"]
+        Attention["ATTENTION SCHEDULER<br/><i>picks next task, checks triggers,<br/>decides what needs human input</i>"]
+    end
+
+    subgraph THAL["🔀 THALAMUS — context routing"]
+        Thalamus["Routes the right context to each consumer<br/><i>working memory + intent + taste + inhibitions<br/>+ episodes + predictions — extracted, not dumped</i>"]
+    end
+
+    subgraph SUBCORT["SUBCORTICAL SYSTEMS"]
+        direction LR
+        Hipp["HIPPOCAMPUS<br/><i>episodic memory:<br/>full task stories,<br/>cross-project patterns</i>"]
+        BG["BASAL GANGLIA<br/><i>learned routines:<br/>task type → sense<br/>activation patterns</i>"]
+        Amyg["AMYGDALA<br/><i>urgency override:<br/>security vuln, breaking<br/>change → interrupt now</i>"]
+        Cere["CEREBELLUM<br/><i>prediction engine:<br/>forecast eval scores<br/>before building</i>"]
+    end
+
+    subgraph SC["👁️ SENSORY CORTEX — per-task evaluation loop"]
+        direction TB
+        Consult["CONSULTATION<br/><i>activated senses weigh in<br/>from their perspective</i>"]
+        Build["BUILD<br/><i>produce the artifact</i>"]
+        Evaluate["EVALUATE<br/><i>score on activated receptors<br/>from competing perspectives</i>"]
+        Resolve["RESOLVE<br/><i>detect + synthesize tensions<br/>between senses</i>"]
+
+        Consult --> Build --> Evaluate --> Resolve
+        Resolve -.->|"revision needed"| Build
+    end
+
+    %% Human → PFC
+    Brief --> Planner
+    Intent --> Planner
+    Intent --> Thalamus
+
+    %% PFC internal
+    Planner --> WM
+    Planner --> PM
+    WM --> Drift
+    WM --> Flex
+    WM --> Attention
+    WM --> Inhibitor
+    PM --> Attention
+    Drift --> Attention
+    Flex --> Attention
+    Attention --> Thalamus
+
+    %% Subcortical → Thalamus
+    Hipp -->|"relevant episodes"| Thalamus
+    BG -->|"activate / suppress"| Thalamus
+    Amyg -->|"URGENT: reconfigure"| Thalamus
+    Cere -->|"predicted scores"| Thalamus
+
+    %% Amygdala override
+    Amyg -->|"override suppression"| Inhibitor
+
+    %% PFC → Thalamus (top-down modulation)
+    Inhibitor -->|"suppress list"| Thalamus
+    Flex -->|"tweak vs. reset"| Thalamus
+
+    %% Thalamus → Sensory Cortex
+    Thalamus -->|"enriched briefing"| Consult
+
+    %% Sensory Cortex → feedback loops
+    Resolve -->|"results + decisions"| WM
+    Resolve -->|"fulfilled triggers"| PM
+    Resolve -->|"episode record"| Hipp
+    Resolve -->|"actual vs. predicted"| Cere
+    Resolve -->|"reinforce patterns"| BG
+    Resolve -->|"mid-task recalibration"| Thalamus
+
+    %% Escalation → Human
+    Drift -->|"drift alert"| Decisions
+    Attention -->|"proposal / escalation"| Decisions
+    Flex -->|"strategy failure"| Decisions
+    Amyg -->|"URGENT"| Decisions
+    Decisions -->|"human response"| WM
+
+    %% Styling
+    classDef human fill:#f5e6d3,stroke:#d4a574,color:#333
+    classDef pfc fill:#e3d5f0,stroke:#9b7dc4,color:#333
+    classDef thal fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef sc fill:#d5e8d4,stroke:#82b366,color:#333
+    classDef memory fill:#fff2cc,stroke:#d6b656,color:#333
+    classDef inhibit fill:#f8cecc,stroke:#b85450,color:#333
+    classDef flex fill:#e6d5a8,stroke:#c4a35a,color:#333
+    classDef prospect fill:#d5e8ed,stroke:#5b9aa0,color:#333
+    classDef subcort fill:#f0f0f0,stroke:#999,color:#333
+
+    class Brief,Intent,Decisions human
+    class Planner,Drift,Attention pfc
+    class Thalamus thal
+    class Consult,Build,Evaluate,Resolve sc
+    class WM memory
+    class Inhibitor inhibit
+    class Flex flex
+    class PM prospect
+    class Hipp,BG,Amyg,Cere subcort

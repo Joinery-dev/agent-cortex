@@ -1,0 +1,28 @@
+---
+title: Tension-Axis Circle Layout — Opposing Forces Define the Geometry
+---
+%% The circle isn't just a chart — it's a tension map.
+%% Each diameter IS a tradeoff. The polygon shape IS the story.
+
+graph TD
+    subgraph "Axis Placement Rule"
+        direction TB
+        R1["1. Detected tensions define diameters"]
+        R2["2. Conflicting senses sit 180° apart"]
+        R3["3. Related receptors cluster near their tension pole"]
+        R4["4. Uncontested measures fill remaining slots"]
+        R1 --> R2 --> R3 --> R4
+    end
+
+    subgraph "Example: 3 Tensions Detected"
+        direction TB
+
+        T1["TENSION 1: Brand Voice vs Accessibility<br/>Creative expression ↔ Universal access"]
+        T2["TENSION 2: Visual Density vs Spacing<br/>Information richness ↔ Breathing room"]
+        T3["TENSION 3: Performance vs Animation<br/>Load speed ↔ Visual delight"]
+    end
+
+    subgraph "Resulting Circle Layout"
+        direction TB
+        NOTE["Brand Voice at 12:00 — Accessibility at 6:00<br/>Visual Density at 2:00 — Spacing at 8:00<br/>Performance at 10:00 — Animation at 4:00<br/><br/>Each diameter = one tradeoff<br/>Polygon skew = which side is winning"]
+    end

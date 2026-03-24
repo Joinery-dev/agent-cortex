@@ -1,0 +1,180 @@
+---
+title: "Brainstem — Three Responsibilities"
+---
+flowchart TB
+  %% ═══════════════════════════════════════════════════════════
+  %% 1. RHYTHM — the recursive four-phase heartbeat
+  %% ═══════════════════════════════════════════════════════════
+
+  subgraph rhythm["1. RHYTHM — Every Loop, Every Scale"]
+    direction TB
+
+    subgraph universal["The Universal Cycle"]
+      direction TB
+      P["🔀 Prepare\n(Thalamus)\nassemble context"]
+      E["⚡ Execute\n(Motor / Sensory)\ndo the work"]
+      I["🧠 Integrate\n(Subcortical)\nlearn from results"]
+      G{"🎯 Gate\n(Prefrontal)\ndecide"}
+
+      P --> E --> I --> G
+      G -- "continue" --> P
+      G -- "complete" --> UP["↑ return to parent"]
+      G -- "escalate" --> ESC["↑ bubble to parent gate"]
+      G -- "pause" --> WAIT["⏸ await input"]
+      WAIT -- "resume" --> P
+    end
+
+    subgraph nesting["Nested Instantiations"]
+      direction TB
+
+      subgraph L1["Project"]
+        direction LR
+        L1P["intake\nbrief + taste"] --> L1E["task-dispatch ↓"] --> L1I["retrospective"] --> L1G["delivered?"]
+      end
+
+      subgraph L2["Task-Dispatch"]
+        direction LR
+        L2P["pick task\ncheck triggers"] --> L2E["sensory-cortex ↓"] --> L2I["between-tasks"] --> L2G["more tasks?"]
+        L2G -. "continue" .-> L2P
+      end
+
+      subgraph L3["Sensory-Cortex"]
+        direction LR
+        L3P["consult\nsenses"] --> L3E["build-cycle ↓"] --> L3I["evaluate\ntensions"] --> L3G["accept?\nrevise?"]
+        L3G -. "continue" .-> L3P
+      end
+
+      subgraph L4["Build-Cycle"]
+        direction LR
+        L4P["premotor\nplan"] --> L4E["primary motor\nproduces"] --> L4I["proprioception\ncheck"] --> L4G["correct?"]
+        L4G -. "continue" .-> L4P
+      end
+
+      L1E -.-> L2
+      L2E -.-> L3
+      L3E -.-> L4
+    end
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% 2. HOMEOSTASIS — vital signs + reflexes
+  %% ═══════════════════════════════════════════════════════════
+
+  subgraph homeostasis["2. HOMEOSTASIS — Vital Signs"]
+    direction TB
+
+    subgraph vitals["Continuous Monitoring"]
+      direction LR
+      WM["Working Memory\nLoad 0–1"]
+      PA["Prediction\nAccuracy 0–1"]
+      CC["Context\nCapacity 0–1"]
+      LS["Learning Signal\nHealth 0–1"]
+      WV["Weight\nVolatility 0–1"]
+    end
+
+    subgraph reflexes["Automatic Responses"]
+      direction TB
+      R1["WM high →\ntrigger rest"]
+      R2["Prediction low →\ntrigger rest"]
+      R3["Context critical →\nevict context\n(breathing reflex)"]
+      R4["Learning low →\nflag for PFC\n(can't fix by reflex)"]
+      R5["Weights volatile →\ntrigger rest"]
+    end
+
+    WM --> R1
+    PA --> R2
+    CC --> R3
+    LS --> R4
+    WV --> R5
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% 3. REST — consolidation cycles
+  %% ═══════════════════════════════════════════════════════════
+
+  subgraph rest["3. REST — Consolidation (NE = 0)"]
+    direction TB
+
+    subgraph triggers["Load Signals → Rest Decision"]
+      direction LR
+      ED["Episode\nDensity"]
+      MP["Memory\nPressure"]
+      PD["Prediction\nDrift"]
+      WI["Weight\nInstability"]
+      DP["Deferred\nProcessing"]
+    end
+
+    subgraph restRhythm["Rest Rhythm (same 4 phases)"]
+      direction LR
+      RP["Prepare\nassemble what needs\nconsolidating"]
+      RE["Execute\nconsolidate"]
+      RI["Integrate\nupdate stores"]
+      RG["Gate\nload resolved?"]
+      RP --> RE --> RI --> RG
+      RG -. "need more rest" .-> RP
+    end
+
+    subgraph processes["Consolidation Processes"]
+      direction TB
+      C1["Crystallize\nepisodes → principles"]
+      C2["Prune Memory\npromote or drop"]
+      C3["Decay Connections\nweaken unused"]
+      C4["Recalibrate\nprediction models"]
+      C5["Settle Weights\nlet oscillations damp"]
+      C6["Deferred Checks\nphase gates, deep drift"]
+    end
+
+    triggers --> restRhythm
+    RE --> processes
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% Breathing — context management reflex
+  %% ═══════════════════════════════════════════════════════════
+
+  subgraph breathing["Breathing — Context Window Reflex"]
+    direction LR
+    WARM["Warmup\npreload predicted\ncontext on rhythm start"]
+    STEADY["Steady State\nevict least-relevant\nwhen capacity critical"]
+    COOL["Cooldown\nflush or persist\non rhythm complete"]
+    WARM --> STEADY --> COOL
+  end
+
+  %% ═══════════════════════════════════════════════════════════
+  %% Cross-links
+  %% ═══════════════════════════════════════════════════════════
+
+  R1 --> rest
+  R2 --> rest
+  R5 --> rest
+  R3 --> breathing
+  homeostasis -. "monitors all rhythms" .-> rhythm
+
+  %% ═══════════════════════════════════════════════════════════
+  %% Interrupts
+  %% ═══════════════════════════════════════════════════════════
+
+  subgraph interrupts["Interrupt Model"]
+    direction LR
+    SOFT["Soft\n(drift, flexibility)\nchecked at gate"]
+    HARD["Hard\n(amygdala, emergency)\nfreezes mid-phase"]
+  end
+
+  %% Styling
+  style rhythm fill:#1a1a2e,stroke:#e94560,color:#fff
+  style homeostasis fill:#1a1a2e,stroke:#f7b731,color:#fff
+  style rest fill:#1a1a2e,stroke:#a55eea,color:#fff
+  style breathing fill:#1a1a2e,stroke:#26de81,color:#fff
+  style interrupts fill:#2d132c,stroke:#ee4540,color:#fff
+  style universal fill:#16213e,stroke:#0f3460,color:#fff
+  style nesting fill:#16213e,stroke:#0f3460,color:#fff
+  style vitals fill:#2d2d44,stroke:#f7b731,color:#fff
+  style reflexes fill:#2d2d44,stroke:#f7b731,color:#fff
+  style triggers fill:#2d2d44,stroke:#a55eea,color:#fff
+  style restRhythm fill:#2d2d44,stroke:#a55eea,color:#fff
+  style processes fill:#2d2d44,stroke:#a55eea,color:#fff
+
+  style P fill:#533483,stroke:#fff,color:#fff
+  style E fill:#e94560,stroke:#fff,color:#fff
+  style I fill:#0f3460,stroke:#fff,color:#fff
+  style G fill:#f08a5d,stroke:#fff,color:#000

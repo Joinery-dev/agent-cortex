@@ -1,0 +1,59 @@
+---
+title: "How Agent Cortex Learns and Adapts"
+---
+graph TB
+    subgraph LEARN["🧠 LEARNING SYSTEMS"]
+        direction TB
+
+        Hipp["📓 EPISODIC MEMORY<br/><i>Remembers full stories, not just facts<br/>'Last time we tried card grids on a services page,<br/>it failed — accordion layout worked instead'</i>"]
+
+        BG["⚙️ LEARNED ROUTINES<br/><i>Gets faster with experience<br/>'Blog posts always need SEO + Readability +<br/>Performance — skip the deliberation, just activate them'</i>"]
+
+        Cere["🎯 PREDICTION<br/><i>Anticipates problems before they happen<br/>'Image-heavy page without performance focus<br/>→ expect a 4/10 score. Adjust the brief upfront.'</i>"]
+
+        Amyg["🚨 URGENCY DETECTION<br/><i>Interrupts everything when it matters<br/>'Security vulnerability found mid-build<br/>→ stop, reconfigure, escalate to human'</i>"]
+    end
+
+    subgraph RELAY["🔀 THALAMUS — the central relay"]
+        Thal["Every system feeds through here.<br/>The Thalamus decides what's relevant<br/>for THIS specific task, right now."]
+    end
+
+    subgraph WORK["👁️ TASK EXECUTION"]
+        direction LR
+        Brief["Enriched<br/>Briefing"] --> Do["Consult → Build →<br/>Evaluate → Resolve"]
+    end
+
+    subgraph RESULT["📊 AFTER EVERY TASK"]
+        direction TB
+        Outcome["What happened?"]
+    end
+
+    %% Learning systems → Thalamus
+    Hipp -->|"relevant past episodes"| Thal
+    BG -->|"which senses to activate"| Thal
+    Cere -->|"predicted scores"| Thal
+    Amyg -->|"OVERRIDE: urgent signal"| Thal
+
+    %% Thalamus → Work
+    Thal --> Brief
+
+    %% Work → Results → Learning
+    Do --> Outcome
+    Outcome -->|"full episode recorded"| Hipp
+    Outcome -->|"routines reinforced or weakened"| BG
+    Outcome -->|"predictions calibrated"| Cere
+
+    %% How they interact with each other
+    Hipp -.->|"'we've seen this before'"| Cere
+    BG -.->|"'novel task — no routine'"| Amyg
+
+    %% Styling
+    classDef learn fill:#f0e6f9,stroke:#956ac4,color:#333
+    classDef relay fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef work fill:#d5e8d4,stroke:#82b366,color:#333
+    classDef result fill:#fff2cc,stroke:#d6b656,color:#333
+
+    class Hipp,BG,Cere,Amyg learn
+    class Thal relay
+    class Brief,Do work
+    class Outcome result

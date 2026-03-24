@@ -1,0 +1,78 @@
+---
+title: "Learning Across Tasks"
+---
+sequenceDiagram
+    participant You
+    participant Cortex
+    participant Senses
+    participant Build as Motor Cortex
+
+    You->>Cortex: Project brief + intent + taste
+    Cortex->>You: Plan: 12 tasks, 3 phases
+
+    rect rgb(245, 241, 250)
+        Note over Senses: Task 1 · Hero (novel → explore)
+        Cortex->>Senses: Consult
+        Senses->>Senses: Explore: 3 approaches generated
+        Note over Senses: Cerebellum has no prediction — select most surprising
+        Senses->>Build: Build selected approach
+        Build->>Senses: Evaluate
+        Senses->>Cortex: Design 8 · Perf 6
+        Note over Cortex: Large dopamine signal → record everything
+    end
+
+    rect rgb(241, 250, 241)
+        Note over Senses: Task 2 · About (routine → skip explore)
+        Note over Senses: Basal ganglia: strong match → skip explore
+        Cortex->>Senses: Consult — senses recall Task 1
+        Senses->>Build: Build directly
+        Build->>Senses: Evaluate
+        Senses->>Cortex: Perf 8 · A11y 5
+    end
+
+    rect rgb(255, 250, 240)
+        Note over You,Cortex: Drift: a11y at 5.5 avg
+        Cortex->>You: A11y scoring low. Prioritize?
+        You->>Cortex: Yes — ADA compliance
+    end
+
+    rect rgb(241, 250, 241)
+        Note over Senses: Task 3 · Gallery (triggers fire)
+        Cortex->>Senses: Perf + a11y elevated
+        Senses->>Build: Build with constraints
+        Build->>Senses: Evaluate
+        Senses->>Cortex: Perf 8 · A11y 7
+        Note over Cortex: Predicted perf 6, got 8 → positive dopamine
+    end
+
+    rect rgb(245, 245, 250)
+        Note over Cortex: Between tasks: Crystallization
+        Note over Cortex: 3 episodes about image-heavy pages clustered
+        Note over Cortex: Principle extracted: "image-heavy pages need perf constraints upfront — retrofitting is expensive"
+        Note over Cortex: Principle available to thalamus for future routing
+    end
+
+    rect rgb(252, 241, 241)
+        Note over Senses: Task 4 · Services (novel → explore)
+        Senses->>Senses: Explore: 4 approaches
+        Senses->>Build: Build top pick
+        Build->>Senses: Design 4
+        Senses->>Build: Revise
+        Build->>Senses: Design 4.5
+        Note over Cortex: Predicted 7, got 4 → large negative dopamine
+        Note over Cortex: Flexibility: strategy problem → reset
+        Cortex->>Build: Abandon approach, new layout
+        Build->>Senses: Design 7.5
+    end
+
+    rect rgb(255, 250, 240)
+        Note over You,Cortex: Taste divergence detected
+        Cortex->>You: Warm tones stated but cool scores higher. Update?
+        You->>Cortex: Good catch. Update it.
+    end
+
+    rect rgb(255, 250, 240)
+        Note over You,Cortex: Prospective trigger fires
+        Cortex->>You: Booking next. Calendly or custom?
+        You->>Cortex: Calendly. Don't overbuild.
+    end

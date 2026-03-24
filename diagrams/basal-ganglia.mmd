@@ -1,0 +1,50 @@
+---
+title: Basal Ganglia — Learned Routine Activation
+---
+flowchart TD
+    Task([New Task]) --> Match
+
+    subgraph BG ["Basal Ganglia"]
+        direction TB
+
+        Store[("Routine Store\n────────────\nActivation fingerprints\nnot task categories\n────────────\nEach routine:\n• Sense set that co-activates\n• Confidence score — decays\n• Observation count\n• Override rate")]
+
+        Match["Pattern Match\ntask embedding →\nnearest fingerprint"] <-.->|lookup| Store
+
+        Match --> Conf{Confidence\n≥ threshold?}
+
+        Conf -->|Yes| Gate{"Novelty Gate\ntask features within\nroutine's known\ndistribution?"}
+        Conf -->|No match or\nlow confidence| FULL[Full Consul]
+
+        Gate -->|Within distribution| SHORT[Shortcut Activation\nlearned sense set]
+        Gate -->|Outlier detected| FULL
+    end
+
+    FULL --> Consul[All senses\nevaluate relevance]
+    SHORT --> MC[Motor Cortex]
+    Consul --> MC
+
+    MC --> Eval[Evaluation\nactive senses score]
+
+    Eval -->|"Sense shaped work\nor caught real issue"| Strengthen[Strengthen]
+    Eval -->|"Sense rubber-stamped\nno tensions raised"| Weaken[Weaken]
+    Eval -->|"Missing sense would\nhave caught something"| Revise[Revise]
+    Eval -->|"Novel sense set\nstabilizes over N tasks"| Create[New Routine]
+
+    Strengthen & Weaken & Revise & Create -.->|update| Store
+
+    Library["Sense added to\nsensory cortex"] -.->|"decay all\nroutine confidence"| Store
+    Disuse["Time without\nactivation"] -.->|"gradual\nconfidence decay"| Store
+
+    style BG fill:none,stroke:#7c6af0,stroke-width:2px
+    style Store fill:#1a1d27,color:#e2e4ea,stroke:#7c6af0
+    style Match fill:#232733,color:#e2e4ea,stroke:#5b4cc4
+    style Gate fill:#232733,color:#e2e4ea,stroke:#60a5fa
+    style SHORT fill:#232733,color:#4ade80,stroke:#4ade80
+    style FULL fill:#232733,color:#fb923c,stroke:#fb923c
+    style Strengthen fill:#1a1d27,color:#4ade80,stroke:#2d3244
+    style Weaken fill:#1a1d27,color:#f87171,stroke:#2d3244
+    style Revise fill:#1a1d27,color:#facc15,stroke:#2d3244
+    style Create fill:#1a1d27,color:#22d3ee,stroke:#2d3244
+    style Library fill:none,color:#8b8fa3,stroke:#2d3244,stroke-dasharray:4
+    style Disuse fill:none,color:#8b8fa3,stroke:#2d3244,stroke-dasharray:4

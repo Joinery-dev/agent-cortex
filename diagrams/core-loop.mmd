@@ -1,0 +1,41 @@
+---
+title: The Core Loop
+---
+flowchart TD
+    task["🎯 Task Arrives\n'Build the homepage hero section'"]
+
+    activate["⚡ Activation Cascade\nWhich senses care about this task?"]
+
+    distill["🧠 Distiller\nDissolve intent + taste into\njudgment for this specific task"]
+
+    build["🔨 Motor Cortex\nProduces work guided by\ncontextual briefing"]
+
+    evaluate["👁️ Senses Evaluate\nEach activated sense scores\nthe work through its lens"]
+
+    check{All scores\nacceptable?}
+
+    resolve["⚖️ Resolve Tensions\nFind creative synthesis that\nsatisfies competing perspectives"]
+
+    done["✅ Complete\nWork + evaluations + decision log"]
+
+    human["🙋 Needs Human\nMax cycles reached,\nsurface lowest-confidence decisions"]
+
+    task --> activate
+    activate --> distill
+    distill --> build
+    build --> evaluate
+    evaluate --> check
+    check -- "Yes" --> done
+    check -- "No, tensions found" --> resolve
+    resolve -- "Revision briefing" --> build
+    resolve -- "Max cycles reached" --> human
+
+    style task fill:#f9f0e6,stroke:#c4956a
+    style activate fill:#e8f4e8,stroke:#6b9e6b
+    style distill fill:#e6eef9,stroke:#6a8fc4
+    style build fill:#f9e6e6,stroke:#c46a6a
+    style evaluate fill:#f0e6f9,stroke:#956ac4
+    style resolve fill:#f9f6e6,stroke:#c4b06a
+    style done fill:#e8f4e8,stroke:#6b9e6b
+    style human fill:#f9e6e6,stroke:#c46a6a
+    style check fill:#fff,stroke:#999

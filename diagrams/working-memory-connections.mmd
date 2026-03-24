@@ -1,0 +1,126 @@
+---
+title: "Working Memory — Full System Connection Map"
+---
+graph LR
+    %% ─── WRITERS ──────────────────────────────────────
+    subgraph WRITE["✏️ WRITERS"]
+        direction TB
+        Planner["Planner #1<br/><small>writes task graph + deps</small>"]
+        SchedW["Scheduler #7<br/><small>sets current task</small>"]
+        Inhib["Inhibitor #4<br/><small>suppresses senses</small>"]
+        EvalW["Eval Loop #12<br/><small>writes receptor scores</small>"]
+        ResW["Resolver #13<br/><small>writes key strategies</small>"]
+        Amy["Amygdala #17<br/><small>urgent issues + overrides</small>"]
+        Human["Human #23 #25<br/><small>verdicts on decisions</small>"]
+    end
+
+    %% ─── WORKING MEMORY ──────────────────────────────
+    subgraph WM["📋 WORKING MEMORY"]
+        direction TB
+
+        subgraph STORED["Stored"]
+            direction LR
+            tasks["Task Graph<br/><i>TaskSnapshot[]</i>"]
+            scores["Score History<br/><i>ScoreSnapshot[]</i>"]
+            patterns["Patterns<br/><i>EstablishedPattern[]</i>"]
+            decisions["Decisions<br/><i>DecisionRecord[]</i>"]
+            inhibited["Inhibited Senses<br/><i>string[]</i>"]
+            questions["Open Questions<br/><i>OpenQuestion[]</i>"]
+            current["Current Task<br/><i>string | null</i>"]
+        end
+
+        subgraph COMPUTED["Computed from Score History"]
+            direction LR
+            rTrends["Receptor Trends<br/><small>per-receptor avg + direction</small>"]
+            sTrends["Sense Trends<br/><small>per-sense avg + direction</small>"]
+        end
+
+        subgraph FUTURE["Added in later phases"]
+            direction LR
+            arousal["Arousal Level<br/><small>norepinephrine · Phase 4</small>"]
+            predictions["Predictions<br/><small>cerebellum · Phase 3</small>"]
+            dopaSig["Dopamine Signal<br/><small>last surprise · Phase 3</small>"]
+        end
+    end
+
+    %% Write edges
+    Planner --> tasks
+    SchedW --> current
+    Inhib --> inhibited
+    EvalW --> scores
+    ResW --> decisions
+    Amy --> questions
+    Amy --> inhibited
+    Human --> decisions
+
+    %% Computation
+    scores -.->|"aggregate"| rTrends
+    scores -.->|"aggregate"| sTrends
+
+    %% ─── THALAMUS ────────────────────────────────────
+    subgraph THAL["🔀 THALAMUS #8"]
+        direction TB
+        thalCore["Reads ALL of WM<br/>Contextual extraction,<br/>not concatenation"]
+    end
+
+    tasks --> thalCore
+    scores --> thalCore
+    patterns --> thalCore
+    decisions --> thalCore
+    inhibited --> thalCore
+    questions --> thalCore
+    rTrends --> thalCore
+    sTrends --> thalCore
+
+    %% Indirect consumers via Thalamus
+    subgraph VIA["Via Thalamus Briefings"]
+        direction TB
+        Consult["Consultation #9"]
+        Motor["Motor Cortex #11"]
+        Explore["Explore Phase #10"]
+        EvalR["Evaluation #12"]
+        ResR["Resolution #13"]
+    end
+
+    thalCore --> Consult
+    thalCore --> Motor
+    thalCore --> Explore
+    thalCore --> EvalR
+    thalCore --> ResR
+
+    %% ─── DIRECT READERS ──────────────────────────────
+    subgraph READ["👁️ DIRECT READERS"]
+        direction TB
+        SchedR["Scheduler #7<br/><small>tasks · trends · questions</small>"]
+        Drift["Drift Monitor #6<br/><small>trends · decisions · patterns</small>"]
+        Flex["Cog Flexibility #5<br/><small>trends · task summaries</small>"]
+        Cereb["Cerebellum #18<br/><small>full score history · tasks</small>"]
+        BG["Basal Ganglia #16<br/><small>tasks · score history</small>"]
+        Dopa["Dopamine #21<br/><small>latest task scores</small>"]
+        Plast["Plasticity #19<br/><small>score trends</small>"]
+        SenseSum["Sense Summaries #26<br/><small>per-sense scores · patterns</small>"]
+        TasteFB["Taste Feedback #24<br/><small>sense-level trends</small>"]
+    end
+
+    rTrends --> READ
+    sTrends --> READ
+    tasks --> READ
+    scores --> READ
+    patterns --> READ
+    decisions --> READ
+
+    %% ─── STYLES ──────────────────────────────────────
+    classDef stored fill:#fff2cc,stroke:#d6b656,color:#333
+    classDef computed fill:#fff2cc,stroke:#d6b656,color:#555,stroke-dasharray:5 5
+    classDef future fill:#f5f5f5,stroke:#bbb,color:#999
+    classDef writer fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef reader fill:#d5e8d4,stroke:#82b366,color:#333
+    classDef thal fill:#e1d5e7,stroke:#9673a6,color:#333
+
+    class tasks,scores,patterns,decisions,inhibited,questions,current stored
+    class rTrends,sTrends computed
+    class arousal,predictions,dopaSig future
+    class Planner,SchedW,Inhib,EvalW,ResW,Amy,Human writer
+    class SchedR,Drift,Flex,Cereb,BG,Dopa,Plast,SenseSum,TasteFB reader
+    class Consult,Motor,Explore,EvalR,ResR reader
+    class thalCore thal

@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Cortex — Build Tracker</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #232733;
+      --border: #2d3244;
+      --text: #e2e4ea;
+      --text-dim: #8b8fa3;
+      --accent: #7c6af0;
+      --accent-dim: #5b4cc4;
+      --green: #4ade80;
+      --yellow: #facc15;
+      --red: #f87171;
+      --orange: #fb923c;
+      --blue: #60a5fa;
+      --cyan: #22d3ee;
+      --pink: #f472b6;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+    }
+
+    .nav-tab {
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      color: var(--text-dim);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+
+    .nav-tab:hover { background: var(--surface2); color: var(--text); }
+    .nav-tab.active { background: var(--accent-dim); color: var(--text); border-color: var(--accent); }
+
+    /* ─── Summary bar ─── */
+    .summary {
+      display: flex;
+      gap: 12px;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 20px;
+      flex: 1;
+      text-align: center;
+    }
+
+    .summary-number {
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .summary-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    .num-complete { color: var(--green); }
+    .num-progress { color: var(--accent); }
+    .num-remaining { color: var(--text-dim); }
+
+    /* ─── Progress bar ─── */
+    .progress-bar {
+      margin: 0 32px;
+      padding: 16px 0;
+    }
+
+    .progress-track {
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .progress-fill-complete {
+      height: 100%;
+      background: var(--green);
+      transition: width 0.6s;
+    }
+
+    .progress-fill-progress {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.6s;
+    }
+
+    /* ─── Phases ─── */
+    .phases {
+      padding: 20px 32px 60px;
+    }
+
+    .phase {
+      margin-bottom: 32px;
+    }
+
+    .phase-header {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .phase-name {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .phase-count {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .phase-desc {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 8px;
+    }
+
+    /* ─── Feature card ─── */
+    .feature {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      transition: all 0.2s;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .feature:hover {
+      border-color: var(--accent-dim);
+    }
+
+    .feature.status-complete {
+      border-left: 3px solid var(--green);
+      opacity: 0.7;
+    }
+
+    .feature.status-in-progress {
+      border-left: 3px solid var(--accent);
+      background: rgba(124, 106, 240, 0.05);
+    }
+
+    .feature.status-blocked {
+      border-left: 3px solid var(--red);
+    }
+
+    .feature.expanded {
+      border-color: var(--accent);
+    }
+
+    .feature-main {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .feature-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 3px;
+      flex-shrink: 0;
+      border: 2px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .status-complete .feature-dot {
+      background: var(--green);
+      border-color: var(--green);
+    }
+
+    .status-in-progress .feature-dot {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(124, 106, 240, 0.4);
+      animation: pulse 2s infinite;
+    }
+
+    .status-blocked .feature-dot {
+      background: var(--red);
+      border-color: var(--red);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .feature-content { flex: 1; min-width: 0; }
+
+    .feature-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .feature-name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .feature-top-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .feature-region {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--surface2);
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .feature-chevron {
+      font-size: 10px;
+      color: var(--text-dim);
+      transition: transform 0.2s;
+    }
+
+    .feature.expanded .feature-chevron {
+      transform: rotate(90deg);
+    }
+
+    .region-pfc { background: rgba(124, 106, 240, 0.15); color: var(--accent); }
+    .region-thalamus { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
+    .region-sensory { background: rgba(74, 222, 128, 0.15); color: var(--green); }
+    .region-subcortical { background: rgba(255, 255, 255, 0.08); color: var(--text-dim); }
+    .region-neurotransmitter { background: rgba(244, 114, 182, 0.15); color: var(--pink); }
+    .region-plasticity { background: rgba(251, 146, 60, 0.15); color: var(--orange); }
+    .region-human { background: rgba(250, 204, 21, 0.15); color: var(--yellow); }
+
+    .feature-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .feature-notes {
+      font-size: 11px;
+      color: var(--cyan);
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    /* ─── Expanded detail panel ─── */
+    .feature-detail {
+      display: none;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .feature.expanded .feature-detail {
+      display: block;
+      animation: slideDown 0.2s ease-out;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .detail-plan {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.6;
+      margin-bottom: 14px;
+      white-space: pre-wrap;
+    }
+
+    .detail-section-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    /* ─── Subtasks ─── */
+    .subtasks {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .subtask {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-radius: 6px;
+      border: 1px solid transparent;
+    }
+
+    .subtask.st-complete {
+      opacity: 0.6;
+    }
+
+    .subtask.st-in-progress {
+      border-color: var(--accent-dim);
+      background: rgba(124, 106, 240, 0.04);
+    }
+
+    .subtask-check {
+      width: 16px;
+      height: 16px;
+      border-radius: 4px;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      margin-top: 1px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .st-complete .subtask-check {
+      background: var(--green);
+      border-color: var(--green);
+      color: var(--bg);
+    }
+
+    .st-in-progress .subtask-check {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: var(--bg);
+      animation: pulse 2s infinite;
+    }
+
+    .subtask-content { flex: 1; min-width: 0; }
+
+    .subtask-name {
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .subtask-detail {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+
+    /* ─── Subtask mini progress ─── */
+    .feature-subtask-bar {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtask-bar-track {
+      flex: 1;
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+      display: flex;
+    }
+
+    .subtask-bar-complete {
+      height: 100%;
+      background: var(--green);
+      transition: width 0.4s;
+    }
+
+    .subtask-bar-progress {
+      height: 100%;
+      background: var(--accent);
+      transition: width 0.4s;
+    }
+
+    .subtask-bar-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      white-space: nowrap;
+    }
+
+    .no-subtasks {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-style: italic;
+      padding: 8px 0;
+    }
+
+    /* ─── Diagram bucket ─── */
+    .diagram-bucket {
+      margin: 0 32px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .diagram-bucket-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      padding: 4px 0;
+    }
+
+    .diagram-bucket-header:hover .bucket-label { color: var(--text); }
+
+    .bucket-chevron {
+      font-size: 10px;
+      color: var(--text-dim);
+      transition: transform 0.2s;
+    }
+
+    .diagram-bucket.open .bucket-chevron {
+      transform: rotate(90deg);
+    }
+
+    .bucket-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      font-weight: 600;
+      transition: color 0.2s;
+    }
+
+    .bucket-count {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .diagram-chips {
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .diagram-bucket.open .diagram-chips {
+      display: flex;
+    }
+
+    .diagram-chip {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .diagram-chip:hover {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(124, 106, 240, 0.08);
+    }
+
+    /* Phase-level diagrams */
+    .phase-diagrams {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    /* ─── Diagram modal ─── */
+    .diagram-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(4px);
+    }
+
+    .diagram-modal.visible {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.15s ease-out;
+    }
+
+    .diagram-modal-inner {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 90vw;
+      height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .diagram-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .diagram-modal-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .diagram-modal-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .diagram-modal-btn {
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .diagram-modal-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .diagram-modal-close {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 0 4px;
+      font-family: inherit;
+    }
+
+    .diagram-modal-close:hover { color: var(--text); }
+
+    .diagram-modal-body {
+      flex: 1;
+      overflow: auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #fff;
+    }
+
+    .diagram-modal-body svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .diagram-loading {
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+
+    .diagram-error {
+      color: var(--red);
+      font-size: 13px;
+      white-space: pre-wrap;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <h1>Agent <span>Cortex</span></h1>
+    </div>
+    <div class="nav-tabs">
+      <a class="nav-tab" href="/">Live</a>
+      <a class="nav-tab active" href="/build">Build Progress</a>
+    </div>
+  </header>
+
+  <div class="diagram-bucket" id="global-diagrams"></div>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="progress-bar">
+    <div class="progress-track" id="progress-track"></div>
+  </div>
+
+  <div class="phases" id="phases"></div>
+
+  <!-- Diagram modal — renders one diagram at a time -->
+  <div class="diagram-modal" id="diagram-modal">
+    <div class="diagram-modal-inner">
+      <div class="diagram-modal-header">
+        <div class="diagram-modal-title" id="diagram-modal-title"></div>
+        <div class="diagram-modal-actions">
+          <button class="diagram-modal-btn" id="diagram-open-live">Open in Mermaid Live</button>
+          <button class="diagram-modal-close" onclick="closeDiagram()">✕</button>
+        </div>
+      </div>
+      <div class="diagram-modal-body" id="diagram-modal-body">
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ─── Mermaid: lazy-loaded, one diagram at a time ───
+    let mermaidReady = false;
+    let mermaidLoading = false;
+
+    async function ensureMermaid() {
+      if (mermaidReady) return;
+      if (mermaidLoading) {
+        // Wait for existing load
+        while (!mermaidReady) await new Promise(r => setTimeout(r, 50));
+        return;
+      }
+      mermaidLoading = true;
+      const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose',
+        flowchart: { curve: 'basis', padding: 20 },
+        sequence: { actorMargin: 50, messageFontSize: 14, noteFontSize: 13 },
+        fontSize: 16,
+      });
+      window._mermaid = mermaid;
+      mermaidReady = true;
+    }
+
+    let currentDiagramFile = null;
+
+    window.openDiagram = async function(file, title) {
+      const modal = document.getElementById('diagram-modal');
+      const body = document.getElementById('diagram-modal-body');
+      const titleEl = document.getElementById('diagram-modal-title');
+
+      modal.classList.add('visible');
+      titleEl.textContent = title;
+      body.innerHTML = '<div class="diagram-loading">Loading diagram...</div>';
+      currentDiagramFile = file;
+
+      try {
+        // Fetch the .mmd file
+        const resp = await fetch('/diagrams/' + file);
+        if (!resp.ok) throw new Error('Failed to fetch ' + file);
+        let code = await resp.text();
+
+        // Strip frontmatter
+        code = code.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '').trim();
+
+        // Load mermaid if needed
+        body.innerHTML = '<div class="diagram-loading">Rendering...</div>';
+        await ensureMermaid();
+
+        // Render
+        const id = 'mmd-' + Date.now();
+        const { svg } = await window._mermaid.render(id, code);
+        body.innerHTML = svg;
+
+        // Set up "Open in Mermaid Live" button
+        document.getElementById('diagram-open-live').onclick = () => {
+          const state = JSON.stringify({ code, mermaid: { theme: 'default' }, autoSync: true, updateDiagram: true });
+          const buf = new TextEncoder().encode(state);
+          // Use pako-compatible deflate via DecompressionStream workaround
+          // Simpler: just open with base64 state
+          const b64 = btoa(unescape(encodeURIComponent(state)));
+          window.open('https://mermaid.live/edit#base64:' + b64, '_blank');
+        };
+      } catch (e) {
+        body.innerHTML = '<div class="diagram-error">' + e.message + '</div>';
+      }
+    };
+
+    window.closeDiagram = function() {
+      const modal = document.getElementById('diagram-modal');
+      const body = document.getElementById('diagram-modal-body');
+      modal.classList.remove('visible');
+      // Dispose rendered SVG to free memory
+      body.innerHTML = '';
+      currentDiagramFile = null;
+    };
+
+    // Close on escape or backdrop click
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDiagram(); });
+    document.getElementById('diagram-modal').addEventListener('click', e => {
+      if (e.target === e.currentTarget) closeDiagram();
+    });
+
+    // ─── Diagram chips ───
+    function renderDiagramChips(diagrams) {
+      if (!diagrams || diagrams.length === 0) return '';
+      return diagrams.map(d =>
+        `<div class="diagram-chip" onclick="event.stopPropagation(); openDiagram('${d.file}', '${d.label.replace(/'/g, "\\'")}')">${d.label}</div>`
+      ).join('');
+    }
+
+    function renderDiagramBucket(containerId, label, diagrams) {
+      const el = document.getElementById(containerId);
+      if (!diagrams || diagrams.length === 0) { el.style.display = 'none'; return; }
+      el.innerHTML = `
+        <div class="diagram-bucket-header" onclick="this.parentElement.classList.toggle('open')">
+          <span class="bucket-chevron">▶</span>
+          <span class="bucket-label">${label}</span>
+          <span class="bucket-count">(${diagrams.length})</span>
+        </div>
+        <div class="diagram-chips">
+          ${renderDiagramChips(diagrams)}
+        </div>
+      `;
+    }
+
+    const REGION_CLASSES = {
+      'Prefrontal Cortex': 'region-pfc',
+      'Thalamus': 'region-thalamus',
+      'Sensory Cortex': 'region-sensory',
+      'Subcortical': 'region-subcortical',
+      'Neurotransmitter': 'region-neurotransmitter',
+      'Plasticity': 'region-plasticity',
+      'Human Partnership': 'region-human',
+    };
+
+    // Track which features are expanded across refreshes
+    const expandedSet = new Set();
+
+    function renderSubtaskBar(subtasks) {
+      if (!subtasks || subtasks.length === 0) return '';
+      const done = subtasks.filter(s => s.status === 'complete').length;
+      const prog = subtasks.filter(s => s.status === 'in-progress').length;
+      const total = subtasks.length;
+      const pctDone = (done / total * 100).toFixed(0);
+      const pctProg = (prog / total * 100).toFixed(0);
+      return `
+        <div class="feature-subtask-bar">
+          <div class="subtask-bar-track">
+            <div class="subtask-bar-complete" style="width:${pctDone}%"></div>
+            <div class="subtask-bar-progress" style="width:${pctProg}%"></div>
+          </div>
+          <div class="subtask-bar-label">${done}/${total}</div>
+        </div>
+      `;
+    }
+
+    function renderSubtasks(subtasks) {
+      if (!subtasks || subtasks.length === 0) {
+        return '<div class="no-subtasks">No subtasks defined yet</div>';
+      }
+      return `<div class="subtasks">${subtasks.map(s => `
+        <div class="subtask st-${s.status}">
+          <div class="subtask-check">${s.status === 'complete' ? '✓' : s.status === 'in-progress' ? '►' : ''}</div>
+          <div class="subtask-content">
+            <div class="subtask-name">${s.name}</div>
+            ${s.detail ? `<div class="subtask-detail">${s.detail}</div>` : ''}
+          </div>
+        </div>
+      `).join('')}</div>`;
+    }
+
+    function renderFeature(f) {
+      const isExpanded = expandedSet.has(f.id);
+      const hasSubtasks = f.subtasks && f.subtasks.length > 0;
+      const hasPlan = f.plan;
+
+      return `
+        <div class="feature status-${f.status} ${isExpanded ? 'expanded' : ''}" data-id="${f.id}" onclick="toggleFeature(${f.id})">
+          <div class="feature-main">
+            <div class="feature-dot"></div>
+            <div class="feature-content">
+              <div class="feature-top">
+                <div class="feature-name">${f.name}</div>
+                <div class="feature-top-right">
+                  <div class="feature-region ${REGION_CLASSES[f.region] || ''}">${f.region}</div>
+                  <div class="feature-chevron">▶</div>
+                </div>
+              </div>
+              <div class="feature-desc">${f.description}</div>
+              ${f.notes ? `<div class="feature-notes">${f.notes}</div>` : ''}
+              ${hasSubtasks ? renderSubtaskBar(f.subtasks) : ''}
+            </div>
+          </div>
+          <div class="feature-detail">
+            ${hasPlan ? `
+              <div class="detail-section-label">Plan</div>
+              <div class="detail-plan">${f.plan}</div>
+            ` : ''}
+            <div class="detail-section-label">Subtasks</div>
+            ${renderSubtasks(f.subtasks)}
+          </div>
+        </div>
+      `;
+    }
+
+    window.toggleFeature = function(id) {
+      if (expandedSet.has(id)) expandedSet.delete(id);
+      else expandedSet.add(id);
+      // Re-render just the card
+      const el = document.querySelector(`[data-id="${id}"]`);
+      if (el) el.classList.toggle('expanded');
+      // Also toggle detail visibility without full re-render
+      const detail = el?.querySelector('.feature-detail');
+      if (detail) {
+        detail.style.display = el.classList.contains('expanded') ? 'block' : 'none';
+      }
+      const chevron = el?.querySelector('.feature-chevron');
+      if (chevron) {
+        chevron.style.transform = el.classList.contains('expanded') ? 'rotate(90deg)' : '';
+      }
+    };
+
+    async function load() {
+      let data;
+      try {
+        const resp = await fetch('/build-status');
+        data = await resp.json();
+      } catch (e) {
+        try {
+          const resp = await fetch('../../build-status.json');
+          data = await resp.json();
+        } catch (e2) {
+          document.getElementById('phases').innerHTML = '<p style="padding:32px;color:var(--text-dim)">Could not load build-status.json</p>';
+          return;
+        }
+      }
+
+      // Global diagrams
+      renderDiagramBucket('global-diagrams', 'Architecture Diagrams', data.globalDiagrams);
+
+      const all = data.phases.flatMap(p => p.features);
+      const complete = all.filter(f => f.status === 'complete').length;
+      const inProgress = all.filter(f => f.status === 'in-progress').length;
+      const total = all.length;
+
+      // Summary
+      document.getElementById('summary').innerHTML = `
+        <div class="summary-card"><div class="summary-number num-complete">${complete}</div><div class="summary-label">Complete</div></div>
+        <div class="summary-card"><div class="summary-number num-progress">${inProgress}</div><div class="summary-label">In Progress</div></div>
+        <div class="summary-card"><div class="summary-number num-remaining">${total - complete - inProgress}</div><div class="summary-label">Remaining</div></div>
+        <div class="summary-card"><div class="summary-number" style="color:var(--text)">${total}</div><div class="summary-label">Total Features</div></div>
+      `;
+
+      // Progress bar
+      const pctComplete = (complete / total * 100).toFixed(1);
+      const pctProgress = (inProgress / total * 100).toFixed(1);
+      document.getElementById('progress-track').innerHTML = `
+        <div class="progress-fill-complete" style="width:${pctComplete}%"></div>
+        <div class="progress-fill-progress" style="width:${pctProgress}%"></div>
+      `;
+
+      // Phases
+      const phasesEl = document.getElementById('phases');
+      phasesEl.innerHTML = '';
+
+      for (const phase of data.phases) {
+        const phaseComplete = phase.features.filter(f => f.status === 'complete').length;
+
+        const div = document.createElement('div');
+        div.className = 'phase';
+        const hasPhaseDiagrams = phase.diagrams && phase.diagrams.length > 0;
+        div.innerHTML = `
+          <div class="phase-header">
+            <div class="phase-name">${phase.name}</div>
+            <div class="phase-count">${phaseComplete}/${phase.features.length}</div>
+          </div>
+          <div class="phase-desc">${phase.description}</div>
+          ${hasPhaseDiagrams ? `<div class="phase-diagrams">${renderDiagramChips(phase.diagrams)}</div>` : ''}
+          <div class="features">
+            ${phase.features.map(f => renderFeature(f)).join('')}
+          </div>
+        `;
+        phasesEl.appendChild(div);
+      }
+    }
+
+    load();
+    setInterval(load, 10000);
+  </script>
+</body>
+</html>

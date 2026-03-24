@@ -1,0 +1,64 @@
+---
+title: Activation Cascade — "20 Questions" for Sensory Activation
+---
+flowchart TD
+    task["Task: 'Build the homepage hero section'"]
+
+    subgraph tier1["Tier 1 — Which senses care?"]
+        design["✅ DESIGN\n0.95"]
+        intent_a["✅ INTENT ALIGNMENT\n0.85"]
+        perf["✅ PERFORMANCE\n0.70"]
+        correct["⬜ CORRECTNESS\n0.30"]
+        security["❌ SECURITY\n0.05"]
+    end
+
+    subgraph tier2["Tier 2 — Which pathways within each?"]
+        visual["✅ Visual Identity"]
+        ux["✅ User Experience"]
+        emotional["✅ Emotional Response"]
+        access["❌ Accessibility"]
+        vp["✅ Value Proposition"]
+        audience["✅ Audience Fit"]
+        loadtime["✅ Page Load"]
+        imgopt["✅ Image Optimization"]
+        mobile["✅ Mobile"]
+    end
+
+    subgraph tier3["Tier 3 — Which specific receptors?"]
+        trust["trust-at-first-glance"]
+        warmth["warmth"]
+        prof["professionalism"]
+        color["color harmony"]
+        brand["brand alignment"]
+        typo["typography"]
+        spacing["spacing rhythm"]
+        vp2["value prop clarity"]
+        aud2["audience fit"]
+        img2["image optimization"]
+        load2["page load time"]
+        mob2["mobile responsiveness"]
+    end
+
+    result["12 activated receptors\nfrom a cortex of hundreds"]
+
+    task --> tier1
+    design --> visual & ux & emotional
+    intent_a --> vp & audience
+    perf --> loadtime & imgopt & mobile
+    visual --> color & brand & typo & spacing
+    ux --> trust
+    emotional --> warmth & prof
+    vp --> vp2
+    audience --> aud2
+    imgopt --> img2
+    loadtime --> load2
+    mobile --> mob2
+    tier3 --> result
+
+    style task fill:#f9f0e6,stroke:#c4956a
+    style result fill:#e8f4e8,stroke:#6b9e6b
+    style design fill:#e6eef9,stroke:#6a8fc4
+    style intent_a fill:#e6eef9,stroke:#6a8fc4
+    style perf fill:#e6eef9,stroke:#6a8fc4
+    style correct fill:#f5f5f5,stroke:#ccc
+    style security fill:#f5f5f5,stroke:#ccc

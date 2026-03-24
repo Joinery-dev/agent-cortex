@@ -1,0 +1,54 @@
+---
+title: PNS — I/O Boundary
+---
+flowchart TB
+    subgraph Brain["🧠 Cognition"]
+        MC[Motor Cortex]
+        Prop[Proprioception]
+        Thal[Thalamus]
+    end
+
+    subgraph PNS["🖐️ Peripheral Nervous System"]
+        Registry[Capability Registry]
+        Exec[Intention Executor]
+        Gate[Checkpoint Gate]
+        Router[Afferent Router]
+    end
+
+    subgraph Signals["⚡ Modulation"]
+        NE["Norepinephrine\n(arousal)"]
+        Cere["Cerebellum\n(confidence)"]
+    end
+
+    subgraph World["🌍 World"]
+        W1[Files & Code]
+        W2[APIs & Tools]
+        W3[Deployments]
+        W4[Human]
+    end
+
+    subgraph Learn["📚 Learning Systems"]
+        Eval[Evaluators]
+        Hipp[Hippocampus]
+        BG[Basal Ganglia]
+    end
+
+    %% Efferent: intentions flow out
+    MC -->|"Intention\n(semantic + structural)"| Exec
+    Exec -->|tool calls| W1 & W2 & W3 & W4
+
+    %% Afferent: perceptions flow in
+    W1 & W2 & W3 & W4 -->|results| Router
+    Router -->|Perception| Gate
+    Gate -->|"continue / pause"| Prop
+    Prop -->|adjust next| MC
+
+    %% Learning systems observe perceptions
+    Router -.->|Perception| Learn
+
+    %% Neurotransmitter modulation of checkpoint gate
+    NE -.->|threshold| Gate
+    Cere -.->|threshold| Gate
+
+    %% Thalamus queries capability registry
+    Thal <-->|"capabilities\nquery / list"| Registry

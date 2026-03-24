@@ -1,0 +1,30 @@
+---
+title: Activation Cascade — Lightning Strike Visualization
+---
+graph TD
+    subgraph "Persona: DESIGN"
+        D[DESIGN<br/>87% peak]
+        D --> D_VI[Visual Identity<br/>85%]
+        D --> D_L[Layout<br/>72%]
+        D_VI --> D_VI_CH[Color Harmony<br/>85%]
+        D_VI --> D_VI_TY[Typography<br/>78%]
+        D_L --> D_L_SP[Spacing<br/>72%]
+    end
+
+    subgraph "Persona: CORRECTNESS"
+        C[CORRECTNESS<br/>64% peak]
+        C --> C_SEM[Semantics<br/>64%]
+        C_SEM --> C_SEM_AC[Accessibility<br/>64%]
+    end
+
+    subgraph "Persona: INTENT ALIGNMENT"
+        I[INTENT ALIGNMENT<br/>91% peak]
+        I --> I_TC[Tone<br/>91%]
+        I --> I_PR[Purpose<br/>80%]
+        I_TC --> I_TC_BR[Brand Voice<br/>91%]
+        I_PR --> I_PR_CTA[Call to Action<br/>80%]
+    end
+
+    style D fill:#1a1d27,stroke:#7c6af0,stroke-width:2px,color:#7c6af0
+    style C fill:#1a1d27,stroke:#7c6af0,stroke-width:2px,color:#7c6af0
+    style I fill:#1a1d27,stroke:#7c6af0,stroke-width:2px,color:#7c6af0

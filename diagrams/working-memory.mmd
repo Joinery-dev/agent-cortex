@@ -1,0 +1,98 @@
+---
+title: "Working Memory + Prospective Memory"
+---
+graph LR
+    subgraph WM["📋 WORKING MEMORY — active scratchpad"]
+        direction TB
+
+        subgraph TG["Task Graph"]
+            direction LR
+            T1["Hero ✓"]
+            T2["About ✓"]
+            T3["Gallery<br/><b>active</b>"]
+            T4["Services<br/><i>next</i>"]
+            T5["Booking<br/><i>blocked</i>"]
+            T1 ~~~ T2 ~~~ T3 ~~~ T4 ~~~ T5
+        end
+
+        subgraph EST["Established Patterns"]
+            direction LR
+            E1["Dark + bold visual"]
+            E2["Direct tone"]
+            E3["PascalCase components"]
+            E4["CSS Grid layouts"]
+        end
+
+        subgraph SCORES["Score Trends"]
+            direction LR
+            S1["Design 8.2 ↑"]
+            S2["Perf 6.5 →"]
+            S3["A11y 5.5 ↓"]
+            S4["Intent 9.0 →"]
+        end
+
+        subgraph DECISIONS["Key Decisions"]
+            direction LR
+            D1["Dark over light<br/><i>conf 0.7</i>"]
+            D2["Impact over speed<br/><i>conf 0.5</i>"]
+            D3["Added a11y constraint<br/><i>human</i>"]
+            D4["Card grid → accordion<br/><i>strategy reset</i>"]
+        end
+
+        subgraph SUPPRESSED["Inhibited Senses"]
+            direction LR
+            X1["Scalability"]
+            X2["i18n"]
+            X3["Compliance"]
+        end
+    end
+
+    subgraph PM["⏰ PROSPECTIVE MEMORY — future triggers"]
+        direction TB
+
+        subgraph PENDING["Pending"]
+            direction LR
+            P1["🔴 Booking starts →<br/>ask about Calendly"]
+            P2["🟡 Image-heavy task →<br/>enforce perf budget"]
+            P3["🟢 All tasks →<br/>a11y is constraint"]
+        end
+
+        subgraph FIRED["Fired ✓"]
+            direction LR
+            F1["Perf budget<br/>on gallery"]
+            F2["A11y constraint<br/>from task 3"]
+        end
+    end
+
+    subgraph USE["Consumers"]
+        direction TB
+        Thalamus["🔀 Thalamus"]
+        DriftMon["Drift Monitor"]
+        Attention["Scheduler"]
+        Inhibitor["Inhibitor"]
+        Flex["Flexibility"]
+    end
+
+    WM --> Thalamus
+    WM --> DriftMon
+    WM --> Attention
+    WM --> Inhibitor
+    WM --> Flex
+    PM --> Attention
+    PM --> Thalamus
+
+    classDef done fill:#d5e8d4,stroke:#82b366,color:#333
+    classDef active fill:#fff2cc,stroke:#d6b656,color:#333
+    classDef pending fill:#f5f5f5,stroke:#999,color:#666
+    classDef blocked fill:#f8cecc,stroke:#b85450,color:#333
+    classDef suppressed fill:#f0e0e0,stroke:#cc9999,color:#666
+    classDef trigger fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef fired fill:#d5e8d4,stroke:#82b366,color:#333
+
+    class T1,T2 done
+    class T3 active
+    class T4 pending
+    class T5 blocked
+    class X1,X2,X3 suppressed
+    class P1,P2,P3 trigger
+    class F1,F2 fired

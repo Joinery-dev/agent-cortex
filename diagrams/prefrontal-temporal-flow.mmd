@@ -1,0 +1,83 @@
+---
+title: "Temporal Flow: Learning and Modulation Across Tasks"
+---
+sequenceDiagram
+    participant H as 👤 Human
+    participant PFC as 🧠 Prefrontal Cortex
+    participant WM as Working Memory
+    participant PM as Prospective Memory
+    participant INH as Inhibitor
+    participant FLEX as Flexibility
+    participant TH as 🔀 Thalamus
+    participant SC as 👁️ Sensory Cortex
+
+    H->>PFC: Project brief + intent + taste
+    PFC->>PFC: Decompose into task graph
+    PFC->>WM: Initialize empty history
+
+    Note over PFC,INH: INITIAL INHIBITION
+    PFC->>INH: 5-page site → suppress Scalability, i18n, Compliance
+    PFC->>H: Plan: 12 tasks, 3 phases. Suppressing 3 senses. OK?
+    H->>PFC: Keep compliance suppressed, flag accessibility
+
+    rect rgb(230, 220, 240)
+        Note over PFC,SC: TASK 1 · Hero Section
+        PFC->>TH: Task 1 + intent + taste
+        TH->>SC: Briefing (9 active senses, no history)
+        SC->>SC: consult → build → evaluate → resolve
+        SC->>WM: Dark visual language, perf 6/10
+        SC->>PM: Trigger: image-heavy task → enforce perf budget
+    end
+
+    Note over WM: Visual: dark/bold · Perf: 6/10 · Tone: direct
+
+    rect rgb(220, 232, 220)
+        Note over PFC,SC: TASK 2 · About Page
+        PFC->>TH: Task 2 + history
+        TH->>INH: Text-heavy → suppress SEO subcategories
+        TH->>SC: Briefing (visual language + tone dissolved in)
+        SC->>SC: consult → build → evaluate → resolve
+        SC->>WM: Tone confirmed, perf 8/10, accessibility 5/10
+    end
+
+    Note over WM: Accessibility trending low (avg 5.5)
+
+    rect rgb(255, 242, 204)
+        Note over PFC,H: DRIFT DETECTED → ESCALATION
+        PFC->>H: Accessibility at 5.5 avg. Add as constraint?
+        H->>WM: Yes — ADA compliance matters here
+        H->>PM: Trigger: all tasks → accessibility is hard constraint
+    end
+
+    rect rgb(220, 232, 220)
+        Note over PFC,SC: TASK 3 · Gallery (image-heavy)
+        PFC->>PM: Check triggers
+        PM->>TH: 🔥 enforce perf budget
+        PM->>TH: 🔥 accessibility = hard constraint
+        TH->>SC: Briefing (perf elevated, accessibility as constraint)
+        SC->>SC: consult → build → evaluate → resolve
+        SC->>WM: Lazy loading + WebP, perf 8/10, a11y 7/10
+    end
+
+    Note over WM: Scores improving · Visual language consistent
+
+    rect rgb(240, 220, 220)
+        Note over PFC,SC: TASK 4 · Services — STUCK
+        TH->>SC: Briefing
+        SC->>SC: build → eval: design 4/10
+        SC->>SC: revise → eval: design 4.5/10
+        SC->>FLEX: Two cycles, no progress
+        FLEX->>FLEX: Perseveration detected → strategy problem
+        FLEX->>TH: RESET: abandon card grid, try new concept
+        TH->>SC: Fresh briefing (strategy directive)
+        SC->>SC: build new approach → eval: 7.5/10
+        SC->>WM: Accordion layout after card grid failed
+    end
+
+    rect rgb(255, 242, 204)
+        Note over PFC,H: PROSPECTIVE TRIGGER · Booking
+        PFC->>PM: Task 5 starting
+        PM->>PFC: 🔥 ask human about Calendly vs. custom
+        PFC->>H: Calendly or custom booking?
+        H->>WM: Calendly. Don't overbuild.
+    end

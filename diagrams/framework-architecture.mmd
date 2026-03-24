@@ -1,0 +1,56 @@
+---
+title: Agent Cortex — Framework Architecture
+---
+flowchart TB
+    subgraph human_layer["Human Layer"]
+        human["Human"]
+        intent_cap["Intent\nWhat are we building and why?"]
+        taste_cap["Taste\nHow should ambiguous decisions go?"]
+    end
+
+    subgraph cortex["The Cortex"]
+        orchestrator["Orchestrator\nThe main loop"]
+
+        subgraph neural["Sensory Layer"]
+            library["Sensory Cortex\nSenses at multiple scales"]
+            activator["Activator\nCascading relevance check"]
+        end
+
+        distiller["Distiller\nContextual dissolution\nIntent + Taste + Task → Judgment"]
+
+        motor["Motor Cortex\nProduces work guided by briefing"]
+
+        subgraph evaluation["Evaluation"]
+            evaluator["Evaluator\nSenses score through their lens"]
+            resolver["Resolver\nFind creative synthesis\nfor competing perspectives"]
+        end
+    end
+
+    subgraph output["Output"]
+        work["Work Product"]
+        decisions["Decision Log\nConfidence-scored"]
+        tensions_log["Resolved Tensions"]
+    end
+
+    human --> intent_cap & taste_cap
+    intent_cap & taste_cap --> orchestrator
+    orchestrator --> activator
+    activator --> library
+    library --> activator
+    activator --> distiller
+    intent_cap & taste_cap --> distiller
+    distiller --> motor
+    motor --> evaluator
+    evaluator --> resolver
+    resolver --> motor
+    resolver --> orchestrator
+    orchestrator --> output
+
+    style human fill:#f9f0e6,stroke:#c4956a
+    style orchestrator fill:#e6eef9,stroke:#6a8fc4
+    style library fill:#e8f4e8,stroke:#6b9e6b
+    style activator fill:#e8f4e8,stroke:#6b9e6b
+    style distiller fill:#f0e6f9,stroke:#956ac4
+    style motor fill:#f9e6e6,stroke:#c46a6a
+    style evaluator fill:#f9f6e6,stroke:#c4b06a
+    style resolver fill:#f9f6e6,stroke:#c4b06a

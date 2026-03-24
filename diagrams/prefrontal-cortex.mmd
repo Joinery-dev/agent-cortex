@@ -1,0 +1,150 @@
+---
+title: "Agent Cortex: Full Architecture"
+---
+graph TB
+    subgraph HUMAN["👤 HUMAN"]
+        direction LR
+        Brief["Project Brief"]
+        Intent["Intent + Taste Profile"]
+        Decisions["Escalated Decisions"]
+    end
+
+    subgraph PFC["🧠 PREFRONTAL CORTEX — executive function"]
+        direction TB
+        Planner["PLANNER<br/><i>task graph + sequencing<br/>+ integration checks at phase gates</i>"]
+        WM["WORKING MEMORY<br/><i>active scratchpad — patterns,<br/>scores, decisions, conventions</i>"]
+        PM["PROSPECTIVE MEMORY<br/><i>triggers waiting to fire</i>"]
+        Inhibitor["INHIBITOR<br/><i>suppresses irrelevant senses</i>"]
+        Flex["COGNITIVE FLEXIBILITY<br/><i>detects stuck → resets strategy</i>"]
+        Drift["DRIFT MONITOR<br/><i>trajectory vs. intent<br/>+ stated vs. demonstrated taste</i>"]
+        Attention["ATTENTION SCHEDULER<br/><i>drives the whole system —<br/>what's next, what's blocked,<br/>explore or exploit</i>"]
+    end
+
+    subgraph THAL["🔀 THALAMUS — context routing"]
+        Thalamus["Routes the right context<br/>to the right place"]
+    end
+
+    subgraph SUBCORT["SUBCORTICAL SYSTEMS"]
+        direction LR
+        Hipp["HIPPOCAMPUS<br/><i>episodic memory +<br/>crystallization: episodes → principles</i>"]
+        BG["BASAL GANGLIA<br/><i>learned routines<br/>+ explore/exploit gate</i>"]
+        Amyg["AMYGDALA<br/><i>urgency override</i>"]
+        Cere["CEREBELLUM<br/><i>predicts eval scores<br/>before building</i>"]
+    end
+
+    subgraph PLAST["🧬 PLASTICITY — connections reshape with experience"]
+        Weights["CONNECTION WEIGHTS<br/><i>every 🧬 connection has a learned weight<br/>+ per-sense evaluation influence<br/>strengthens what works, weakens what doesn't<br/>— this is how identity forms —</i>"]
+    end
+
+    subgraph SC["👁️ SENSORY CORTEX — per-task loop"]
+        direction TB
+        Consult["CONSULTATION<br/><i>senses weigh in — each sense<br/>maintains its own project summary</i>"]
+        Explore["EXPLORE<br/><i>generate 3-5 divergent approaches<br/>select by surprise × quality<br/>— skipped when BG has strong match —</i>"]
+        MC["MOTOR CORTEX<br/><i>premotor: plans the approach<br/>primary: produces the artifact<br/>proprioception: self-corrects mid-build</i>"]
+        Evaluate["EVALUATE<br/><i>score on activated receptors<br/>🧬 per-sense weights shape influence</i>"]
+        Resolve["RESOLVE<br/><i>synthesize tensions</i>"]
+
+        Consult --> Explore
+        Explore -->|"selected approach"| MC
+        MC --> Evaluate --> Resolve
+        Resolve -.->|"revise"| MC
+    end
+
+    %% Human → PFC (fixed)
+    Brief --> Planner
+    Intent --> Planner
+    Intent --> Thalamus
+
+    %% PFC internal (fixed — structural wiring)
+    Planner --> WM
+    Planner --> PM
+    WM --> Drift
+    WM --> Flex
+    WM --> Attention
+    WM --> Inhibitor
+    PM --> Attention
+    Drift --> Attention
+    Flex --> Attention
+    Attention --> Thalamus
+
+    %% BG gates explore phase (PLASTIC)
+    BG ==>|"🧬 novelty gate"| Explore
+
+    %% Subcortical → Thalamus (ALL PLASTIC)
+    %% These weights determine what the system pays attention to.
+    %% They ARE the system's learned identity.
+    Hipp ==>|"🧬 episodes + principles"| Thalamus
+    BG ==>|"🧬 activate / suppress"| Thalamus
+    Amyg ==>|"🧬 urgency signal"| Thalamus
+    Cere ==>|"🧬 predicted scores"| Thalamus
+
+    %% Amygdala override (PLASTIC — scar tissue)
+    Amyg ==>|"🧬 override suppression"| Inhibitor
+
+    %% PFC → Thalamus (PLASTIC)
+    Inhibitor ==>|"🧬 suppress list"| Thalamus
+    Flex ==>|"🧬 tweak vs. reset"| Thalamus
+
+    %% Thalamus → Sensory Cortex (fixed — always routes)
+    Thalamus -->|"enriched briefing"| Consult
+
+    %% Sensory Cortex → feedback (fixed — results always flow back)
+    Resolve -->|"results + decisions"| WM
+    Resolve -->|"fulfilled triggers"| PM
+    Resolve -->|"episode record"| Hipp
+    Resolve -->|"reinforce patterns"| BG
+    Resolve -->|"mid-task recalibration"| Thalamus
+
+    %% HIPPOCAMPUS CRYSTALLIZATION
+    Hipp -.->|"🔮 crystallization:<br/>episodes → principles<br/>triggered by pattern density<br/>or large dopamine signal"| Hipp
+
+    %% DOPAMINE: reward prediction error
+    Resolve -->|"actual scores"| Cere
+    Cere -.->|"⚡ dopamine: prediction error"| Hipp
+    Cere -.->|"⚡ dopamine: prediction error"| BG
+    Cere -.->|"⚡ dopamine: self-calibration"| Cere
+
+    %% PLASTICITY: what updates the weights
+    %% Dopamine provides the learning gradient.
+    %% Human satisfaction prevents Goodhart's law —
+    %% the system can't just optimize its own scores.
+    Cere -.->|"⚡ dopamine"| Weights
+    Decisions -.->|"satisfaction signal"| Weights
+
+    %% NOREPINEPHRINE: arousal dial
+    Planner -.->|"💊 norepinephrine:<br/>task risk/novelty → arousal"| Thalamus
+    Amyg -.->|"💊 norepinephrine: spike"| Thalamus
+
+    %% Escalation → Human
+    Drift -->|"drift / taste divergence"| Decisions
+    Attention -->|"proposal"| Decisions
+    Flex -->|"strategy failure"| Decisions
+    Amyg -->|"URGENT"| Decisions
+    Decisions -->|"human response"| WM
+
+    %% Styling
+    classDef human fill:#f5e6d3,stroke:#d4a574,color:#333
+    classDef pfc fill:#e3d5f0,stroke:#9b7dc4,color:#333
+    classDef thal fill:#dae8fc,stroke:#6c8ebf,color:#333
+    classDef sc fill:#d5e8d4,stroke:#82b366,color:#333
+    classDef memory fill:#fff2cc,stroke:#d6b656,color:#333
+    classDef inhibit fill:#f8cecc,stroke:#b85450,color:#333
+    classDef flex fill:#e6d5a8,stroke:#c4a35a,color:#333
+    classDef prospect fill:#d5e8ed,stroke:#5b9aa0,color:#333
+    classDef subcort fill:#f0f0f0,stroke:#999,color:#333
+    classDef motor fill:#c8e6c9,stroke:#66bb6a,color:#333
+    classDef explore fill:#e8f5e9,stroke:#4caf50,color:#333
+    classDef plastic fill:#fce4ec,stroke:#e91e63,color:#333
+
+    class Brief,Intent,Decisions human
+    class Planner,Drift,Attention pfc
+    class Thalamus thal
+    class Consult,Evaluate,Resolve sc
+    class Explore explore
+    class MC motor
+    class WM memory
+    class Inhibitor inhibit
+    class Flex flex
+    class PM prospect
+    class Hipp,BG,Amyg,Cere subcort
+    class Weights plastic

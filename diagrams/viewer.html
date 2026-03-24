@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Agent Cortex — Diagrams</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: system-ui, sans-serif; }
+    nav { position: fixed; top: 0; left: 0; right: 0; background: #16213e; padding: 12px 24px; display: flex; gap: 8px; flex-wrap: wrap; z-index: 10; border-bottom: 1px solid #0f3460; }
+    nav button { background: #0f3460; color: #e0e0e0; border: 1px solid #533483; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    nav button:hover { background: #533483; }
+    nav button.active { background: #533483; border-color: #e94560; color: #fff; }
+    h2 { text-align: center; padding: 80px 0 8px; color: #e94560; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
+    #canvas { position: fixed; top: 60px; left: 0; right: 0; bottom: 0; overflow: hidden; cursor: grab; }
+    #canvas.dragging { cursor: grabbing; }
+    #diagram { background: #fff; border-radius: 12px; padding: 32px; width: fit-content; min-width: 300px; position: absolute; }
+    .zoom-bar { position: fixed; bottom: 24px; right: 24px; display: flex; gap: 4px; z-index: 10; }
+    .zoom-bar button { background: #16213e; color: #e0e0e0; border: 1px solid #533483; width: 36px; height: 36px; border-radius: 6px; cursor: pointer; font-size: 18px; }
+    .zoom-bar button:hover { background: #533483; }
+  </style>
+</head>
+<body>
+  <nav id="nav"></nav>
+  <div id="canvas">
+    <h2 id="title"></h2>
+    <div id="diagram"></div>
+  </div>
+  <div class="zoom-bar">
+    <button onclick="zoom(0.8)">−</button>
+    <button onclick="zoom(1/0.8)">+</button>
+    <button onclick="zoom(0)">1:1</button>
+  </div>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'default',
+      securityLevel: 'loose',
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { actorMargin: 40, messageFontSize: 13 }
+    });
+
+    const files = [
+      'prefrontal-cortex.mmd',
+      'prefrontal-temporal-flow.mmd',
+      'working-memory.mmd',
+      'framework-architecture.mmd',
+      'core-loop.mmd',
+      'activation-cascade.mmd',
+      'sensory-cortex.mmd',
+      'lightning-cascade.mmd',
+      'tension-axis-layout.mmd',
+      'tension-balance-radar.mmd'
+    ];
+
+    const diagrams = [];
+    for (const file of files) {
+      try {
+        const resp = await fetch(file);
+        if (!resp.ok) continue;
+        let text = await resp.text();
+        let title = file.replace('.mmd', '');
+        const fm = text.match(/^---\s*\n([\s\S]*?)\n---/);
+        if (fm) {
+          const t = fm[1].match(/title:\s*["']?(.+?)["']?\s*$/m);
+          if (t) title = t[1];
+          text = text.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+        }
+        diagrams.push({ file, title, text: text.trim() });
+      } catch (e) {}
+    }
+
+    const nav = document.getElementById('nav');
+    const titleEl = document.getElementById('title');
+    const diagram = document.getElementById('diagram');
+    let currentScale = 1;
+
+    window.zoom = function(factor) {
+      if (factor === 0) currentScale = 1;
+      else currentScale = Math.min(Math.max(currentScale * factor, 0.2), 4);
+      diagram.style.transform = `scale(${currentScale})`;
+      diagram.style.transformOrigin = 'top center';
+    };
+
+    async function show(i) {
+      const d = diagrams[i];
+      nav.querySelectorAll('button').forEach((b, j) => b.classList.toggle('active', j === i));
+      titleEl.textContent = d.title;
+      currentScale = 1;
+      diagram.style.transform = '';
+
+      // Render to a temp id so mermaid doesn't choke
+      const id = 'mmd-' + Date.now();
+      try {
+        const { svg } = await mermaid.render(id, d.text);
+        diagram.innerHTML = svg;
+      } catch (e) {
+        diagram.innerHTML = `<pre style="color:red">${e.message}</pre>`;
+      }
+    }
+
+    diagrams.forEach((d, i) => {
+      const btn = document.createElement('button');
+      btn.textContent = d.title;
+      btn.onclick = () => show(i);
+      nav.appendChild(btn);
+    });
+
+    if (diagrams.length) show(0);
+  </script>
+</body>
+</html>

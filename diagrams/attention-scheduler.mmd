@@ -1,0 +1,68 @@
+---
+title: "Attention Scheduler — The PFC's Decision Function"
+---
+flowchart TB
+    subgraph RHYTHM["Brainstem: Task-Dispatch Rhythm"]
+        prepare["prepare"]
+        execute["execute"]
+        integrate["integrate"]
+        gate["gate"]
+        prepare --> execute --> integrate --> gate
+        gate -->|"more tasks"| prepare
+    end
+
+    decide{"Attention Scheduler<br/>What deserves<br/>attention now?"}
+
+    prepare -.->|"calls"| decide
+
+    subgraph NOW["Signal Sources — Available Now"]
+        wm["Working Memory<br/>tasks, scores, trends,<br/>patterns, inhibitions"]
+        taskgraph["Task Graph<br/>dependencies,<br/>phase groups"]
+        vitals["Homeostasis<br/>vital signs,<br/>rest need"]
+    end
+
+    subgraph LATER["Signal Sources — Wired Later"]
+        drift["Drift Monitor<br/>Phase 4"]
+        flex["Cognitive Flexibility<br/>Phase 4"]
+        pm["Prospective Memory<br/>Phase 5"]
+        bg["Basal Ganglia<br/>Phase 3"]
+    end
+
+    wm -->|"read"| decide
+    taskgraph -->|"read"| decide
+    vitals -->|"read"| decide
+    drift -.-> decide
+    flex -.-> decide
+    pm -.-> decide
+    bg -.-> decide
+
+    subgraph ACTIONS["Scheduler Returns One Action"]
+        dispatch["dispatch-task<br/>which task, NE level,<br/>explore or exploit"]
+        escalate["escalate<br/>pause, ask the human"]
+        rest["rest<br/>consolidation cycle"]
+        replan["replan<br/>re-decompose project"]
+        done["complete<br/>all done"]
+    end
+
+    decide ==> ACTIONS
+
+    dispatch -->|"tells"| thalamus["Thalamus<br/>assemble briefing"]
+    thalamus -->|"enriched context"| execute
+
+    escalate --> human["Human"]
+    replan -->|"re-invokes"| planner["Planner"]
+    planner -->|"new graph"| taskgraph
+
+    classDef rhythm fill:#1a1a2e,stroke:#e94560,color:#fff
+    classDef scheduler fill:#0f3460,stroke:#e94560,color:#fff,stroke-width:3px
+    classDef signal fill:#16213e,stroke:#0f3460,color:#fff
+    classDef future fill:#16213e,stroke:#0f3460,color:#888,stroke-dasharray:5 5
+    classDef action fill:#533483,stroke:#e94560,color:#fff
+    classDef external fill:#2a2a4a,stroke:#888,color:#ccc
+
+    class prepare,execute,integrate,gate rhythm
+    class decide scheduler
+    class wm,taskgraph,vitals signal
+    class drift,flex,pm,bg future
+    class dispatch,escalate,rest,replan,done action
+    class thalamus,human,planner external
