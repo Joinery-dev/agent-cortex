@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { SenseEvaluation } from "../types/sense.js";
 import type { Tension, TensionResolution } from "../types/tension.js";
 import type { CortexConfig } from "../types/orchestrator.js";
+import type { WeightedEvaluation } from "./evaluation-weighter.js";
 import { callStructured } from "../llm/structured.js";
 import { resolverSystem, resolverUser } from "../llm/prompts.js";
 import { newId } from "../util/ids.js";
@@ -20,19 +21,52 @@ const SCORE_GAP_THRESHOLD = 4;
 const LOW_SCORE_THRESHOLD = 5;
 
 /**
- * Detect tensions from evaluation results.
+ * Compute tension severity modulated by stake.
+ *
+ * Base severity comes from score gap. The max stake of the two senses
+ * modulates: if both senses have low stake (below meanStake), severity
+ * is capped at "low" regardless of gap — low-stake disagreements
+ * don't warrant revision cycles.
+ */
+function computeSeverity(
+  gap: number,
+  stakeA: number,
+  stakeB: number,
+  meanStake: number,
+): "low" | "medium" | "high" {
+  const baseSeverity: "low" | "medium" | "high" =
+    gap >= 6 ? "high" : gap >= 4 ? "medium" : "low";
+
+  // Both senses below mean stake → cap at low
+  if (stakeA <= meanStake && stakeB <= meanStake) {
+    return "low";
+  }
+
+  return baseSeverity;
+}
+
+/**
+ * Detect tensions from weighted evaluation results.
  *
  * Tensions arise from:
  * 1. Score disparity — two senses disagree by more than SCORE_GAP_THRESHOLD
  * 2. Explicit flags — senses flagged tensions in their evaluations
- * 3. Low absolute scores — any sense below LOW_SCORE_THRESHOLD
+ *
+ * Severity is modulated by stake: low-stake disagreements produce
+ * at most "low" severity. High-stake disagreements keep their
+ * base severity.
  */
 export function detectTensions(
-  evaluations: SenseEvaluation[],
-  taskId: string
+  evaluations: WeightedEvaluation[],
+  taskId: string,
 ): Tension[] {
   const tensions: Tension[] = [];
   const seen = new Set<string>();
+
+  // Compute mean stake for severity modulation
+  const meanStake = evaluations.length > 0
+    ? evaluations.reduce((sum, e) => sum + e.adjustedStake, 0) / evaluations.length
+    : 0;
 
   // 1. Score disparity between sense pairs
   for (let i = 0; i < evaluations.length; i++) {
@@ -57,15 +91,17 @@ export function detectTensions(
             path: high.activationPath,
             score: high.score,
             assessment: high.assessment,
+            stake: high.adjustedStake,
           },
           senseB: {
             id: low.senseId,
             path: low.activationPath,
             score: low.score,
             assessment: low.assessment,
+            stake: low.adjustedStake,
           },
           description: `${high.activationPath.join(" > ")} scores ${high.score}/10 while ${low.activationPath.join(" > ")} scores ${low.score}/10 — a gap of ${gap} points`,
-          severity: gap >= 6 ? "high" : gap >= 4 ? "medium" : "low",
+          severity: computeSeverity(gap, high.adjustedStake, low.adjustedStake, meanStake),
         });
       }
     }
@@ -95,15 +131,22 @@ export function detectTensions(
             path: eval_.activationPath,
             score: eval_.score,
             assessment: eval_.assessment,
+            stake: eval_.adjustedStake,
           },
           senseB: {
             id: matchingEval.senseId,
             path: matchingEval.activationPath,
             score: matchingEval.score,
             assessment: matchingEval.assessment,
+            stake: matchingEval.adjustedStake,
           },
           description: flag.description,
-          severity: "medium",
+          severity: computeSeverity(
+            Math.abs(eval_.score - matchingEval.score),
+            eval_.adjustedStake,
+            matchingEval.adjustedStake,
+            meanStake,
+          ),
         });
       }
     }
@@ -113,8 +156,8 @@ export function detectTensions(
     emit("tension:detected", {
       severity: t.severity,
       description: t.description,
-      senseA: { path: t.senseA.path.join(" > "), score: t.senseA.score },
-      senseB: { path: t.senseB.path.join(" > "), score: t.senseB.score },
+      senseA: { path: t.senseA.path.join(" > "), score: t.senseA.score, stake: t.senseA.stake },
+      senseB: { path: t.senseB.path.join(" > "), score: t.senseB.score, stake: t.senseB.stake },
     });
   }
 

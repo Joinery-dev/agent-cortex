@@ -1,5 +1,6 @@
 ---
 title: "Agent Cortex: Full Architecture"
+scope: global
 ---
 graph TB
     subgraph HUMAN["👤 HUMAN"]
@@ -14,7 +15,7 @@ graph TB
         Planner["PLANNER<br/><i>task graph + sequencing<br/>+ integration checks at phase gates</i>"]
         WM["WORKING MEMORY<br/><i>active scratchpad — patterns,<br/>scores, decisions, conventions</i>"]
         PM["PROSPECTIVE MEMORY<br/><i>triggers waiting to fire</i>"]
-        Inhibitor["INHIBITOR<br/><i>suppresses irrelevant senses</i>"]
+        BasalGanglia["BASAL GANGLIA<br/><i>suppresses irrelevant senses</i>"]
         Flex["COGNITIVE FLEXIBILITY<br/><i>detects stuck → resets strategy</i>"]
         Drift["DRIFT MONITOR<br/><i>trajectory vs. intent<br/>+ stated vs. demonstrated taste</i>"]
         Attention["ATTENTION SCHEDULER<br/><i>drives the whole system —<br/>what's next, what's blocked,<br/>explore or exploit</i>"]
@@ -61,7 +62,7 @@ graph TB
     WM --> Drift
     WM --> Flex
     WM --> Attention
-    WM --> Inhibitor
+    WM --> BasalGanglia
     PM --> Attention
     Drift --> Attention
     Flex --> Attention
@@ -79,10 +80,10 @@ graph TB
     Cere ==>|"🧬 predicted scores"| Thalamus
 
     %% Amygdala override (PLASTIC — scar tissue)
-    Amyg ==>|"🧬 override suppression"| Inhibitor
+    Amyg ==>|"🧬 override suppression"| BasalGanglia
 
     %% PFC → Thalamus (PLASTIC)
-    Inhibitor ==>|"🧬 suppress list"| Thalamus
+    BasalGanglia ==>|"🧬 suppress list"| Thalamus
     Flex ==>|"🧬 tweak vs. reset"| Thalamus
 
     %% Thalamus → Sensory Cortex (fixed — always routes)
@@ -143,7 +144,7 @@ graph TB
     class Explore explore
     class MC motor
     class WM memory
-    class Inhibitor inhibit
+    class BasalGanglia inhibit
     class Flex flex
     class PM prospect
     class Hipp,BG,Amyg,Cere subcort

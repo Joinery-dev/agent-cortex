@@ -38,6 +38,8 @@ export type ReflexAction =
 export class HomeostasisMonitor {
   private vitals: VitalSigns;
   private thresholds: VitalSignThresholds;
+  /** Episode density from hippocampus — not a vital sign, but drives rest triggers. */
+  private episodeDensity = 0;
 
   constructor(thresholds?: Partial<VitalSignThresholds>) {
     this.thresholds = { ...DEFAULT_VITAL_THRESHOLDS, ...thresholds };
@@ -49,7 +51,13 @@ export class HomeostasisMonitor {
       contextCapacity: 0.2,
       learningSignalHealth: 0.9,
       weightVolatility: 0.1,
+      tonicDopamine: 0.5, // Neutral — no data yet
     };
+  }
+
+  /** Update episode density from hippocampus. Drives rest-cycle triggers. */
+  setEpisodeDensity(value: number): void {
+    this.episodeDensity = Math.max(0, Math.min(1, value));
   }
 
   /** Update a specific vital sign. Called by brain components. */
@@ -113,6 +121,13 @@ export class HomeostasisMonitor {
       });
     }
 
+    if (this.vitals.tonicDopamine < this.thresholds.tonicDopamine) {
+      actions.push({
+        type: "flag-pfc",
+        reason: `Tonic dopamine ${this.vitals.tonicDopamine.toFixed(2)} below threshold ${this.thresholds.tonicDopamine} — project persistently disappointing`,
+      });
+    }
+
     if (actions.length > 0) {
       emit("vitals:reflex", {
         actions: actions.map((a) => ({ type: a.type, reason: a.reason })),
@@ -138,7 +153,7 @@ export class HomeostasisMonitor {
    */
   getConsolidationLoad(): ConsolidationLoad {
     return {
-      episodeDensity: 0, // No hippocampus yet
+      episodeDensity: this.episodeDensity,
       memoryPressure: this.vitals.workingMemoryLoad,
       predictionDrift: 1 - this.vitals.predictionAccuracy,
       weightInstability: this.vitals.weightVolatility,

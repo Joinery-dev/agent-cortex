@@ -1,5 +1,6 @@
 ---
 title: "How Agent Cortex Works"
+scope: global
 ---
 graph TB
     subgraph HUMAN["👤 HUMAN"]
@@ -14,7 +15,7 @@ graph TB
         Planner["PLANNER<br/><i>decomposes project into a task graph<br/>with dependencies + parallel tracks</i>"]
         WM["WORKING MEMORY<br/><i>what's established so far: patterns,<br/>score trends, decisions, conventions</i>"]
         PM["PROSPECTIVE MEMORY<br/><i>future intentions waiting to fire<br/>'when booking page starts → ask about Calendly'</i>"]
-        Inhibitor["INHIBITOR<br/><i>suppresses senses that don't apply<br/>'scalability irrelevant for a 5-page site'</i>"]
+        BasalGanglia["BASAL GANGLIA<br/><i>suppresses senses that don't apply<br/>'scalability irrelevant for a 5-page site'</i>"]
         Flex["COGNITIVE FLEXIBILITY<br/><i>detects when an approach is stuck<br/>forces strategy reset, not just revision</i>"]
         Drift["DRIFT MONITOR<br/><i>catches slow divergence from intent<br/>that no single task reveals</i>"]
         Attention["ATTENTION SCHEDULER<br/><i>picks next task, checks triggers,<br/>decides what needs human input</i>"]
@@ -54,7 +55,7 @@ graph TB
     WM --> Drift
     WM --> Flex
     WM --> Attention
-    WM --> Inhibitor
+    WM --> BasalGanglia
     PM --> Attention
     Drift --> Attention
     Flex --> Attention
@@ -67,10 +68,10 @@ graph TB
     Cere -->|"predicted scores"| Thalamus
 
     %% Amygdala override
-    Amyg -->|"override suppression"| Inhibitor
+    Amyg ==>|"🧬 override suppression"| BasalGanglia
 
     %% PFC → Thalamus (top-down modulation)
-    Inhibitor -->|"suppress list"| Thalamus
+    BasalGanglia -->|"suppress list"| Thalamus
     Flex -->|"tweak vs. reset"| Thalamus
 
     %% Thalamus → Sensory Cortex
@@ -107,7 +108,7 @@ graph TB
     class Thalamus thal
     class Consult,Build,Evaluate,Resolve sc
     class WM memory
-    class Inhibitor inhibit
+    class BasalGanglia inhibit
     class Flex flex
     class PM prospect
     class Hipp,BG,Amyg,Cere subcort

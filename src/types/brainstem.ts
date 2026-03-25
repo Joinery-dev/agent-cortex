@@ -18,7 +18,7 @@
  * 3. REST — inserts consolidation cycles when the system has accumulated
  *    enough unprocessed load. Like sleep: not a timer, but load-triggered.
  *    Norepinephrine at zero. No task execution. The system turns inward:
- *    crystallize episodes, prune working memory, decay weak connections,
+ *    potentiate episodes, prune working memory, decay weak connections,
  *    recalibrate prediction models.
  *
  * New rhythm levels can be added without changing this file — any component
@@ -28,7 +28,7 @@
 import type { ProjectIntent, TasteProfile } from "./intent.js";
 import type { Task } from "./task.js";
 import type { OrchestratorResult } from "./orchestrator.js";
-import type { Council } from "./council.js";
+import type { Consultation } from "./consultation.js";
 import type { SenseEvaluation } from "./sense.js";
 import type { Tension, TensionResolution } from "./tension.js";
 import type { MotorPlan, SelfAssessment } from "./motor-cortex.js";
@@ -86,20 +86,24 @@ export interface SensoryCortexContext {
   task: Task;
   intent: ProjectIntent;
   taste: TasteProfile;
-  /** Briefing assembled by thalamus during prepare phase. */
-  briefing?: Record<string, unknown>;
+  /** NE level from Attention Scheduler, for inhibition + consultation conditions. */
+  neLevel?: number;
+  /** Explore/exploit mode from Attention Scheduler. */
+  mode?: "explore" | "exploit";
 }
 
 /** What the build-cycle rhythm needs to start. */
 export interface BuildCycleContext {
   task: Task;
-  council: Council;
+  consultation: Consultation;
   intent: ProjectIntent;
   taste: TasteProfile;
   /** The prompt assembled from consultation. */
   basePrompt: string;
   /** Previous work, if this is a revision cycle. */
   previousWork?: string;
+  /** Norepinephrine level from Attention Scheduler, for gate strategy selection. */
+  neLevel?: number;
 }
 
 // ─── Rhythm-level result types ──────────────────────────────────
@@ -118,7 +122,12 @@ export interface TaskDispatchResult {
   taskResults: Map<string, OrchestratorResult>;
 }
 
-/** What the sensory-cortex rhythm produces — same shape as current OrchestratorResult. */
+/**
+ * What the sensory-cortex rhythm produces. Aliased to OrchestratorResult
+ * because the sensory-cortex IS the task-level orchestrator — same inputs,
+ * same outputs. The alias exists so rhythm code reads in brain-metaphor
+ * terms while the external API stays stable.
+ */
 export type SensoryCortexResult = OrchestratorResult;
 
 /** What the build-cycle rhythm produces. */
@@ -135,6 +144,8 @@ export interface BuildCycleResult {
   resolutions: TensionResolution[];
   cycles: number;
   accepted: boolean;
+  /** Weighted composite confidence (0–1). From evaluation weighter. */
+  confidence: number;
 }
 
 // ─── Between-tasks processing ───────────────────────────────────
@@ -274,6 +285,16 @@ export interface VitalSigns {
    * hasn't stabilized what it's learning. Triggers rest for decay/settling.
    */
   weightVolatility: number;
+
+  /**
+   * Tonic dopamine level for the current project. Mapped to 0–1 for
+   * homeostasis (raw tonic is unbounded). Reflects overall reward
+   * environment: 0.5 = neutral, < 0.5 = project disappointing,
+   * > 0.5 = project exceeding expectations.
+   *
+   * Persistently low → flag PFC (something systematic is wrong).
+   */
+  tonicDopamine: number;
 }
 
 export interface VitalSignThresholds {
@@ -287,6 +308,8 @@ export interface VitalSignThresholds {
   learningSignalHealth: number;
   /** Above this → brainstem considers rest. */
   weightVolatility: number;
+  /** Below this → brainstem flags for PFC (project persistently disappointing). */
+  tonicDopamine: number;
 }
 
 export const DEFAULT_VITAL_THRESHOLDS: VitalSignThresholds = {
@@ -295,6 +318,7 @@ export const DEFAULT_VITAL_THRESHOLDS: VitalSignThresholds = {
   contextCapacity: 0.9,
   learningSignalHealth: 0.3,
   weightVolatility: 0.7,
+  tonicDopamine: 0.25,
 };
 
 // ─── Consolidation load (rest trigger) ──────────────────────────
@@ -369,7 +393,7 @@ export interface RestCycleContext {
 }
 
 export type ConsolidationPriority =
-  | "crystallize"       // hippocampus: cluster episodes → extract principles
+  | "potentiate"        // hippocampus: cluster episodes → extract living principles
   | "prune-memory"      // working memory: promote to hippocampus or drop
   | "decay-connections"  // plasticity: weaken unused/unstable connections
   | "recalibrate"       // cerebellum: holistic prediction model update

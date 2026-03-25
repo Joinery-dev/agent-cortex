@@ -11,7 +11,8 @@ export type Purpose =
   | "evaluation"
   | "resolution"
   | "inhibition"
-  | "collapse-detection";
+  | "collapse-detection"
+  | "potentiation";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -34,6 +35,7 @@ const totalUsage: Record<Purpose, TokenUsage> = {
   resolution: { inputTokens: 0, outputTokens: 0 },
   inhibition: { inputTokens: 0, outputTokens: 0 },
   "collapse-detection": { inputTokens: 0, outputTokens: 0 },
+  potentiation: { inputTokens: 0, outputTokens: 0 },
 };
 
 // Map our model IDs to Agent SDK model aliases

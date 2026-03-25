@@ -124,7 +124,7 @@ export type {
   SenseEvaluation,
 } from "./types/sense.js";
 export type { Task } from "./types/task.js";
-export type { Council } from "./types/council.js";
+export type { Consultation } from "./types/consultation.js";
 export type { Tension, TensionResolution } from "./types/tension.js";
 export type { OrchestratorResult, CortexConfig } from "./types/orchestrator.js";
 export { DEFAULT_CONFIG } from "./types/orchestrator.js";

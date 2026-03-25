@@ -56,21 +56,21 @@ export async function runTask(
   task.status = "consulting";
   addEvent(task, "status_change", { status: "consulting" });
 
-  const council = await consult(task, intent, taste, library, config);
-  const totalEvaluators = council.perspectives.reduce(
+  const consultation = await consult(task, intent, taste, library, config);
+  const totalEvaluators = consultation.perspectives.reduce(
     (sum, p) => sum + p.evaluators.length,
     0
   );
   addEvent(task, "consultation_result", {
-    perspectives: council.perspectives.length,
+    perspectives: consultation.perspectives.length,
     totalEvaluators,
-    senses: council.perspectives.map((p) => p.senseName),
+    senses: consultation.perspectives.map((p) => p.senseName),
   });
 
   logDecision(
     decisionLog,
     "consultation",
-    `Consulted ${council.perspectives.length} senses, ${totalEvaluators} receptors selected for evaluation`,
+    `Consulted ${consultation.perspectives.length} senses, ${totalEvaluators} receptors selected for evaluation`,
     0.9
   );
 
@@ -79,7 +79,7 @@ export async function runTask(
   }
 
   // ─── Step 2: Build-Evaluate-Resolve Loop ───────────────────
-  const basePrompt = assembleMotorPrompt(task, intent, taste, council);
+  const basePrompt = assembleMotorPrompt(task, intent, taste, consultation);
   let currentPrompt = basePrompt;
   let work: string | null = null;
 
@@ -99,7 +99,7 @@ export async function runTask(
     task.status = "evaluating";
     addEvent(task, "status_change", { status: "evaluating", cycle: cycles });
 
-    lastEvaluations = await evaluate(council, task, work, library, config);
+    lastEvaluations = await evaluate(consultation, task, work, library, config);
     addEvent(task, "evaluation", {
       cycle: cycles,
       scores: lastEvaluations.map((e) => ({

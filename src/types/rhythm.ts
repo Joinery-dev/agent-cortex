@@ -162,7 +162,13 @@ export interface RhythmDefinition<
   /** Unique name for this rhythm type. */
   name: string;
 
-  /** Maximum cycles before forced gate decision. 0 = unlimited. */
+  /**
+   * Advisory cycle count. Not enforced by the runner — convergence is
+   * governed by gate strategies and diagnostic systems (collapse detection,
+   * cognitive flexibility, drift monitoring). Retained for observability
+   * and for rhythm definitions that are structurally single-pass (e.g.
+   * project rhythm sets 1 because it doesn't loop).
+   */
   maxCycles: number;
 
   /**

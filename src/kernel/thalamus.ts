@@ -26,15 +26,17 @@ import type {
   CapabilityContext,
   AccumulatedContextOpts,
   ThalamusSources,
+  HippocampusSource,
+  PrincipleSummary,
 } from "../types/thalamus.js";
-import type { InhibitionBriefing, SenseSummary } from "../types/inhibitor.js";
+import type { InhibitionBriefing, SenseSummary } from "../types/basal-ganglia.js";
 import type { ProjectIntent, TasteProfile } from "../types/intent.js";
 import type { Task } from "../types/task.js";
-import type { Council } from "../types/council.js";
+import type { Consultation } from "../types/consultation.js";
 import type { Sense } from "../types/sense.js";
 import type { WorkingMemory } from "./working-memory.js";
 import type { PeripheralNervousSystem } from "./pns.js";
-import { SensoryCortex } from "../senses/cortex.js";
+import type { SensoryCortex } from "../senses/cortex.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
 
@@ -43,12 +45,14 @@ const log = createLogger("thalamus");
 export class Thalamus {
   private wm: WorkingMemory;
   private pns?: PeripheralNervousSystem;
+  private hippocampus?: HippocampusSource;
   private intent?: ProjectIntent;
   private taste?: TasteProfile;
 
   constructor(sources: ThalamusSources) {
     this.wm = sources.wm;
     this.pns = sources.pns;
+    this.hippocampus = sources.hippocampus;
   }
 
   // ── Project Binding ─────────────────────────────────────────────
@@ -185,12 +189,17 @@ export class Thalamus {
     if (this.intent) sources.push("intent");
     if (this.taste) sources.push("taste");
 
+    // Hippocampus: include active principles
+    const principles = this.getPrincipleSummaries();
+    if (principles.length > 0) sources.push("hippocampus");
+
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
       decisions: accumulated.decisions.length,
       senseTrends: accumulated.senseTrends.length,
       inhibitedSenses: accumulated.inhibitedSenses.length,
       openQuestions: accumulated.openQuestions.length,
+      principles: principles.length,
     };
 
     const briefing: ConsultationBriefing = {
@@ -204,6 +213,7 @@ export class Thalamus {
         inhibitedSenses: accumulated.inhibitedSenses,
         openQuestions: accumulated.openQuestions,
         completedTaskCount: accumulated.completedSummaries.length,
+        principles: principles.length > 0 ? principles : undefined,
       },
       meta: this.meta("consultation", task.id, sources, counts),
     };
@@ -222,7 +232,7 @@ export class Thalamus {
     return briefing;
   }
 
-  async forMotor(task: Task, council: Council): Promise<MotorBriefing> {
+  async forMotor(task: Task, consultation: Consultation): Promise<MotorBriefing> {
     const { intent, taste } = this.getProjectContext();
     const accumulated = this.getAccumulatedContext();
     const capabilities = this.getCapabilityContext();
@@ -232,24 +242,30 @@ export class Thalamus {
     if (this.taste) sources.push("taste");
     if (this.pns) sources.push("pns");
 
+    // Hippocampus: include principles relevant to active senses
+    const principles = this.getPrincipleSummaries();
+    if (principles.length > 0) sources.push("hippocampus");
+
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
       decisions: accumulated.decisions.length,
       scoreTrends: accumulated.receptorTrends.length,
       openQuestions: accumulated.openQuestions.length,
+      principles: principles.length,
     };
 
     const briefing: MotorBriefing = {
       task,
       intent,
       taste,
-      council,
+      consultation,
       enrichment: {
         patterns: accumulated.patterns,
         decisions: accumulated.decisions,
         scoreTrends: accumulated.receptorTrends,
         openQuestions: accumulated.openQuestions,
         capabilities: capabilities.description,
+        principles: principles.length > 0 ? principles : undefined,
       },
       meta: this.meta("motor", task.id, sources, counts),
     };
@@ -280,14 +296,23 @@ export class Thalamus {
 
     const sources = ["working-memory"];
 
+    // Hippocampus: principles specific to this evaluator's sense
+    const senseName = activationPath[0];
+    const principles = senseName
+      ? this.getPrincipleSummariesForSense(senseName)
+      : [];
+    if (principles.length > 0) sources.push("hippocampus");
+
     const counts: Record<string, number> = {
       receptorTrends: accumulated.receptorTrends.length,
       relevantPatterns: accumulated.patterns.length,
+      relevantPrinciples: principles.length,
     };
 
     const briefing: EvaluationBriefing = {
       receptorTrends: accumulated.receptorTrends,
       relevantPatterns: accumulated.patterns,
+      relevantPrinciples: principles.length > 0 ? principles : undefined,
       meta: this.meta("evaluation", task.id, sources, counts),
     };
 
@@ -389,6 +414,28 @@ export class Thalamus {
   }
 
   // ── Private Helpers ─────────────────────────────────────────────
+
+  /** Get all active principles as simplified summaries for briefings. */
+  private getPrincipleSummaries(): PrincipleSummary[] {
+    if (!this.hippocampus) return [];
+
+    return this.hippocampus.getActivePrinciples().map((p) => ({
+      statement: p.statement,
+      confidence: p.confidence,
+      relevantSenses: p.relevantSenses,
+    }));
+  }
+
+  /** Get principles relevant to a specific sense. */
+  private getPrincipleSummariesForSense(senseId: string): PrincipleSummary[] {
+    if (!this.hippocampus) return [];
+
+    return this.hippocampus.getPrinciplesForSense(senseId).map((p) => ({
+      statement: p.statement,
+      confidence: p.confidence,
+      relevantSenses: p.relevantSenses,
+    }));
+  }
 
   private meta(
     consumer: string,

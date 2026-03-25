@@ -24,7 +24,8 @@ export interface TaskEvent {
     | "evaluation"
     | "tension_detected"
     | "resolution"
-    | "cycle_back";
+    | "cycle_back"
+    | "cerebellum_prediction";
   data: unknown;
 }
 

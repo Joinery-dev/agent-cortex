@@ -25,7 +25,9 @@ import type { WorkingMemory } from "../../kernel/working-memory.js";
 import type { Thalamus } from "../../kernel/thalamus.js";
 import type { AttentionScheduler } from "../../kernel/attention-scheduler.js";
 import type { MotorCortex } from "../../kernel/motor-cortex.js";
-import type { Inhibitor } from "../../kernel/inhibitor.js";
+import type { BasalGanglia } from "../../kernel/basal-ganglia.js";
+import type { Gate } from "../../types/gate.js";
+import type { StakeAdjuster } from "../../kernel/evaluation-weighter.js";
 
 const log = createLogger("project-rhythm");
 
@@ -42,9 +44,11 @@ export function createProjectDefinition(
   thalamus: Thalamus,
   scheduler: AttentionScheduler,
   motorCortex: MotorCortex,
-  inhibitor: Inhibitor,
+  basalGanglia: BasalGanglia,
+  gate: Gate,
+  stakeAdjuster?: StakeAdjuster,
 ): RhythmDefinition<ProjectContext, ProjectResult, PreparedProject, TaskDispatchResult, ProjectResult> {
-  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, inhibitor);
+  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, stakeAdjuster);
 
   return {
     name: "project",

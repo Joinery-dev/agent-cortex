@@ -4,8 +4,8 @@
  * Lifts the current orchestrator's inner while-loop into a rhythm:
  *   prepare:   assemble motor briefing (or revision context)
  *   execute:   motor cortex runs premotor → primary → proprioception
- *   integrate: evaluate work + detect tensions
- *   gate:      scores acceptable? tensions resolved? → complete / continue / escalate
+ *   integrate: evaluate work → weigh by stake → compute composite → detect tensions → oscillation check
+ *   gate:      gate strategy (deliberative/democratic/expedient) decides accept/revise/escalate
  *
  * The Motor Cortex class handles the three-phase build internally.
  * The build-cycle orchestrates the evaluate→revise loop around it.
@@ -20,16 +20,21 @@ import type { SensoryCortex } from "../../senses/cortex.js";
 import type { MotorBriefing } from "../../types/thalamus.js";
 import type { MotorPlan, SelfAssessment, RevisionContext } from "../../types/motor-cortex.js";
 import type { Intention } from "../../types/pns.js";
+import type { Gate, GateInput, SignalLandscape } from "../../types/gate.js";
 import type { MotorCortex } from "../../kernel/motor-cortex.js";
+import type { WeightedEvaluation, WeightedComposite, StakeAdjuster } from "../../kernel/evaluation-weighter.js";
+import type { OscillationSignal } from "../../types/working-memory.js";
 import { evaluate } from "../../kernel/evaluator.js";
 import { detectTensions, resolve } from "../../kernel/resolver.js";
+import { weighEvaluations, computeComposite } from "../../kernel/evaluation-weighter.js";
+import { revisionPrompt } from "../../llm/prompts.js";
 import { addEvent } from "../../types/task.js";
 import { emit } from "../../events.js";
 import type { SubcorticalHooks } from "../stubs.js";
 import type { WorkingMemory } from "../../kernel/working-memory.js";
 import type { Thalamus } from "../../kernel/thalamus.js";
-import type { Inhibitor } from "../../kernel/inhibitor.js";
-import type { CollapseContext } from "../../types/inhibitor.js";
+import type { BasalGanglia } from "../../kernel/basal-ganglia.js";
+import type { CollapseContext } from "../../types/basal-ganglia.js";
 
 // ─── Intermediate types for the four phases ─────────────────────
 
@@ -52,16 +57,19 @@ interface IntegratedBuild {
   selfAssessment?: SelfAssessment;
   intentions: Intention[];
   evaluations: SenseEvaluation[];
+  weighted: WeightedEvaluation[];
+  composite: WeightedComposite;
   tensions: Tension[];
-  minScore: number;
-  highTensionCount: number;
+  oscillations: OscillationSignal[];
 }
 
 // ─── Accumulator shape ──────────────────────────────────────────
 
 interface BuildCycleAccumulator {
-  /** All evaluations from the latest cycle. */
+  /** Raw evaluations from the latest cycle (for collapse detection + motor revision). */
   lastEvaluations: SenseEvaluation[];
+  /** Weighted evaluations from the latest cycle (for gate + revision prompt). */
+  lastWeighted: WeightedEvaluation[];
   /** All tensions across all cycles. */
   allTensions: Tension[];
   /** All resolutions across all cycles. */
@@ -79,6 +87,7 @@ function getAcc(
 ): BuildCycleAccumulator {
   return (state.accumulator as unknown as { __bc: BuildCycleAccumulator }).__bc ??= {
     lastEvaluations: [],
+    lastWeighted: [],
     allTensions: [],
     allResolutions: [],
     lastWork: null,
@@ -96,7 +105,9 @@ export function createBuildCycleDefinition(
   wm: WorkingMemory,
   thalamus: Thalamus,
   motorCortex: MotorCortex,
-  inhibitor: Inhibitor,
+  basalGanglia: BasalGanglia,
+  gate: Gate,
+  stakeAdjuster?: StakeAdjuster,
 ): RhythmDefinition<BuildCycleContext, BuildCycleResult, PreparedBuild, ExecutedBuild, IntegratedBuild> {
   return {
     name: "build-cycle",
@@ -108,7 +119,7 @@ export function createBuildCycleDefinition(
 
       if (state.completedCycles === 0) {
         // First cycle: get motor briefing from thalamus
-        const motorBriefing = await thalamus.forMotor(context.task, context.council);
+        const motorBriefing = await thalamus.forMotor(context.task, context.consultation);
         acc.motorBriefing = motorBriefing;
 
         context.task.status = "producing";
@@ -172,7 +183,7 @@ export function createBuildCycleDefinition(
       };
     },
 
-    // ── Integrate: evaluate + detect tensions ───────────────
+    // ── Integrate: evaluate → weigh → composite → tensions → oscillation ──
     async integrate(executed, state) {
       const acc = getAcc(state);
       const cycle = state.completedCycles + 1;
@@ -181,8 +192,9 @@ export function createBuildCycleDefinition(
       ctx.task.status = "evaluating";
       addEvent(ctx.task, "status_change", { status: "evaluating", cycle });
 
+      // 1. Raw evaluation (unchanged — each receptor evaluates independently)
       const evaluations = await evaluate(
-        ctx.council,
+        ctx.consultation,
         ctx.task,
         executed.work,
         library,
@@ -197,18 +209,27 @@ export function createBuildCycleDefinition(
         scores: evaluations.map((e) => ({
           path: e.activationPath.join(" > "),
           score: e.score,
+          acceptable: e.acceptable,
         })),
       });
 
-      const tensions = detectTensions(evaluations, ctx.task.id);
+      // 2. Weigh evaluations by stake from consultation
+      const weighted = weighEvaluations(evaluations, ctx.consultation, stakeAdjuster);
+      acc.lastWeighted = weighted;
+
+      // 3. Compute weighted composite
+      const composite = computeComposite(weighted);
+
+      // 4. Stake-aware tension detection
+      const tensions = detectTensions(weighted, ctx.task.id);
       acc.allTensions = [...acc.allTensions, ...tensions];
 
       emit("tension:detection-complete", {
         count: tensions.length,
         tensions: tensions.map((t) => ({
           severity: t.severity,
-          senseA: { path: t.senseA.path.join(" > "), score: t.senseA.score },
-          senseB: { path: t.senseB.path.join(" > "), score: t.senseB.score },
+          senseA: { path: t.senseA.path.join(" > "), score: t.senseA.score, stake: t.senseA.stake },
+          senseB: { path: t.senseB.path.join(" > "), score: t.senseB.score, stake: t.senseB.stake },
         })),
       });
 
@@ -222,15 +243,13 @@ export function createBuildCycleDefinition(
         });
       }
 
-      const minScore = evaluations.length > 0
-        ? Math.min(...evaluations.map((e) => e.score))
-        : 0;
-      const highTensionCount = tensions.filter((t) => t.severity === "high").length;
+      // 5. Record weighted scores in WM
+      wm.recordScores(ctx.task.id, weighted);
 
-      // Record evaluation scores in WM (each cycle overwrites the previous)
-      wm.recordScores(ctx.task.id, evaluations);
+      // 6. Check for score oscillation
+      const oscillations = wm.detectOscillations(ctx.task.id);
 
-      // Call subcortical hooks (no-op for now)
+      // 7. Subcortical hooks (no-op for now)
       await hooks.recordBuildOutcome(ctx, {
         work: executed.work,
         plan: executed.plan,
@@ -240,7 +259,8 @@ export function createBuildCycleDefinition(
         tensions,
         resolutions: [],
         cycles: cycle,
-        accepted: minScore >= config.acceptableMinScore && highTensionCount === 0,
+        accepted: composite.weightedAcceptability > 0.5,
+        confidence: composite.confidence,
       });
 
       return {
@@ -249,48 +269,36 @@ export function createBuildCycleDefinition(
         selfAssessment: executed.selfAssessment,
         intentions: executed.intentions,
         evaluations,
+        weighted,
+        composite,
         tensions,
-        minScore,
-        highTensionCount,
+        oscillations,
       };
     },
 
-    // ── Gate: accept, revise, or escalate ───────────────────
+    // ── Gate: gate strategy decides accept/revise/escalate ──
     async gate(integrated, state) {
       const acc = getAcc(state);
       const cycle = state.completedCycles + 1;
       const ctx = state.initialContext;
 
-      // Proprioception signal: low plan adherence penalizes effective score
-      const proprioceptionPenalty = integrated.selfAssessment
-        ? (1 - integrated.selfAssessment.planAdherence) * 2 // 0-2 point penalty
-        : 0;
-      const effectiveMinScore = integrated.minScore - proprioceptionPenalty;
+      // Assemble signal landscape (NE from context when threaded, else undefined)
+      const signals: SignalLandscape = {
+        ne: ctx.neLevel,
+      };
 
-      // Check for forced completion from max cycles
-      if (state.accumulator.__maxCyclesReached) {
-        const confidence = computeConfidence(integrated.evaluations);
-        return {
-          action: "complete",
-          result: {
-            work: integrated.work,
-            plan: integrated.plan,
-            selfAssessment: integrated.selfAssessment,
-            intentions: integrated.intentions,
-            evaluations: integrated.evaluations,
-            tensions: acc.allTensions,
-            resolutions: acc.allResolutions,
-            cycles: cycle,
-            accepted: confidence >= 0.6,
-          },
-        };
-      }
+      // Assemble gate input
+      const gateInput: GateInput = {
+        composite: integrated.composite,
+        tensions: integrated.tensions,
+        cycle,
+        signals,
+      };
 
-      // Accept if scores are good and no high tensions
-      if (
-        effectiveMinScore >= config.acceptableMinScore &&
-        integrated.highTensionCount === 0
-      ) {
+      // Run gate strategy
+      const gateOutput = gate.evaluate(gateInput);
+
+      if (gateOutput.accept) {
         return {
           action: "complete",
           result: {
@@ -303,6 +311,7 @@ export function createBuildCycleDefinition(
             resolutions: acc.allResolutions,
             cycles: cycle,
             accepted: true,
+            confidence: integrated.composite.confidence,
           },
         };
       }
@@ -322,7 +331,7 @@ export function createBuildCycleDefinition(
         priorEvaluations: state.completedCycles > 0 ? acc.lastEvaluations : undefined,
         work: integrated.work,
       };
-      const collapseSignal = await inhibitor.detectCollapse(collapseContext, config);
+      const collapseSignal = await basalGanglia.detectCollapse(collapseContext, config);
 
       addEvent(ctx.task, "resolution", {
         cycle,
@@ -334,26 +343,25 @@ export function createBuildCycleDefinition(
 
       addEvent(ctx.task, "cycle_back", { cycle });
 
-      // If tensions collapsed, add re-engagement guidance to the revision reason
-      let collapseNote = "";
+      // Build reason with gate strategy info + oscillation + collapse notes
+      let reason = `Cycle ${cycle}: ${gateOutput.reason}. Resolved ${resolutions.length} tension(s), requesting revision.`;
+
+      if (integrated.oscillations.length > 0) {
+        reason += ` OSCILLATION: ${integrated.oscillations.length} receptor(s) showing score instability.`;
+      }
+
       if (collapseSignal.collapsed) {
         const guidance = collapseSignal.details
           .filter((d) => d.collapsed && d.reEngagementGuidance)
           .map((d) => d.reEngagementGuidance)
           .join("; ");
-        collapseNote = ` COLLAPSED TENSIONS DETECTED: ${guidance || "Senses capitulated instead of synthesizing. Re-engage with genuine tension."}`;
+        reason += ` COLLAPSED TENSIONS: ${guidance || "Senses capitulated instead of synthesizing. Re-engage with genuine tension."}`;
       }
 
       return {
         action: "continue",
-        reason: `Cycle ${cycle}: effective min score ${effectiveMinScore.toFixed(1)} (raw ${integrated.minScore}, proprioception penalty ${proprioceptionPenalty.toFixed(1)}), ${integrated.highTensionCount} high tension(s). Resolved ${resolutions.length} tension(s), requesting revision.${collapseNote}`,
+        reason,
       };
     },
   };
-}
-
-function computeConfidence(evaluations: SenseEvaluation[]): number {
-  if (evaluations.length === 0) return 0;
-  const total = evaluations.reduce((sum, e) => sum + e.score, 0);
-  return total / (evaluations.length * 10);
 }

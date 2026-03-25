@@ -1,8 +1,32 @@
 # Agent Cortex
 
-## How to work on this
+## Foundational principles
 
-**Think from first principles, not from existing solutions.** The breakthroughs here are simple — they're logical puzzles that start from first principles and meet the problems of the day at their core. Don't look at what other harnesses do and add features. Ask what's actually broken and find the simplest thing that fixes it.
+**As complex as necessary, but as simple as possible.** This is the design law. Every type, every interface, every component earns its existence by being necessary — not by being clever, future-proof, or symmetrical. When in doubt, strip it back to zero and ask what's actually needed. The simplest thing that solves the real problem is the right thing. Complexity that doesn't serve the output is noise.
+
+**Extreme co-design.** The architecture of the system should mirror what it produces. Components don't work in silos — they attack problems simultaneously, hear each other's constraints, and resolve trade-offs through synthesis. This applies at every level:
+
+- *In the system:* Senses don't evaluate in isolation. They all weigh in on the same task, see each other's tensions, and the resolution is synthesis — not averaging, not picking a winner. The Thalamus routes the right context to the right consumer so every component can make informed trade-offs. The Inhibitor decides who's irrelevant, but the bias is toward inclusion — if a sense could have contributed and didn't, that's a failure.
+- *In the build process:* Before changing a component, understand what depends on it and what it depends on. Components that integrate should be designed together, not thrown over a wall. When agents work in parallel, they work on independent features — but integration contracts are verified at convergence points. The review process is cross-cutting: every component is assessed for how well it integrates, not just whether it works in isolation.
+- *In the organization:* The structure of the work mirrors the structure of the system. Parallel waves for independent components, integration waves where they converge. No single orchestrator — the PFC (attention scheduler) decides what happens next, just like Jensen's 60 domain experts attacking a problem together instead of going through a hierarchy.
+
+**First principles, not continuous improvement.** Don't optimize the wrong thing. If something takes 74 days, don't make it 72 — strip it back to zero and ask why it's 74 in the first place. Built from scratch with what's possible today, it might be 6. The danger isn't building the wrong thing, it's making a bad approach 3% better and calling it progress. This applies to the system itself: when the build loop isn't converging, the answer isn't more revision cycles — it's asking whether the strategy is wrong (plan-error, not execution-error). Cognitive Flexibility forces a full strategy reset. The premotor distinguishes "amend the plan" from "re-plan from scratch." Every approach should be questioned before being improved.
+
+**Speed of light thinking.** For every dimension of the system's cognition, there's a theoretical maximum — the best outcome physics (or in our case, the constraints of the task + approach) allows. The Cerebellum doesn't just predict scores; it predicts *distance from ceiling* for each dimension. This is how the system knows when to stop iterating vs when to rearchitect:
+
+- **Near the ceiling (≥80%):** You're close to what this approach can achieve. Optimize — revise execution, not strategy. Iteration has diminishing returns.
+- **Far from the ceiling (<50%):** The approach itself is the bottleneck, not the execution. Strip it back to zero. The premotor should re-plan from scratch, not amend.
+- **Ceiling is too low:** Even a perfect execution of this approach can't satisfy the task. Escalate — the system needs a fundamentally different strategy, or the constraints need to change.
+
+The cognitive dimensions the Cerebellum tracks ceilings for:
+- *Build convergence* — minimum cycles to acceptance for this task+approach
+- *Tension resolution quality* — how close synthesis can get to fully satisfying competing senses
+- *Evaluation accuracy* — how close machine scores are to human satisfaction (calibrated by Satisfaction Signal)
+- *Context fidelity* — how much signal the Thalamus preserves vs loses in briefing assembly
+
+This replaces hardcoded cycle limits with principled stopping criteria. The system doesn't stop because it hit a counter — it stops because it's near the speed of light, or rearchitects because it isn't.
+
+## How to work on this
 
 **Bounce back ideas as an equal.** Push back when something doesn't hold up. Add things the human didn't consider. Don't just execute — think alongside. If you disagree, say why. If you see a connection the human missed, surface it. This is a partnership, not a task list.
 
@@ -40,8 +64,6 @@ The build is tracked in `build-status.json` at the project root. A dashboard at 
 - Set a subtask's `status` to `"in-progress"` or `"complete"` as you finish each step
 - Set the feature's `status` to `"complete"` when all subtasks are done
 - Add `"notes"` to a feature for anything the next agent should know
-- If you create a new `.mmd` diagram during a phase, add it to that phase's `"diagrams"` array
-
 **A subtask isn't done until `build-status.json` says it is.** When you complete implementation work:
 - Update the subtask's `status` to `"complete"`
 - Set the `detail` field to reference the actual files created (e.g. `"src/kernel/foo.ts — FooClass: method1, method2, event emission"`)
@@ -51,6 +73,19 @@ The build is tracked in `build-status.json` at the project root. A dashboard at 
 **Status values:** `"not-started"`, `"in-progress"`, `"complete"`, `"blocked"`
 
 **Architecture reference:** `ARCHITECTURE.md` describes all 28 features. Read the relevant section before building a feature.
+
+**Diagrams are discovered automatically.** When creating a new `.mmd` diagram, add `scope`, `phase`, and/or `feature` to the YAML frontmatter — the dashboard discovers diagrams from the filesystem, not from `build-status.json`. Example:
+```yaml
+---
+title: "My Diagram"
+scope: feature
+phase: 1
+feature: 27
+---
+```
+Scope values: `global` (architecture-level), `phase` (relates to a whole phase), `feature` (produced while building a specific feature). Feature-scoped diagrams automatically appear on both their phase and their feature's detail panel.
+
+**A reconciliation hook runs at session end.** `scripts/reconcile-build-status.cjs` patches `build-status.json` with anything missed — untracked diagrams, unreferenced source files, not-started subtasks whose files exist. It adds `[Reconciled]` notes but never changes statuses. Don't rely on it — update status proactively.
 
 **Dashboard auto-refreshes every 10 seconds** — just edit the JSON and the webapp picks it up.
 

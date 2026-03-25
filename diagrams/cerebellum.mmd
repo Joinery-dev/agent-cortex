@@ -1,0 +1,64 @@
+---
+title: "Cerebellum — Prediction Engine"
+scope: feature
+phase: 3
+feature: 18
+---
+flowchart TB
+    subgraph "Per-Task Flow"
+        CONSULT["Consultation<br/><i>senses + stakes</i>"]
+        FP["Extract Fingerprint<br/><i>sense activation pattern</i>"]
+        SIM["Find Similar Episodes<br/><i>Jaccard + stake proximity</i>"]
+        PRED["Predict Scores<br/><i>weighted avg from matches</i>"]
+        BUILD["Build Cycle<br/><i>explore → build → evaluate</i>"]
+        ACTUAL["Actual Evaluations<br/><i>per-receptor scores</i>"]
+        DOPA["Compute Dopamine<br/><i>actual - predicted</i>"]
+        STORE["Store Episode<br/><i>fingerprint + scores</i>"]
+    end
+
+    CONSULT --> FP
+    FP --> SIM
+    SIM -->|"≥ 2 similar"| PRED
+    SIM -->|"cold start"| BUILD
+    PRED -->|"predictions"| BUILD
+    BUILD --> ACTUAL
+    ACTUAL --> DOPA
+    DOPA --> STORE
+    STORE -->|"feeds future"| SIM
+
+    subgraph "Dopamine Signal"
+        direction LR
+        POS["+ Positive<br/><i>actual > predicted</i><br/><i>strengthen pattern</i>"]
+        ZERO["0 Zero<br/><i>actual = predicted</i><br/><i>no learning needed</i>"]
+        NEG["- Negative<br/><i>actual < predicted</i><br/><i>weaken routine</i>"]
+    end
+
+    DOPA --> POS & ZERO & NEG
+
+    subgraph "Consumers"
+        HIPP["Hippocampus<br/><i>crystallize on large signal</i>"]
+        BG["Basal Ganglia<br/><i>routine weights</i>"]
+        PLAST["Plasticity<br/><i>stake calibration</i>"]
+        HOMEO["Homeostasis<br/><i>predictionAccuracy vital</i>"]
+    end
+
+    POS & NEG --> HIPP & BG & PLAST
+    DOPA --> HOMEO
+
+    subgraph "Recalibration"
+        LOW["Accuracy < 0.4"]
+        REST["Rest Cycle"]
+        PRUNE["Prune + Reset"]
+    end
+
+    HOMEO -->|"triggers"| LOW
+    LOW --> REST
+    REST --> PRUNE
+    PRUNE -->|"fresh start"| SIM
+
+    style PRED fill:#4a9eff,color:#fff
+    style DOPA fill:#ff6b6b,color:#fff
+    style STORE fill:#51cf66,color:#fff
+    style ZERO fill:#868e96,color:#fff
+    style POS fill:#51cf66,color:#fff
+    style NEG fill:#ff6b6b,color:#fff

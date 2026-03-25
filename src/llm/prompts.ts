@@ -1,10 +1,12 @@
 import type { Sense, SensePerspective, SenseEvaluation } from "../types/sense.js";
 import type { Task } from "../types/task.js";
-import type { Council } from "../types/council.js";
+import type { Consultation } from "../types/consultation.js";
 import type { Tension } from "../types/tension.js";
 import type { ConsultationBriefing, MotorBriefing } from "../types/thalamus.js";
 import type { MotorPlan, RevisionContext } from "../types/motor-cortex.js";
-import type { InhibitionBriefing, CollapseContext } from "../types/inhibitor.js";
+import type { InhibitionBriefing, CollapseContext } from "../types/basal-ganglia.js";
+import type { WeightedEvaluation } from "../kernel/evaluation-weighter.js";
+import type { Episode, Principle, PotentiationTrigger } from "../types/hippocampus.js";
 
 // ─── CONSULTATION ───────────────────────────────────────────
 
@@ -29,7 +31,9 @@ ${subConcerns}
 
 A task has arrived. Provide your perspective — what should the motor cortex understand from your point of view? Write in your own voice. Say as much or as little as the task demands. If you have nothing to contribute, say so briefly and explain why.
 
-Also identify which of your receptors should evaluate the final work. Only select receptors that are genuinely relevant — it's fine to select none.`;
+Also identify which of your receptors should evaluate the final work. Only select receptors that are genuinely relevant — it's fine to select none.
+
+Finally, rate your stake in this task (0.0–1.0): if this task shipped without your input at all, how much would be lost? 0.0 means your dimension is completely irrelevant. 1.0 means your dimension is critical to the task's success. Be honest — not every task is your business.`;
 }
 
 export function consultationUser(briefing: ConsultationBriefing): string {
@@ -67,6 +71,12 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     );
   }
 
+  if (enrichment.principles && enrichment.principles.length > 0) {
+    enrichmentSections.push(
+      `PRINCIPLES FROM EXPERIENCE:\n${enrichment.principles.map((p) => `- (${p.confidence.toFixed(2)} confidence) ${p.statement}`).join("\n")}`
+    );
+  }
+
   const enrichmentBlock =
     enrichmentSections.length > 0
       ? "\n" + enrichmentSections.join("\n\n") + "\n"
@@ -90,7 +100,8 @@ ${task.context && Object.keys(task.context).length > 0 ? `TASK CONTEXT: ${JSON.s
 Return JSON:
 {
   "perspective": "your full perspective in your own voice",
-  "evaluators": ["receptor-id-1", "receptor-id-2"]
+  "evaluators": ["receptor-id-1", "receptor-id-2"],
+  "stake": 0.0-1.0
 }`;
 }
 
@@ -112,9 +123,9 @@ Be thorough but not over-engineered. Navigate the tensions the senses surface, a
  * (primary build) and premotor (planning) prompts.
  */
 export function assembleMotorPromptBody(briefing: MotorBriefing): string {
-  const { task, intent, taste, council, enrichment } = briefing;
+  const { task, intent, taste, consultation, enrichment } = briefing;
 
-  const perspectives = council.perspectives
+  const perspectives = consultation.perspectives
     .map((p) => `---\n${p.senseName}:\n${p.perspective}`)
     .join("\n\n");
 
@@ -145,6 +156,12 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
   if (enrichment.openQuestions.length > 0) {
     enrichmentSections.push(
       `OPEN QUESTIONS:\n${enrichment.openQuestions.map((q) => `- ${q.question}`).join("\n")}`
+    );
+  }
+
+  if (enrichment.principles && enrichment.principles.length > 0) {
+    enrichmentSections.push(
+      `PRINCIPLES FROM EXPERIENCE:\n${enrichment.principles.map((p) => `- (${p.confidence.toFixed(2)} confidence) ${p.statement}`).join("\n")}`
     );
   }
 
@@ -212,6 +229,8 @@ Score from 1 to 10:
 
 Be honest and specific. Vague praise is useless. Vague criticism is worse. Point to specific aspects of the work.
 
+Also determine: is this work acceptable from your perspective? Acceptable means your dimension is adequately served — not perfect, just not failing. A 5/10 might be acceptable if the gaps are cosmetic; a 7/10 might not be if there's a structural flaw. This is your judgment call, not a formula.
+
 If you see a potential tension with another dimension (e.g., your concerns conflict with what another perspective would want), flag it.`;
 }
 
@@ -234,6 +253,7 @@ Evaluate this work through your lens.
 Return JSON:
 {
   "score": 1-10,
+  "acceptable": true/false,
   "assessment": "your evaluation in 2-3 sentences — be specific",
   "tensions": [{ "withDimension": "name of conflicting dimension", "description": "what the conflict is" }],
   "suggestions": ["specific, actionable improvement suggestions"]
@@ -272,16 +292,34 @@ Find a creative synthesis. Return JSON:
 
 export function revisionPrompt(
   originalPrompt: string,
-  evaluations: SenseEvaluation[],
+  evaluations: WeightedEvaluation[],
   resolutions: { strategy: string; revisedInstructions: string }[]
 ): string {
-  const evalSummary = evaluations
-    .filter((e) => e.score < 7)
+  // Primary: unacceptable evaluations, sorted by impact (stake * distance from 10)
+  const unacceptable = evaluations
+    .filter((e) => !e.acceptable)
+    .sort((a, b) => b.adjustedStake * (10 - b.score) - a.adjustedStake * (10 - a.score));
+
+  // Secondary: acceptable but low-scoring — optional improvements
+  const optional = evaluations
+    .filter((e) => e.acceptable && e.score < 6)
+    .sort((a, b) => b.adjustedStake * (10 - b.score) - a.adjustedStake * (10 - a.score));
+
+  const evalSummary = unacceptable
     .map(
       (e) =>
-        `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`
+        `- [STAKE ${e.adjustedStake.toFixed(1)}] ${e.activationPath.join(" > ")} (${e.score}/10, UNACCEPTABLE): ${e.assessment}`
     )
     .join("\n");
+
+  const optionalSummary = optional.length > 0
+    ? `\n\nOPTIONAL IMPROVEMENTS (acceptable but could be better):\n${optional
+        .map(
+          (e) =>
+            `- [STAKE ${e.adjustedStake.toFixed(1)}] ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`
+        )
+        .join("\n")}`
+    : "";
 
   const revisionInstructions = resolutions
     .map((r) => `- ${r.revisedInstructions}`)
@@ -291,9 +329,9 @@ export function revisionPrompt(
 
 ---
 
-REVISION NEEDED. The evaluators found issues:
+REVISION NEEDED. Items are ordered by impact (stake × severity). Address high-stake issues first.
 
-${evalSummary}
+${evalSummary}${optionalSummary}
 
 SPECIFIC CHANGES REQUIRED:
 
@@ -302,10 +340,10 @@ ${revisionInstructions}
 Produce the complete revised artifact incorporating these changes. Do not just patch — rebuild the relevant sections while keeping what worked.`;
 }
 
-// ─── INHIBITOR ──────────────────────────────────────────────
+// ─── BASAL GANGLIA (deliberative fallback) ──────────────────
 
-export function inhibitorSystem(): string {
-  return `You are the Inhibitor — a prefrontal cortex component that determines which senses are irrelevant for a given context.
+export function basalGangliaSystem(): string {
+  return `You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
 
 A sense is irrelevant when its concerns cannot meaningfully apply to the current work. "Scalability" is irrelevant for a 5-page brochure site. "Internationalization" is irrelevant for an internal English-only tool. "Visual Polish" may be irrelevant during a backend-only task.
 
@@ -316,7 +354,7 @@ Be conservative: when in doubt, keep a sense active. Suppressing a relevant sens
 You may also recommend reactivating senses that were previously suppressed if the context has changed and they are now relevant.`;
 }
 
-export function inhibitorUser(briefing: InhibitionBriefing): string {
+export function basalGangliaUser(briefing: InhibitionBriefing): string {
   const { intent, taste, task, enrichment } = briefing;
 
   const senseList = enrichment.senses
@@ -584,4 +622,249 @@ function formatPlanSection(plan: MotorPlan): string {
   }
 
   return sections.join("\n\n");
+}
+
+// ─── POTENTIATION ───────────────────────────────────────────
+
+export function potentiationExtractSystem(): string {
+  return `You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
+
+A principle is a LIVING THEORY, not a rule. It is:
+- DESCRIPTIVE, not prescriptive: "X tends to produce Y because Z" — NOT "you should do X"
+- TRANSFERABLE: applicable beyond the specific project these episodes came from
+- EXPLANATORY: not just "what happened" but "why it happened"
+- FALSIFIABLE: specific enough that a future episode could contradict it
+- SENSE-AWARE: identify which quality dimensions (senses) this principle is most relevant to
+
+You also receive the system's existing principles. If any existing principle already covers this pattern, either:
+- Return null for the principle (the existing principle is sufficient)
+- Return a refined version that supersedes the existing one (set the supersedes field to the existing principle's ID)
+
+Do NOT extract trivial principles ("tasks with more cycles take longer" or "higher scores are better"). The principle should teach the system something it couldn't have known without this specific pattern of episodes.
+
+Return JSON: {
+  "principle": {
+    "statement": "the principle statement",
+    "relevantSenses": ["SENSE_NAME_1", "SENSE_NAME_2"],
+    "domain": "a short category like layout-strategy or tension-resolution",
+    "confidence": 0.5-0.8,
+    "supersedes": "principle-id or null"
+  } | null,
+  "reasoning": "why you extracted this principle (or why null)"
+}`;
+}
+
+export function potentiationExtractUser(
+  episodes: Episode[],
+  existingPrinciples: Principle[],
+  trigger: PotentiationTrigger,
+): string {
+  const sections: string[] = [];
+
+  sections.push(`TRIGGER: ${formatTrigger(trigger)}`);
+
+  sections.push("EPISODES IN CLUSTER:");
+  for (const ep of episodes) {
+    const senses = ep.senseParticipation
+      .map(
+        (sp) =>
+          `${sp.senseName}: ${sp.finalScore.toFixed(1)}/10 (${sp.acceptable ? "acceptable" : "not acceptable"})`,
+      )
+      .join("; ");
+
+    const tensions =
+      ep.narrative.tensionSnapshots.length > 0
+        ? `Tensions: ${ep.narrative.tensionSnapshots
+            .map(
+              (t) =>
+                `${t.senseA} vs ${t.senseB} (${t.severity})${t.resolution ? ` → resolved: ${t.resolution.strategy}` : ""}`,
+            )
+            .join("; ")}`
+        : "No tensions";
+
+    const decisions =
+      ep.narrative.decisions.length > 0
+        ? `Decisions: ${ep.narrative.decisions.map((d) => d.description).join("; ")}`
+        : "";
+
+    sections.push(`
+--- Episode: ${ep.taskId} ---
+Task: ${ep.narrative.taskDescription}
+Outcome: ${ep.narrative.outcome} (${ep.narrative.cycles} cycles, confidence: ${ep.narrative.confidence.toFixed(2)})
+Dopamine: ${ep.dopamineSignal.toFixed(3)} (significance: ${ep.significance.toFixed(2)})
+Senses: ${senses}
+${tensions}
+${decisions}
+Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`);
+  }
+
+  if (existingPrinciples.length > 0) {
+    sections.push("EXISTING PRINCIPLES (do not duplicate):");
+    for (const p of existingPrinciples) {
+      sections.push(
+        `- [${p.id}] (${p.confidence.toFixed(2)} confidence) ${p.statement} [senses: ${p.relevantSenses.join(", ")}]`,
+      );
+    }
+  }
+
+  return sections.join("\n\n");
+}
+
+export function potentiationRefineSystem(): string {
+  return `You are revising an existing principle in light of contradicting evidence. A principle was extracted from earlier episodes, but a new episode challenges it.
+
+Your options:
+1. REFINE: The principle was too broad. Narrow its scope to account for the contradiction.
+   Example: "Fragmented layouts underperform" → "Fragmented layouts underperform for scope-heavy content, but work well for browsable categorical content"
+2. REPLACE: The principle was fundamentally wrong. Replace it with a better theory.
+3. MAINTAIN: The contradicting episode was an outlier. The principle still holds. Do not change the statement.
+
+For REFINE and REPLACE, the revised statement must still be DESCRIPTIVE (not prescriptive), TRANSFERABLE, EXPLANATORY, and FALSIFIABLE.
+
+Return JSON: {
+  "action": "refine" | "replace" | "maintain",
+  "revisedStatement": "the new statement (required for refine/replace, omit for maintain)",
+  "revisedConfidence": 0.0-1.0,
+  "reasoning": "why you chose this action"
+}`;
+}
+
+export function potentiationRefineUser(
+  principle: Principle,
+  contradictingEpisode: Episode,
+): string {
+  const sections: string[] = [];
+
+  sections.push(`EXISTING PRINCIPLE:
+ID: ${principle.id}
+Statement: ${principle.statement}
+Confidence: ${principle.confidence.toFixed(2)}
+Relevant senses: ${principle.relevantSenses.join(", ")}
+Supporting evidence: ${principle.supportingEvidence.length} episodes
+Contradicting evidence: ${principle.contradictingEvidence.length} episodes (including this new one)`);
+
+  const ep = contradictingEpisode;
+  const senses = ep.senseParticipation
+    .map(
+      (sp) =>
+        `${sp.senseName}: ${sp.finalScore.toFixed(1)}/10 (${sp.acceptable ? "acceptable" : "not acceptable"})`,
+    )
+    .join("; ");
+
+  sections.push(`CONTRADICTING EPISODE:
+Task: ${ep.narrative.taskDescription}
+Outcome: ${ep.narrative.outcome} (${ep.narrative.cycles} cycles)
+Dopamine: ${ep.dopamineSignal.toFixed(3)} (significance: ${ep.significance.toFixed(2)})
+Senses: ${senses}
+Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`);
+
+  if (ep.narrative.tensionSnapshots.length > 0) {
+    sections.push(
+      `Tensions: ${ep.narrative.tensionSnapshots
+        .map(
+          (t) =>
+            `${t.senseA} vs ${t.senseB}: ${t.description}${t.resolution ? ` → ${t.resolution.strategy}` : ""}`,
+        )
+        .join("\n")}`,
+    );
+  }
+
+  return sections.join("\n\n");
+}
+
+// ─── SENSE-SCOPED POTENTIATION ─────────────────────────────
+
+export function potentiationSenseExtractSystem(): string {
+  return `You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.
+
+A sense-scoped principle captures what a specific quality dimension has discovered through repeated engagement with a project:
+- "Design has established: dark, bold palette with generous whitespace. Image-heavy hero sections underperform — the client's content is too dense for visual competition."
+- "Engineering has learned: the legacy auth middleware silently swallows errors. Any new endpoint must validate tokens independently until the rewrite ships."
+
+These are different from cross-project principles:
+- They are PROJECT-LOCAL: what this sense knows about THIS project specifically
+- They are SENSE-SPECIFIC: written from this sense's perspective, in this sense's voice
+- They are ACCUMULATED: they synthesize across multiple episodes, not just one
+- They are still LIVING THEORIES: they can be refined or contradicted by future episodes
+- They are still FALSIFIABLE: specific enough that a future episode could contradict them
+
+You also receive existing principles for this sense+project. If an existing principle already covers the pattern, either:
+- Return null (existing principle is sufficient)
+- Return a refined version that supersedes it (set supersedes to the existing principle's ID)
+
+Do NOT extract principles that merely restate task descriptions or obvious outcomes.
+
+Return JSON: {
+  "principle": {
+    "statement": "what this sense has learned, in its own voice",
+    "relevantSenses": ["THE_SENSE_NAME"],
+    "domain": "a short category like project-palette or api-architecture",
+    "confidence": 0.4-0.8,
+    "supersedes": "principle-id or null"
+  } | null,
+  "reasoning": "why you extracted this (or why null)"
+}`;
+}
+
+export function potentiationSenseExtractUser(
+  senseName: string,
+  projectId: string,
+  episodes: Episode[],
+  existingPrinciples: Principle[],
+): string {
+  const sections: string[] = [];
+
+  sections.push(`SENSE: ${senseName}`);
+  sections.push(`PROJECT: ${projectId}`);
+  sections.push(`EPISODE COUNT: ${episodes.length}`);
+
+  sections.push(`${senseName.toUpperCase()}'S PARTICIPATION ACROSS EPISODES:`);
+  for (const ep of episodes) {
+    const senseRecord = ep.senseParticipation.find(
+      (sp) => sp.senseName === senseName,
+    );
+    if (!senseRecord) continue;
+
+    const tensions = ep.narrative.tensionSnapshots
+      .filter((t) => t.senseA === senseName || t.senseB === senseName)
+      .map(
+        (t) =>
+          `${t.senseA} vs ${t.senseB} (${t.severity})${t.resolution ? ` → ${t.resolution.strategy}` : ""}`,
+      );
+
+    sections.push(`
+--- Episode: ${ep.taskId} ---
+Task: ${ep.narrative.taskDescription}
+Outcome: ${ep.narrative.outcome} (${ep.narrative.cycles} cycles)
+${senseName}'s score: ${senseRecord.finalScore.toFixed(1)}/10 (${senseRecord.acceptable ? "acceptable" : "not acceptable"})
+${senseName}'s stake: ${senseRecord.stake.toFixed(2)}
+${senseName}'s assessment: ${senseRecord.assessment}
+Dopamine: ${ep.dopamineSignal.toFixed(3)} (significance: ${ep.significance.toFixed(2)})
+${tensions.length > 0 ? `Tensions involving ${senseName}: ${tensions.join("; ")}` : ""}
+Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`);
+  }
+
+  if (existingPrinciples.length > 0) {
+    sections.push(
+      `EXISTING ${senseName.toUpperCase()} PRINCIPLES FOR THIS PROJECT (do not duplicate):`,
+    );
+    for (const p of existingPrinciples) {
+      sections.push(
+        `- [${p.id}] (${p.confidence.toFixed(2)} confidence) ${p.statement}`,
+      );
+    }
+  }
+
+  return sections.join("\n\n");
+}
+
+function formatTrigger(trigger: PotentiationTrigger): string {
+  switch (trigger.type) {
+    case "pattern-density":
+      return `Pattern density — ${trigger.episodeCount} similar episodes accumulated (${trigger.similarity})`;
+    case "surprise":
+      return `Surprise — dopamine signal ${trigger.dopamineSignal.toFixed(3)} on task ${trigger.taskId}`;
+    case "contradiction":
+      return `Contradiction — episode ${trigger.contradictingEpisodeId} contradicts principle ${trigger.principleId}`;
+  }
 }

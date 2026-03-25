@@ -16,7 +16,12 @@ export type {
   TensionFlag,
 } from "./sense.js";
 
-export type { Council } from "./council.js";
+export type {
+  Consultation,
+  EvaluationPlanEntry,
+  StakeDistribution,
+  ConsultationConditions,
+} from "./consultation.js";
 
 export type { Tension, TensionResolution } from "./tension.js";
 
@@ -101,7 +106,57 @@ export type {
 } from "./working-memory.js";
 
 export type {
-  InhibitorConfig,
+  Gate,
+  GateInput,
+  GateOutput,
+  GateStrategy,
+  StrategySelector,
+  SignalLandscape,
+} from "./gate.js";
+
+export type {
+  ConsultationBriefing,
+  MotorBriefing,
+  EvaluationBriefing,
+  SchedulingBriefing,
+  BriefingMeta,
+  ThalamusSources,
+  HippocampusSource,
+  PrincipleSummary,
+} from "./thalamus.js";
+
+export type {
+  MotorPlan,
+  MotorCortexResult,
+  SelfAssessment,
+  RevisionContext,
+  RevisionPlan,
+  PlanStep,
+  TensionStrategy,
+  PlanRisk,
+  PlannedIntention,
+  DriftArea,
+} from "./motor-cortex.js";
+
+export type {
+  TaskFingerprint,
+  CerebellumEpisode,
+  ReceptorPrediction,
+  CerebellumPrediction,
+  ReceptorDopamine,
+  DopamineSignal,
+  SimilarityWeights,
+  CerebellumConfig,
+  AccuracyRecord,
+  ScoredEpisode,
+} from "./cerebellum.js";
+export {
+  DEFAULT_SIMILARITY_WEIGHTS,
+  DEFAULT_CEREBELLUM_CONFIG,
+} from "./cerebellum.js";
+
+export type {
+  BasalGangliaConfig,
   InhibitionScope,
   SuppressionDecision,
   SuppressionEntry,
@@ -112,5 +167,62 @@ export type {
   InhibitionBriefing,
   InhibitionEnrichment,
   SenseSummary,
-} from "./inhibitor.js";
-export { DEFAULT_INHIBITOR_CONFIG, SCOPE_HIERARCHY } from "./inhibitor.js";
+} from "./basal-ganglia.js";
+export { DEFAULT_BASAL_GANGLIA_CONFIG, SCOPE_HIERARCHY } from "./basal-ganglia.js";
+
+export type {
+  DeltaSource,
+  ConnectionCategory,
+  NormalizationBehavior,
+  CategoryConfig,
+  PlasticConnectionDeclaration,
+  WeightDelta,
+  PlasticWeight,
+  ConnectionSnapshot,
+  PlasticityStore,
+  FixedConnection,
+} from "./plasticity.js";
+export {
+  CATEGORY_CONFIG,
+  FIXED_CONNECTIONS,
+  PLASTIC_CONNECTIONS,
+} from "./plasticity.js";
+
+export type {
+  Episode,
+  EpisodeNarrative,
+  ScoreProgressionEntry,
+  ScoreProgressionScore,
+  DecisionSnapshot,
+  TensionSnapshot,
+  SenseParticipationRecord,
+  Principle,
+  EvidenceRef,
+  ExtractionContext,
+  PotentiationTrigger,
+  PatternDensityTrigger,
+  SurpriseTrigger,
+  ContradictionTrigger,
+  EpisodeCluster,
+  PrincipleContradiction,
+  HippocampusConfig,
+  HippocampusMeta,
+  HippocampusState,
+  PrincipleExtractionResult,
+  PrincipleRefinementResult,
+} from "./hippocampus.js";
+export { DEFAULT_HIPPOCAMPUS_CONFIG } from "./hippocampus.js";
+
+export type {
+  TonicDopamine,
+  TonicConfig,
+  HippocampalProjection,
+  StriatalProjection,
+  PlasticityProjection,
+  PrefrontalProjection,
+  ReceptorWeightDelta,
+  DopamineProjections,
+  TonicSnapshot,
+  TonicTrackerSnapshot,
+} from "./dopamine.js";
+export { DEFAULT_TONIC_CONFIG } from "./dopamine.js";

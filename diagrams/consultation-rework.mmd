@@ -1,0 +1,98 @@
+---
+title: "Consultation — Sensory Cortex Judgment System"
+scope: feature
+phase: 2
+feature: 9
+---
+flowchart TD
+    subgraph DISPATCH["Task Dispatch (what it gives up)"]
+        sched["Scheduler.decide()"]
+        ne_mode["NE level + mode"]
+        sched --> ne_mode
+    end
+
+    subgraph SENSORY["Sensory Cortex .prepare — owns all of this now"]
+        direction TB
+
+        subgraph INHIBITION["① Inhibit — pulled FROM task-dispatch"]
+            inhib_brief["Thalamus.forInhibition(\ntask, NE, mode)"]
+            suppress["BasalGanglia.selectAction('task')"]
+            active["Thalamus.getActiveSenses()"]
+            inhib_brief --> suppress
+            suppress -->|"writes WM"| active
+        end
+
+        subgraph CONSULTATION["② Consult — per-sense, not per-task"]
+            direction TB
+            per_sense["For each active sense:"]
+            thal_sense["Thalamus.forSenseConsultation(\ntask, sense, NE, mode)"]
+
+            subgraph BRIEFING["Per-Sense Briefing"]
+                direction LR
+                core["Core\ntask + intent + taste"]
+                sense_enrich["Sense Enrichment\nown trends, relevant\npatterns, project\nsummary slot"]
+                landscape["Landscape\nactive senses,\ninhibited, open Qs"]
+                modulation["Modulation\nNE level, mode"]
+            end
+
+            per_sense --> thal_sense
+            thal_sense --> BRIEFING
+
+            llm_call["LLM: sense identity +\nmodulated system prompt +\nper-sense briefing"]
+            BRIEFING --> llm_call
+        end
+
+        subgraph MODULATED_PROMPT["System Prompt Adapts"]
+            direction LR
+            high_ne["High NE:\nbe thorough,\nsurface subtle risks"]
+            low_ne["Low NE:\nbe concise,\nfollow patterns"]
+            explore["Explore:\nthink beyond obvious,\nunconventional angles"]
+            exploit["Exploit:\nwhat's worked,\nwhat to repeat"]
+        end
+
+        INHIBITION --> CONSULTATION
+        modulation -.->|"drives"| MODULATED_PROMPT
+    end
+
+    subgraph PRODUCES["③ Council — richer output"]
+        direction TB
+        perspectives["SensePerspective[]\nperspective + evaluators + stake\n(unchanged)"]
+        council_meta["consultationMeta\nNE, mode, inhibited senses,\nstake distribution"]
+        perspectives ~~~ council_meta
+    end
+
+    subgraph DOWNSTREAM["What consumes the Council"]
+        direction TB
+        motor["Motor Cortex\nreads perspectives +\nknows consultation context"]
+        eval_gate["Build Cycle Gate\nNE now actually arrives\n(was always undefined)"]
+        build_ne["BuildCycleContext.neLevel\nfinally threaded through"]
+    end
+
+    ne_mode -->|"real typed fields\nnot Record bag"| SENSORY
+    CONSULTATION --> PRODUCES
+    PRODUCES --> motor
+    ne_mode -->|"threaded through\nSensoryCortexContext"| build_ne
+    build_ne --> eval_gate
+
+    %% What moves where
+    linkStyle 0 stroke:#c46a6a,stroke-width:2
+    linkStyle 8 stroke:#6a8fc4,stroke-width:2
+
+    style DISPATCH fill:#f9e6e6,stroke:#c46a6a,stroke-dasharray: 5 5
+    style SENSORY fill:#e6eef9,stroke:#6a8fc4
+    style INHIBITION fill:#f0e6f9,stroke:#956ac4
+    style CONSULTATION fill:#e8f4e8,stroke:#6b9e6b
+    style BRIEFING fill:#f9f6e6,stroke:#c4b06a
+    style MODULATED_PROMPT fill:#fff,stroke:#999,stroke-dasharray: 3 3
+    style PRODUCES fill:#e8f4e8,stroke:#6b9e6b
+    style DOWNSTREAM fill:#f9f0e6,stroke:#c4956a
+    style sched fill:#f9e6e6,stroke:#c46a6a
+    style ne_mode fill:#f9e6e6,stroke:#c46a6a
+    style per_sense fill:#e8f4e8,stroke:#6b9e6b
+    style thal_sense fill:#e6eef9,stroke:#6a8fc4
+    style llm_call fill:#e8f4e8,stroke:#6b9e6b
+    style perspectives fill:#e8f4e8,stroke:#6b9e6b
+    style council_meta fill:#e8f4e8,stroke:#6b9e6b
+    style motor fill:#f9f0e6,stroke:#c4956a
+    style eval_gate fill:#f9f0e6,stroke:#c4956a
+    style build_ne fill:#f9f0e6,stroke:#c4956a

@@ -1,5 +1,8 @@
 ---
 title: "Working Memory — Full System Connection Map"
+scope: feature
+phase: 1
+feature: 2
 ---
 graph LR
     %% ─── WRITERS ──────────────────────────────────────
@@ -7,7 +10,7 @@ graph LR
         direction TB
         Planner["Planner #1<br/><small>writes task graph + deps</small>"]
         SchedW["Scheduler #7<br/><small>sets current task</small>"]
-        Inhib["Inhibitor #4<br/><small>suppresses senses</small>"]
+        Inhib["Basal Ganglia #16<br/><small>suppresses senses</small>"]
         EvalW["Eval Loop #12<br/><small>writes receptor scores</small>"]
         ResW["Resolver #13<br/><small>writes key strategies</small>"]
         Amy["Amygdala #17<br/><small>urgent issues + overrides</small>"]

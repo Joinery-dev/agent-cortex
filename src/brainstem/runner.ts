@@ -222,34 +222,11 @@ export class RhythmRunnerImpl implements RhythmRunner {
       switch (decision.action) {
         case "continue":
           state.completedCycles++;
-
-          // Enforce max cycles
-          if (
-            definition.maxCycles > 0 &&
-            state.completedCycles >= definition.maxCycles
-          ) {
-            log.warn(
-              `${state.rhythmType} reached maxCycles (${definition.maxCycles}), forcing completion`,
-              { rhythmId: state.id },
-            );
-
-            // Ask gate one more time with a forced-completion hint
-            // in the accumulator so it can produce a best-effort result
-            state.accumulator.__maxCyclesReached = true;
-            const forcedDecision = await definition.gate(integrated, state);
-
-            if (forcedDecision.action === "complete") {
-              return this.completeRhythm(state, forcedDecision.result);
-            }
-
-            // If gate still won't complete, escalate
-            throw new EscalationError(state.id, {
-              action: "escalate",
-              severity: "medium",
-              reason: `${state.rhythmType} reached max cycles (${definition.maxCycles}) without completion`,
-              context: { cycles: state.completedCycles },
-            });
-          }
+          // No hardcoded cycle limit. Convergence is governed by the gate
+          // strategy, collapse detection (Basal Ganglia), cognitive flexibility
+          // (Phase 4), and drift monitoring (Phase 4). If the system can't
+          // converge, those diagnostic systems should detect why and either
+          // change strategy or escalate — not silently return "best effort."
           break;
 
         case "complete":

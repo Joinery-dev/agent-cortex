@@ -43,6 +43,8 @@ export interface ScoreEntry {
   activationPath: string[];
   /** 1–10 score from the receptor's evaluation. */
   score: number;
+  /** Stake inherited from the parent sense's consultation (0–1). */
+  stake: number;
 }
 
 /**
@@ -82,6 +84,22 @@ export interface ScoreTrend {
   dataPoints: number;
 }
 
+// ─── Oscillation detection ───────────────────────────────────────
+
+/**
+ * A receptor whose score swung significantly between build cycles
+ * within a single task. Indicates possible thrashing or collateral
+ * damage from revisions targeting other dimensions.
+ */
+export interface OscillationSignal {
+  receptorId: string;
+  activationPath: string[];
+  /** Scores across consecutive snapshots showing the swing. */
+  recentScores: number[];
+  /** Max absolute difference between consecutive scores. */
+  swingMagnitude: number;
+}
+
 // ─── Task tracking ──────────────────────────────────────────────
 
 export type WMTaskStatus = "pending" | "active" | "complete" | "failed";
@@ -95,8 +113,8 @@ export type WMTaskStatus = "pending" | "active" | "complete" | "failed";
 export interface TaskSummary {
   cycles: number;
   confidence: number;
-  /** Mean of all receptor evaluation scores. */
-  meanScore: number;
+  /** Weighted mean of evaluation scores (stake-weighted). */
+  weightedMean: number;
   /** Count of tensions with severity "high". */
   highTensionCount: number;
   completedAt: Date;
@@ -152,14 +170,14 @@ export interface OpenQuestion {
 /**
  * A sense or receptor that has been suppressed.
  * Tracks who suppressed it and why so the Thalamus can explain
- * suppressions in briefings and the Inhibitor can distinguish
+ * suppressions in briefings and the Basal Ganglia can distinguish
  * its own suppressions from Amygdala overrides.
  */
 export interface InhibitedSense {
   senseId: string;
   /** Why this sense is suppressed, e.g. "scalability irrelevant for a 5-page site". */
   reason: string;
-  /** Who requested the inhibition, e.g. "planner", "amygdala", "inhibitor". */
+  /** Who requested the inhibition, e.g. "planner", "amygdala", "basal-ganglia". */
   source: string;
   /**
    * Scope level for hierarchical cleanup. When a scope boundary is crossed,

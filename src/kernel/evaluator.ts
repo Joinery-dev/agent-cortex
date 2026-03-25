@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SenseEvaluation } from "../types/sense.js";
-import type { Council } from "../types/council.js";
+import type { Consultation } from "../types/consultation.js";
 import type { Task } from "../types/task.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { Thalamus } from "./thalamus.js";
@@ -14,6 +14,7 @@ const log = createLogger("evaluator");
 
 const EvaluationResult = z.object({
   score: z.number().min(1).max(10),
+  acceptable: z.boolean(),
   assessment: z.string(),
   tensions: z.array(
     z.object({
@@ -30,23 +31,18 @@ interface EvaluatorEntry {
 }
 
 export async function evaluate(
-  council: Council,
+  consultation: Consultation,
   task: Task,
   work: string,
   library: SensoryCortex,
   config: CortexConfig,
   thalamus?: Thalamus,
 ): Promise<SenseEvaluation[]> {
-  // Derive evaluator list from council perspectives
-  const entries: EvaluatorEntry[] = [];
-  for (const perspective of council.perspectives) {
-    for (const receptorId of perspective.evaluators) {
-      entries.push({
-        receptorId,
-        parentPerspective: perspective.perspective,
-      });
-    }
-  }
+  // Read evaluator list from consultation's pre-computed evaluation plan
+  const entries: EvaluatorEntry[] = consultation.evaluationPlan.map((entry) => ({
+    receptorId: entry.receptorId,
+    parentPerspective: entry.parentPerspective,
+  }));
 
   emit("evaluation:start", {
     senseCount: entries.length,
@@ -68,14 +64,19 @@ export async function evaluate(
 
     const activationPath = library.getAncestorPath(sense.id);
 
-    // When thalamus is available, get per-receptor trend context
+    // When thalamus is available, get per-receptor trend context + principles
     let trendContext: string | undefined;
     if (thalamus) {
       const evalBriefing = await thalamus.forEvaluation(task, sense.id, activationPath);
+      const parts: string[] = [];
       if (evalBriefing.receptorTrends.length > 0) {
         const trend = evalBriefing.receptorTrends[0];
-        trendContext = `YOUR RECENT TREND:\n- ${trend.direction} (current mean: ${trend.currentMean.toFixed(1)}, previous: ${trend.previousMean.toFixed(1)}, across ${trend.dataPoints} task(s))`;
+        parts.push(`YOUR RECENT TREND:\n- ${trend.direction} (current mean: ${trend.currentMean.toFixed(1)}, previous: ${trend.previousMean.toFixed(1)}, across ${trend.dataPoints} task(s))`);
       }
+      if (evalBriefing.relevantPrinciples && evalBriefing.relevantPrinciples.length > 0) {
+        parts.push(`PRINCIPLES FROM EXPERIENCE:\n${evalBriefing.relevantPrinciples.map((p) => `- (${p.confidence.toFixed(2)} confidence) ${p.statement}`).join("\n")}`);
+      }
+      if (parts.length > 0) trendContext = parts.join("\n\n");
     }
 
     try {
@@ -91,6 +92,7 @@ export async function evaluate(
         senseId: sense.id,
         activationPath,
         score: result.score,
+        acceptable: result.acceptable,
         assessment: result.assessment,
         tensions: result.tensions,
         suggestions: result.suggestions,
@@ -99,6 +101,7 @@ export async function evaluate(
       emit("evaluation:score", {
         path: evaluation.activationPath.join(" > "),
         score: evaluation.score,
+        acceptable: evaluation.acceptable,
         assessment: evaluation.assessment,
       });
 

@@ -236,14 +236,14 @@
       transition: width 0.6s ease-out;
     }
 
-    /* ─── Council perspectives ─── */
-    .council-perspectives {
+    /* ─── Consultation perspectives ─── */
+    .consultation-perspectives {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
       gap: 12px;
     }
 
-    .council-perspectives .sense-card {
+    .consultation-perspectives .sense-card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -251,14 +251,14 @@
       animation: fadeIn 0.3s ease-out;
     }
 
-    .council-perspectives .sense-card-header {
+    .consultation-perspectives .sense-card-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 8px;
     }
 
-    .council-perspectives .sense-card-name {
+    .consultation-perspectives .sense-card-name {
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.8px;
@@ -266,12 +266,12 @@
       color: var(--accent);
     }
 
-    .council-perspectives .sense-card-meta {
+    .consultation-perspectives .sense-card-meta {
       font-size: 10px;
       color: var(--text-dim);
     }
 
-    .council-perspectives .sense-card-perspective {
+    .consultation-perspectives .sense-card-perspective {
       font-size: 11px;
       color: var(--text-dim);
       line-height: 1.5;
@@ -1167,7 +1167,7 @@
           }
 
           requestAnimationFrame(() => requestAnimationFrame(sizeRails));
-          addEvent('Council Complete', `${data.perspectives} perspectives, ${data.totalEvaluators} evaluators`);
+          addEvent('Consultation Complete', `${data.perspectives} perspectives, ${data.totalEvaluators} evaluators`);
           renderStages();
           break;
         }

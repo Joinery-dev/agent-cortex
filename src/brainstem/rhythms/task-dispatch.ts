@@ -32,7 +32,9 @@ import type { WorkingMemory } from "../../kernel/working-memory.js";
 import type { Thalamus } from "../../kernel/thalamus.js";
 import type { AttentionScheduler } from "../../kernel/attention-scheduler.js";
 import type { MotorCortex } from "../../kernel/motor-cortex.js";
-import type { Inhibitor } from "../../kernel/inhibitor.js";
+import type { BasalGanglia } from "../../kernel/basal-ganglia.js";
+import type { Gate } from "../../types/gate.js";
+import type { StakeAdjuster } from "../../kernel/evaluation-weighter.js";
 
 const log = createLogger("task-dispatch");
 
@@ -140,9 +142,11 @@ export function createTaskDispatchDefinition(
   thalamus: Thalamus,
   scheduler: AttentionScheduler,
   motorCortex: MotorCortex,
-  inhibitor: Inhibitor,
+  basalGanglia: BasalGanglia,
+  gate: Gate,
+  stakeAdjuster?: StakeAdjuster,
 ): RhythmDefinition<TaskDispatchContext, TaskDispatchResult, PreparedDispatch, ExecutedDispatch, IntegratedDispatch> {
-  const sensoryCortexDef = createSensoryCortexDefinition(config, library, hooks, wm, thalamus, motorCortex, inhibitor);
+  const sensoryCortexDef = createSensoryCortexDefinition(config, library, hooks, wm, thalamus, motorCortex, basalGanglia, gate, stakeAdjuster);
   const restDef = createRestCycleDefinition(hooks);
 
   return {
@@ -178,14 +182,14 @@ export function createTaskDispatchDefinition(
             return { action: "done" };
           }
 
-          // Inhibitor: evaluate sense relevance for this task
+          // Basal Ganglia: evaluate sense relevance for this task
           const inhibitionBriefing = await thalamus.forInhibition(
             library,
             taskNode.task,
             decision.neLevel,
             decision.mode,
           );
-          await inhibitor.suppress(inhibitionBriefing, "task", wm, config);
+          await basalGanglia.suppress(inhibitionBriefing, "task", wm, config);
 
           emit("dispatch:task-selected", {
             taskId: taskNode.task.id,
@@ -213,8 +217,8 @@ export function createTaskDispatchDefinition(
           if (load.memoryPressure > 0.7) priorities.push("prune-memory");
           if (load.predictionDrift > 0.5) priorities.push("recalibrate");
           if (load.weightInstability > 0.6) priorities.push("settle-weights", "decay-connections");
-          if (load.episodeDensity > 0.7) priorities.push("crystallize");
-          if (priorities.length === 0) priorities.push("crystallize");
+          if (load.episodeDensity > 0.7) priorities.push("potentiate");
+          if (priorities.length === 0) priorities.push("potentiate");
 
           return {
             action: "run-rest",
@@ -282,10 +286,8 @@ export function createTaskDispatchDefinition(
         task: taskNode.task,
         intent: state.initialContext.intent,
         taste: state.initialContext.taste,
-        briefing: {
-          neLevel: prepared.neLevel,
-          mode: prepared.mode,
-        },
+        neLevel: prepared.neLevel,
+        mode: prepared.mode,
       };
 
       try {
@@ -348,8 +350,8 @@ export function createTaskDispatchDefinition(
         acc.taskResults.set(taskId, executed.taskResult);
 
         // Between-tasks fast path
-        const dopamine = await hooks.computeDopamineSignal([], []);
-        await hooks.recordEpisode(taskId, executed.taskResult);
+        const dopamine = await hooks.computeDopamineSignal(taskId, executed.taskResult.evaluations);
+        await hooks.recordEpisode(taskId, executed.taskResult, dopamine);
         await hooks.updateRoutines(taskId, dopamine);
 
         // Feed WM load to homeostasis (drives rest cycle triggers)

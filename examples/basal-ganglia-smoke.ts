@@ -1,6 +1,6 @@
 /**
- * Smoke test for Inhibitor — validates:
- * 1. InhibitorConfig defaults and merge
+ * Smoke test for Basal Ganglia — validates:
+ * 1. BasalGangliaConfig defaults and merge
  * 2. Scope hierarchy (clearInhibitionsByScope)
  * 3. WM inhibitSense/uninhibitSense with scope
  * 4. Thalamus forInhibition() briefing assembly
@@ -12,15 +12,15 @@
  * and that the component constructs and wires correctly.
  */
 
-import { Inhibitor } from "../src/kernel/inhibitor.js";
+import { BasalGanglia } from "../src/kernel/basal-ganglia.js";
 import { WorkingMemory } from "../src/kernel/working-memory.js";
 import { Thalamus } from "../src/kernel/thalamus.js";
 import { SensoryCortex } from "../src/senses/cortex.js";
 import {
-  DEFAULT_INHIBITOR_CONFIG,
+  DEFAULT_BASAL_GANGLIA_CONFIG,
   SCOPE_HIERARCHY,
-} from "../src/types/inhibitor.js";
-import type { InhibitorConfig, InhibitionBriefing } from "../src/types/inhibitor.js";
+} from "../src/types/basal-ganglia.js";
+import type { BasalGangliaConfig, InhibitionBriefing } from "../src/types/basal-ganglia.js";
 import type { ProjectIntent, TasteProfile } from "../src/types/intent.js";
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -60,20 +60,20 @@ function makeTaste(): TasteProfile {
 }
 
 // ══════════════════════════════════════════════════════════════════
-console.log("\n═══ Inhibitor Smoke Tests ═══\n");
+console.log("\n═══ Basal Ganglia Smoke Tests ═══\n");
 
 // ── 1. Config defaults ──────────────────────────────────────────
 console.log("1. Config defaults");
 {
-  assert(DEFAULT_INHIBITOR_CONFIG.minActiveSenses === 2, "default minActiveSenses is 2");
-  assert(DEFAULT_INHIBITOR_CONFIG.highNeThreshold === 0.7, "default highNeThreshold is 0.7");
-  assert(DEFAULT_INHIBITOR_CONFIG.exploreSuppressionScale === 0.5, "default exploreSuppressionScale is 0.5");
+  assert(DEFAULT_BASAL_GANGLIA_CONFIG.minActiveSenses === 2, "default minActiveSenses is 2");
+  assert(DEFAULT_BASAL_GANGLIA_CONFIG.highNeThreshold === 0.7, "default highNeThreshold is 0.7");
+  assert(DEFAULT_BASAL_GANGLIA_CONFIG.exploreSuppressionScale === 0.5, "default exploreSuppressionScale is 0.5");
 
-  const inhibitor = new Inhibitor();
-  assert(inhibitor instanceof Inhibitor, "constructs with no config");
+  const bg = new BasalGanglia();
+  assert(bg instanceof BasalGanglia, "constructs with no config");
 
-  const custom = new Inhibitor({ minActiveSenses: 3 });
-  assert(custom instanceof Inhibitor, "constructs with partial config");
+  const custom = new BasalGanglia({ minActiveSenses: 3 });
+  assert(custom instanceof BasalGanglia, "constructs with partial config");
 }
 
 // ── 2. Scope hierarchy ──────────────────────────────────────────
@@ -94,10 +94,10 @@ console.log("\n3. WM scope-aware inhibition");
   const wm = new WorkingMemory("test-scope");
 
   // Add inhibitions at different scopes
-  wm.inhibitSense("sense-a", "irrelevant for project", "inhibitor", "project");
-  wm.inhibitSense("sense-b", "irrelevant for phase", "inhibitor", "phase");
-  wm.inhibitSense("sense-c", "irrelevant for subphase", "inhibitor", "subphase");
-  wm.inhibitSense("sense-d", "irrelevant for task", "inhibitor", "task");
+  wm.inhibitSense("sense-a", "irrelevant for project", "basal-ganglia", "project");
+  wm.inhibitSense("sense-b", "irrelevant for phase", "basal-ganglia", "phase");
+  wm.inhibitSense("sense-c", "irrelevant for subphase", "basal-ganglia", "subphase");
+  wm.inhibitSense("sense-d", "irrelevant for task", "basal-ganglia", "task");
   wm.inhibitSense("sense-e", "urgent override", "amygdala"); // no scope
 
   assert(wm.getInhibitedSenses().length === 5, "5 total inhibitions");
@@ -112,14 +112,14 @@ console.log("\n3. WM scope-aware inhibition");
   assert(wm.isInhibited("sense-e"), "amygdala override survives task clear");
 
   // Clear subphase — should clear subphase + task (task already cleared)
-  wm.inhibitSense("sense-d2", "new task inhibition", "inhibitor", "task");
+  wm.inhibitSense("sense-d2", "new task inhibition", "basal-ganglia", "task");
   const clearedSubphase = wm.clearInhibitionsByScope("subphase");
   assert(clearedSubphase.includes("sense-c"), "cleared sense-c (subphase)");
   assert(clearedSubphase.includes("sense-d2"), "cleared sense-d2 (task, under subphase)");
   assert(!clearedSubphase.includes("sense-b"), "did not clear sense-b (phase)");
 
   // Clear phase — should clear phase + subphase + task
-  wm.inhibitSense("sense-f", "another task", "inhibitor", "task");
+  wm.inhibitSense("sense-f", "another task", "basal-ganglia", "task");
   const clearedPhase = wm.clearInhibitionsByScope("phase");
   assert(clearedPhase.includes("sense-b"), "cleared sense-b (phase)");
   assert(clearedPhase.includes("sense-f"), "cleared sense-f (task, under phase)");
@@ -139,12 +139,12 @@ console.log("\n4. WM inhibitSense idempotent with scope");
 {
   const wm = new WorkingMemory("test-idempotent");
 
-  wm.inhibitSense("sense-x", "reason 1", "inhibitor", "task");
+  wm.inhibitSense("sense-x", "reason 1", "basal-ganglia", "task");
   assert(wm.getInhibitedSenses().length === 1, "1 inhibition after first call");
   assert(wm.getInhibitedSenses()[0].scope === "task", "scope is task");
 
   // Update same sense with new scope
-  wm.inhibitSense("sense-x", "reason 2", "inhibitor", "phase");
+  wm.inhibitSense("sense-x", "reason 2", "basal-ganglia", "phase");
   assert(wm.getInhibitedSenses().length === 1, "still 1 inhibition (idempotent)");
   assert(wm.getInhibitedSenses()[0].scope === "phase", "scope updated to phase");
   assert(wm.getInhibitedSenses()[0].reason === "reason 2", "reason updated");
@@ -187,7 +187,7 @@ console.log("\n5. Thalamus forInhibition() briefing");
   assert(taskBriefing.meta.taskId === "test-task", "meta has taskId");
 
   // With existing inhibitions in WM
-  wm.inhibitSense("sense-x", "test reason", "inhibitor", "task");
+  wm.inhibitSense("sense-x", "test reason", "basal-ganglia", "task");
   const enrichedBriefing = await thalamus.forInhibition(library);
   assert(
     enrichedBriefing.enrichment.currentInhibitions.length === 1,
@@ -195,27 +195,27 @@ console.log("\n5. Thalamus forInhibition() briefing");
   );
 }
 
-// ── 6. Inhibitor constructs with Brainstem pattern ──────────────
+// ── 6. BasalGanglia constructs with Brainstem pattern ───────────
 console.log("\n6. Brainstem integration pattern");
 {
-  // Verify the Inhibitor can be imported and constructed
+  // Verify the BasalGanglia can be imported and constructed
   // the same way Brainstem does it
-  const inhibitor = new Inhibitor({ minActiveSenses: 3 });
-  assert(inhibitor instanceof Inhibitor, "Inhibitor constructs like Scheduler pattern");
+  const bg = new BasalGanglia({ minActiveSenses: 3 });
+  assert(bg instanceof BasalGanglia, "BasalGanglia constructs like Scheduler pattern");
 
   // Verify methods exist with correct signatures
-  assert(typeof inhibitor.suppress === "function", "suppress() method exists");
-  assert(typeof inhibitor.detectCollapse === "function", "detectCollapse() method exists");
+  assert(typeof bg.suppress === "function", "suppress() method exists");
+  assert(typeof bg.detectCollapse === "function", "detectCollapse() method exists");
 }
 
 // ── 7. CollapseContext and CollapseSignal types ─────────────────
 console.log("\n7. Type correctness");
 {
   // Verify types are importable and structurally correct
-  const context = await import("../src/types/inhibitor.js");
+  const context = await import("../src/types/basal-ganglia.js");
 
   assert(context.SCOPE_HIERARCHY.length === 4, "SCOPE_HIERARCHY exported");
-  assert(context.DEFAULT_INHIBITOR_CONFIG.minActiveSenses === 2, "DEFAULT_INHIBITOR_CONFIG exported");
+  assert(context.DEFAULT_BASAL_GANGLIA_CONFIG.minActiveSenses === 2, "DEFAULT_BASAL_GANGLIA_CONFIG exported");
 
   // Verify CollapseSignal structure
   const signal = { collapsed: false, details: [] };

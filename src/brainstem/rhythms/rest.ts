@@ -65,8 +65,8 @@ export function createRestCycleDefinition(
 
       for (const priority of prepared.priorities) {
         switch (priority) {
-          case "crystallize": {
-            const r = await hooks.crystallize();
+          case "potentiate": {
+            const r = await hooks.potentiate();
             principlesExtracted = r.principlesExtracted;
             completed.push(priority);
             break;
@@ -90,10 +90,11 @@ export function createRestCycleDefinition(
             completed.push(priority);
             break;
           }
-          case "settle-weights":
-            // No-op until plasticity layer exists
+          case "settle-weights": {
+            const r = await hooks.settleWeights();
             completed.push(priority);
             break;
+          }
           case "deferred-checks":
             // No-op until phase gate integration exists
             completed.push(priority);
@@ -121,6 +122,7 @@ export function createRestCycleDefinition(
         contextCapacity: 0.2,
         learningSignalHealth: 0.9,
         weightVolatility: 0.1,
+        tonicDopamine: 0.5,
       };
 
       const loadAfter: ConsolidationLoad = {

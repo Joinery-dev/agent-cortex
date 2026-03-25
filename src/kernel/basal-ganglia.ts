@@ -1,43 +1,54 @@
 /**
- * Inhibitor — PFC sense suppression + collapsed-tension detection.
+ * Basal Ganglia — action selection through tonic inhibition.
  *
- * Two modes:
- *   1. suppress()       — evaluates which senses are irrelevant for a scope.
- *                         Called by the planning layer at scope boundaries.
- *   2. detectCollapse() — judges whether a resolution is genuine synthesis
- *                         or capitulation. Returns a gate signal.
+ * The BG's default state is tonic inhibition of all senses. Selection
+ * happens by selectively disinhibiting relevant ones (direct pathway)
+ * while maintaining suppression of competitors (indirect pathway).
  *
- * The Inhibitor is passive — called by others, doesn't track boundaries.
+ * Two capabilities:
+ *   1. suppress()       — the hyperdirect pathway's deliberative fallback.
+ *                         Calls the LLM to reason about which senses to
+ *                         activate/suppress. Used when no learned routine
+ *                         matches or confidence is too low.
+ *   2. detectCollapse() — PFC-delegated: judges whether a resolution is
+ *                         genuine synthesis or capitulation. Returns a
+ *                         gate signal for the build-cycle.
+ *
  * Owned by the Brainstem, threaded through rhythm definitions.
  */
 
 import { z } from "zod";
 import type {
-  InhibitorConfig,
+  BasalGangliaConfig,
   InhibitionScope,
   SuppressionDecision,
   CollapseContext,
   CollapseSignal,
   CollapseDetail,
   InhibitionBriefing,
-} from "../types/inhibitor.js";
+  Routine,
+  RoutineFingerprint,
+  RoutineMatch,
+} from "../types/basal-ganglia.js";
 import {
-  DEFAULT_INHIBITOR_CONFIG,
+  DEFAULT_BASAL_GANGLIA_CONFIG,
   SCOPE_HIERARCHY,
-} from "../types/inhibitor.js";
+} from "../types/basal-ganglia.js";
+import type { StriatalProjection } from "../types/dopamine.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { WorkingMemory } from "./working-memory.js";
 import { callStructured } from "../llm/structured.js";
 import {
-  inhibitorSystem,
-  inhibitorUser,
+  basalGangliaSystem,
+  basalGangliaUser,
   collapseDetectorSystem,
   collapseDetectorUser,
 } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
+import { newId } from "../util/ids.js";
 
-const log = createLogger("inhibitor");
+const log = createLogger("basal-ganglia");
 
 // ─── Zod schemas for LLM responses ──────────────────────────────
 
@@ -68,19 +79,21 @@ const CollapseResultSchema = z.object({
   ),
 });
 
-// ─── Inhibitor ───────────────────────────────────────────────────
+// ─── Basal Ganglia ──────────────────────────────────────────────
 
-export class Inhibitor {
-  private config: InhibitorConfig;
+export class BasalGanglia {
+  private config: BasalGangliaConfig;
 
-  constructor(config?: Partial<InhibitorConfig>) {
-    this.config = { ...DEFAULT_INHIBITOR_CONFIG, ...config };
+  constructor(config?: Partial<BasalGangliaConfig>) {
+    this.config = { ...DEFAULT_BASAL_GANGLIA_CONFIG, ...config };
   }
 
-  // ── Mode 1: Suppression ──────────────────────────────────────
+  // ── Hyperdirect Pathway: LLM-based deliberation ───────────────
 
   /**
    * Evaluate which senses are irrelevant for the given context.
+   * This is the deliberative fallback — called when no learned
+   * routine matches or confidence is too low.
    *
    * 1. Clears previous inhibitions at this scope + narrower scopes
    * 2. Calls the LLM to reason about relevance
@@ -96,16 +109,16 @@ export class Inhibitor {
     // Step 1: Clear previous inhibitions at this scope and below
     const cleared = wm.clearInhibitionsByScope(scope);
 
-    emit("inhibitor:scope-cleared", { scope, cleared });
+    emit("basal-ganglia:scope-cleared", { scope, cleared });
     log.info("Scope cleared before suppression", { scope, cleared });
 
     // Step 2: LLM evaluation
-    const model = cortexConfig.models.inhibitor ?? cortexConfig.models.consultation;
+    const model = cortexConfig.models.basalGanglia ?? cortexConfig.models.consultation;
     const raw = await callStructured(
       "inhibition",
       model,
-      inhibitorSystem(),
-      inhibitorUser(briefing),
+      basalGangliaSystem(),
+      basalGangliaUser(briefing),
       SuppressionResultSchema,
     );
 
@@ -139,7 +152,7 @@ export class Inhibitor {
     // Step 4: Enforce minimum active senses
     const totalSenses = briefing.enrichment.totalSenseCount;
     const currentlyInhibitedOtherScope = briefing.enrichment.currentInhibitions
-      .filter((s) => s.source !== "inhibitor" || !this.isScopeAffected(s.scope, scope))
+      .filter((s) => s.source !== "basal-ganglia" || !this.isScopeAffected(s.scope, scope))
       .length;
     const wouldBeActive = totalSenses - currentlyInhibitedOtherScope - toSuppress.length;
 
@@ -158,13 +171,13 @@ export class Inhibitor {
 
     // Step 5: Apply to WM
     for (const entry of toSuppress) {
-      wm.inhibitSense(entry.senseId, entry.reason, "inhibitor", scope);
+      wm.inhibitSense(entry.senseId, entry.reason, "basal-ganglia", scope);
     }
 
     for (const entry of raw.reactivate) {
       const success = wm.uninhibitSense(entry.senseId);
       if (success) {
-        emit("inhibitor:reactivated", {
+        emit("basal-ganglia:reactivated", {
           senseId: entry.senseId,
           reason: entry.reason,
         });
@@ -180,7 +193,7 @@ export class Inhibitor {
       reactivate: raw.reactivate,
     };
 
-    emit("inhibitor:suppressed", {
+    emit("basal-ganglia:suppressed", {
       scope,
       suppressed: toSuppress.map((s) => s.senseId),
       reactivated: raw.reactivate.map((s) => s.senseId),
@@ -196,11 +209,16 @@ export class Inhibitor {
     return decision;
   }
 
-  // ── Mode 2: Collapsed-Tension Detection ──────────────────────
+  // ── Collapsed-Tension Detection (PFC-delegated) ───────────────
 
   /**
    * Evaluate whether tension resolutions are genuine synthesis or capitulation.
    * Returns a CollapseSignal for the build-cycle gate.
+   *
+   * NOTE: This is a PFC executive function, not BG action selection.
+   * It lives here for convenience until a dedicated CollapseDetector
+   * is extracted. The BG hosts it because it was part of the original
+   * Inhibitor, and the build-cycle already holds a BG reference.
    */
   async detectCollapse(
     context: CollapseContext,
@@ -221,6 +239,12 @@ export class Inhibitor {
     );
 
     const details: CollapseDetail[] = raw.details.map((d) => {
+      if (d.tensionIndex < 0 || d.tensionIndex >= context.tensions.length) {
+        log.error("LLM returned out-of-bounds tension index", {
+          tensionIndex: d.tensionIndex,
+          tensionCount: context.tensions.length,
+        });
+      }
       const tension = context.tensions[d.tensionIndex];
       return {
         tensionId: tension?.id ?? `unknown-${d.tensionIndex}`,
@@ -234,7 +258,7 @@ export class Inhibitor {
     const anyCollapsed = details.some((d) => d.collapsed);
 
     if (anyCollapsed) {
-      emit("inhibitor:collapse-detected", {
+      emit("basal-ganglia:collapse-detected", {
         collapsedCount: details.filter((d) => d.collapsed).length,
         totalTensions: context.tensions.length,
         details: details

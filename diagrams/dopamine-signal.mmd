@@ -1,0 +1,43 @@
+---
+title: "Dopamine Signal — Distribution Protocol"
+scope: feature
+phase: 3
+feature: 21
+---
+graph TD
+    subgraph Cerebellum["Cerebellum (prediction engine)"]
+        PRED["Predict before building"]
+        OUTCOME["Compare predicted vs actual"]
+        RPE["Reward Prediction Error<br/><i>actual − predicted</i>"]
+        PRED --> OUTCOME --> RPE
+    end
+
+    RPE -->|"phasic signal<br/>(per-receptor deltas + aggregate)"| RELAY
+
+    subgraph RELAY["Dopamine Relay"]
+        TONIC["Tonic Tracker<br/><i>EMA per project</i>"]
+        PROJ["Compute Projections"]
+        TONIC --> PROJ
+    end
+
+    PROJ -->|"encodingStrength<br/>consolidationUrgency"| HIPP
+    PROJ -->|"reinforcement<br/>explorationBias"| BG
+    PROJ -->|"learningRate<br/>perReceptor deltas"| PLAST
+    PROJ -->|"wmGateStrength"| PFC
+
+    subgraph Consumers["Per-Consumer Effects"]
+        HIPP["🧠 Hippocampus<br/><i>Episode significance</i><br/><i>Consolidation urgency</i>"]
+        BG["🎯 Basal Ganglia<br/><i>Strengthen/weaken routines</i><br/><i>Explore vs exploit</i>"]
+        PLAST["🔗 Plasticity<br/><i>Adjust connection weights</i><br/><i>Sense trust calibration</i>"]
+        PFC["🧩 Prefrontal Cortex<br/><i>Working memory gating</i>"]
+    end
+
+    TONIC -->|"tonicDopamine<br/>vital sign"| HOMEO["Homeostasis<br/><i>Flag PFC if persistently low</i>"]
+
+    style Cerebellum fill:#2d1b69,color:#fff
+    style RELAY fill:#1a4d2e,color:#fff
+    style HIPP fill:#1b3a5c,color:#fff
+    style BG fill:#1b3a5c,color:#fff
+    style PLAST fill:#1b3a5c,color:#fff
+    style PFC fill:#1b3a5c,color:#fff
+    style HOMEO fill:#5c3a1b,color:#fff

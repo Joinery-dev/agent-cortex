@@ -6,12 +6,14 @@ export interface Tension {
     path: string[];
     score: number;
     assessment: string;
+    stake?: number;
   };
   senseB: {
     id: string;
     path: string[];
     score: number;
     assessment: string;
+    stake?: number;
   };
   description: string;
   severity: "low" | "medium" | "high";

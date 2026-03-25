@@ -9,6 +9,9 @@
 
 import type { BuildCycleContext, BuildCycleResult } from "../types/brainstem.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
+import type { Consultation } from "../types/consultation.js";
+import type { SenseEvaluation } from "../types/sense.js";
+import type { CerebellumPrediction } from "../types/cerebellum.js";
 import { createLogger } from "../util/logger.js";
 
 const log = createLogger("subcortical-hooks");
@@ -20,29 +23,47 @@ export interface SubcorticalHooks {
     result: BuildCycleResult,
   ): Promise<void>;
 
-  /** Cerebellum predicted vs. actual eval scores → dopamine signal. */
+  /**
+   * Cerebellum: predict evaluation scores before building.
+   * Called after consultation, before the Explore/Build phase.
+   * Returns null on cold start (insufficient episodes).
+   */
+  predictScores(
+    taskId: string,
+    consultation: Consultation,
+  ): Promise<CerebellumPrediction | null>;
+
+  /**
+   * Cerebellum: compare predicted to actual → dopamine signal.
+   * Called after evaluation, in between-tasks processing.
+   * The Cerebellum looks up its stored prediction by taskId.
+   */
   computeDopamineSignal(
-    predicted: number[],
-    actual: number[],
+    taskId: string,
+    evaluations: SenseEvaluation[],
   ): Promise<number>;
 
-  /** Hippocampus: record a full task episode. */
+  /** Hippocampus: record a full task episode with its dopamine signal. */
   recordEpisode(
     taskId: string,
     result: OrchestratorResult,
+    dopamineSignal: number,
   ): Promise<void>;
 
   /** Basal ganglia: strengthen/weaken routine based on dopamine. */
   updateRoutines(taskId: string, dopamine: number): Promise<void>;
 
-  /** Hippocampus crystallization: cluster episodes → principles. */
-  crystallize(): Promise<{ principlesExtracted: number }>;
+  /** Hippocampus potentiation: cluster episodes → extract living principles. */
+  potentiate(): Promise<{ principlesExtracted: number }>;
 
   /** Working memory: promote to hippocampus or drop. */
   pruneMemory(): Promise<{ pruned: number; promoted: number }>;
 
   /** Plasticity: weaken unused/unstable connections. */
   decayConnections(): Promise<{ decayed: number }>;
+
+  /** Plasticity: let volatile weights converge toward defaults. */
+  settleWeights(): Promise<{ settled: number }>;
 
   /** Cerebellum: holistic prediction model recalibration. */
   recalibrate(): Promise<{ recalibrated: boolean }>;
@@ -63,21 +84,26 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
     });
   }
 
+  async predictScores(
+    taskId: string,
+    _consultation: Consultation,
+  ): Promise<CerebellumPrediction | null> {
+    log.debug("[stub] predictScores", { taskId });
+    return null;
+  }
+
   async computeDopamineSignal(
-    predicted: number[],
-    actual: number[],
+    taskId: string,
+    _evaluations: SenseEvaluation[],
   ): Promise<number> {
-    // No cerebellum yet — no prediction error
-    log.debug("[stub] computeDopamineSignal", {
-      predicted: predicted.length,
-      actual: actual.length,
-    });
+    log.debug("[stub] computeDopamineSignal", { taskId });
     return 0;
   }
 
   async recordEpisode(
     taskId: string,
     _result: OrchestratorResult,
+    _dopamineSignal: number,
   ): Promise<void> {
     log.debug("[stub] recordEpisode", { taskId });
   }
@@ -86,8 +112,8 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
     log.debug("[stub] updateRoutines", { taskId, dopamine });
   }
 
-  async crystallize(): Promise<{ principlesExtracted: number }> {
-    log.debug("[stub] crystallize");
+  async potentiate(): Promise<{ principlesExtracted: number }> {
+    log.debug("[stub] potentiate");
     return { principlesExtracted: 0 };
   }
 
@@ -99,6 +125,11 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
   async decayConnections(): Promise<{ decayed: number }> {
     log.debug("[stub] decayConnections");
     return { decayed: 0 };
+  }
+
+  async settleWeights(): Promise<{ settled: number }> {
+    log.debug("[stub] settleWeights");
+    return { settled: 0 };
   }
 
   async recalibrate(): Promise<{ recalibrated: boolean }> {

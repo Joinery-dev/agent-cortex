@@ -789,10 +789,20 @@
     // Track which features are expanded across refreshes
     const expandedSet = new Set();
 
+    // Compute effective subtask status by cross-referencing detail paths against live files
+    function effectiveStatus(s) {
+      if (s.status !== 'not-started') return s.status;
+      if (!s.detail) return s.status;
+      // Extract src/ paths from detail field
+      const paths = s.detail.match(/src\/[\w/-]+\.ts/g);
+      if (paths && paths.some(p => liveFiles.has(p))) return 'in-progress';
+      return s.status;
+    }
+
     function renderSubtaskBar(subtasks) {
       if (!subtasks || subtasks.length === 0) return '';
-      const done = subtasks.filter(s => s.status === 'complete').length;
-      const prog = subtasks.filter(s => s.status === 'in-progress').length;
+      const done = subtasks.filter(s => effectiveStatus(s) === 'complete').length;
+      const prog = subtasks.filter(s => effectiveStatus(s) === 'in-progress').length;
       const total = subtasks.length;
       const pctDone = (done / total * 100).toFixed(0);
       const pctProg = (prog / total * 100).toFixed(0);
@@ -811,15 +821,18 @@
       if (!subtasks || subtasks.length === 0) {
         return '<div class="no-subtasks">No subtasks defined yet</div>';
       }
-      return `<div class="subtasks">${subtasks.map(s => `
-        <div class="subtask st-${s.status}">
-          <div class="subtask-check">${s.status === 'complete' ? '✓' : s.status === 'in-progress' ? '►' : ''}</div>
+      return `<div class="subtasks">${subtasks.map(s => {
+        const es = effectiveStatus(s);
+        const liveHint = (s.status === 'not-started' && es === 'in-progress') ? ' (file detected on disk)' : '';
+        return `
+        <div class="subtask st-${es}">
+          <div class="subtask-check">${es === 'complete' ? '✓' : es === 'in-progress' ? '►' : ''}</div>
           <div class="subtask-content">
-            <div class="subtask-name">${s.name}</div>
+            <div class="subtask-name">${s.name}${liveHint}</div>
             ${s.detail ? `<div class="subtask-detail">${s.detail}</div>` : ''}
           </div>
         </div>
-      `).join('')}</div>`;
+      `}).join('')}</div>`;
     }
 
     function renderFeature(f) {
@@ -845,6 +858,10 @@
             </div>
           </div>
           <div class="feature-detail">
+            ${(() => { const fDiags = featureDiags.get(f.id) || []; return fDiags.length > 0 ? `
+              <div class="detail-section-label">Diagrams</div>
+              <div class="phase-diagrams">${renderDiagramChips(fDiags)}</div>
+            ` : ''; })()}
             ${hasPlan ? `
               <div class="detail-section-label">Plan</div>
               <div class="detail-plan">${f.plan}</div>
@@ -873,11 +890,23 @@
       }
     };
 
+    // Feature diagram lookup — populated each load() cycle, read by renderFeature()
+    let featureDiags = new Map();
+    // Live source files on disk — populated each load() cycle, read by effectiveStatus()
+    let liveFiles = new Set();
+
     async function load() {
       let data;
+      let discoveredDiagrams = [];
       try {
-        const resp = await fetch('/build-status');
-        data = await resp.json();
+        const [buildResp, diagResp, srcResp] = await Promise.all([
+          fetch('/build-status').then(r => r.json()),
+          fetch('/diagrams').then(r => r.json()).catch(() => []),
+          fetch('/src-files').then(r => r.json()).catch(() => [])
+        ]);
+        data = buildResp;
+        discoveredDiagrams = diagResp;
+        liveFiles = new Set(srcResp);
       } catch (e) {
         try {
           const resp = await fetch('../../build-status.json');
@@ -888,8 +917,31 @@
         }
       }
 
+      // Partition discovered diagrams into global / phase / feature buckets
+      const globalDiags = [];
+      const phaseDiags = new Map();   // phase number → diagram[]
+      featureDiags = new Map();       // feature id → diagram[]
+
+      for (const d of discoveredDiagrams) {
+        const chip = { file: d.file, label: d.title };
+        if (d.scope === 'feature' && d.feature != null) {
+          // Feature diagrams also appear on their phase
+          if (!featureDiags.has(d.feature)) featureDiags.set(d.feature, []);
+          featureDiags.get(d.feature).push(chip);
+          if (d.phase != null) {
+            if (!phaseDiags.has(d.phase)) phaseDiags.set(d.phase, []);
+            phaseDiags.get(d.phase).push(chip);
+          }
+        } else if (d.scope === 'phase' && d.phase != null) {
+          if (!phaseDiags.has(d.phase)) phaseDiags.set(d.phase, []);
+          phaseDiags.get(d.phase).push(chip);
+        } else {
+          globalDiags.push(chip);
+        }
+      }
+
       // Global diagrams
-      renderDiagramBucket('global-diagrams', 'Architecture Diagrams', data.globalDiagrams);
+      renderDiagramBucket('global-diagrams', 'Architecture Diagrams', globalDiags);
 
       const all = data.phases.flatMap(p => p.features);
       const complete = all.filter(f => f.status === 'complete').length;
@@ -916,19 +968,21 @@
       const phasesEl = document.getElementById('phases');
       phasesEl.innerHTML = '';
 
-      for (const phase of data.phases) {
+      for (let i = 0; i < data.phases.length; i++) {
+        const phase = data.phases[i];
+        const phaseNum = i + 1;
         const phaseComplete = phase.features.filter(f => f.status === 'complete').length;
+        const chips = phaseDiags.get(phaseNum) || [];
 
         const div = document.createElement('div');
         div.className = 'phase';
-        const hasPhaseDiagrams = phase.diagrams && phase.diagrams.length > 0;
         div.innerHTML = `
           <div class="phase-header">
             <div class="phase-name">${phase.name}</div>
             <div class="phase-count">${phaseComplete}/${phase.features.length}</div>
           </div>
           <div class="phase-desc">${phase.description}</div>
-          ${hasPhaseDiagrams ? `<div class="phase-diagrams">${renderDiagramChips(phase.diagrams)}</div>` : ''}
+          ${chips.length > 0 ? `<div class="phase-diagrams">${renderDiagramChips(chips)}</div>` : ''}
           <div class="features">
             ${phase.features.map(f => renderFeature(f)).join('')}
           </div>

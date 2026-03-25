@@ -16,7 +16,6 @@ export interface OrchestratorResult {
 
 export interface CortexConfig {
   maxCycles: number;
-  acceptableMinScore: number;
   models: {
     consultation: string;
     motorCortex: string;
@@ -27,7 +26,7 @@ export interface CortexConfig {
     /** Defaults to motorCortex model if not specified. */
     proprioception?: string;
     /** Defaults to consultation model if not specified. */
-    inhibitor?: string;
+    basalGanglia?: string;
     /** Defaults to consultation model if not specified. */
     collapseDetection?: string;
   };
@@ -35,7 +34,6 @@ export interface CortexConfig {
 
 export const DEFAULT_CONFIG: CortexConfig = {
   maxCycles: 3,
-  acceptableMinScore: 6,
   models: {
     consultation: "claude-sonnet-4-6-20250514",
     motorCortex: "claude-sonnet-4-6-20250514",

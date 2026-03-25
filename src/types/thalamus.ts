@@ -14,7 +14,7 @@
 
 import type { ProjectIntent, TasteProfile, DecisionRecord } from "./intent.js";
 import type { Task } from "./task.js";
-import type { Council } from "./council.js";
+import type { Consultation } from "./consultation.js";
 import type { Sense } from "./sense.js";
 import type {
   EstablishedPattern,
@@ -25,7 +25,8 @@ import type {
   WMTask,
 } from "./working-memory.js";
 import type { Capability } from "./pns.js";
-import type { InhibitionBriefing, InhibitionEnrichment } from "./inhibitor.js";
+import type { InhibitionBriefing, InhibitionEnrichment } from "./basal-ganglia.js";
+import type { Episode, Principle } from "./hippocampus.js";
 
 // ─── Briefing Meta ───────────────────────────────────────────
 
@@ -68,6 +69,15 @@ export interface ConsultationEnrichment {
   openQuestions: OpenQuestion[];
   /** How many tasks have completed so far. */
   completedTaskCount: number;
+  /** Relevant principles from hippocampus (cross-project learning). */
+  principles?: PrincipleSummary[];
+}
+
+/** Simplified principle for inclusion in briefings. */
+export interface PrincipleSummary {
+  statement: string;
+  confidence: number;
+  relevantSenses: string[];
 }
 
 // ─── Motor Briefing ──────────────────────────────────────────
@@ -80,7 +90,7 @@ export interface MotorBriefing {
   task: Task;
   intent: ProjectIntent;
   taste: TasteProfile;
-  council: Council;
+  consultation: Consultation;
   enrichment: MotorEnrichment;
   meta: BriefingMeta;
 }
@@ -96,6 +106,8 @@ export interface MotorEnrichment {
   openQuestions: OpenQuestion[];
   /** Natural language description of available tools. */
   capabilities: string;
+  /** Principles relevant to this task's active senses. */
+  principles?: PrincipleSummary[];
 }
 
 // ─── Evaluation Briefing ─────────────────────────────────────
@@ -110,6 +122,8 @@ export interface EvaluationBriefing {
   receptorTrends: ScoreTrend[];
   /** Patterns relevant to this evaluation dimension. */
   relevantPatterns: EstablishedPattern[];
+  /** Principles relevant to this evaluator's sense. */
+  relevantPrinciples?: PrincipleSummary[];
   meta: BriefingMeta;
 }
 
@@ -180,11 +194,28 @@ export interface ThalamusSources {
   wm: import("../kernel/working-memory.js").WorkingMemory;
   pns?: import("../kernel/pns.js").PeripheralNervousSystem;
 
-  // Phase 3 (added when built)
-  // hippocampus?: { ... }
+  // Phase 3
+  hippocampus?: HippocampusSource;
   // cerebellum?: { ... }
   // basalGanglia?: { ... }
 
   // Phase 4
   // getArousal?: () => number;
+}
+
+/**
+ * What the Thalamus reads from the hippocampus.
+ * Typed as an interface (not class reference) so the Thalamus
+ * depends on the shape, not the implementation.
+ */
+export interface HippocampusSource {
+  getActivePrinciples(): Principle[];
+  getPrinciplesForSense(senseId: string): Principle[];
+  /**
+   * Project-sense scoped principles — what a specific sense has
+   * learned about a specific project. Feature 15 potentiation output.
+   */
+  getPrinciplesForSenseAndProject(senseId: string, projectId: string): Principle[];
+  getEpisodesForSense(senseId: string, projectId?: string): Episode[];
+  getRecentEpisodes(count: number): Episode[];
 }

@@ -53,8 +53,50 @@ The Thalamus routes I/O capabilities into briefings: the Motor Cortex's briefing
 
 ## 🧠 Prefrontal Cortex — executive function
 
+The PFC has a reasoning discipline that governs all of its components. This isn't a separate module — it's the character of how every PFC decision is made, embedded in the gate phase at every rhythm level.
+
+**The conviction loop.** At every gate (project, phase, task, build cycle), the PFC:
+1. **Tests necessity:** Does this action need to happen? What breaks without it?
+2. **Tests conviction:** Can we still manifest the outcome this leads to? If the reasoning doesn't hold, stop — don't iterate on a broken thesis.
+3. **Tests speed of light:** How close to the ceiling are we? Optimize execution, or rearchitect from scratch?
+4. **Shapes downstream:** What should consumers know about this decision? Update the forward briefing.
+
+This loop runs continuously. New information (evaluation scores, dopamine signals, human feedback, episodes) is tested against the current manifestation at every gate. Large dopamine signals trigger a conviction test — does the manifested future still hold? If conviction persists, the system continues with the new information integrated. If conviction is challenged by genuine evidence, the PFC reshapes the manifestation and re-seeds all forward briefings. If conviction breaks, it escalates.
+
+**Three directions of awareness.** The PFC doesn't just manage internal components. It manages the entire supply chain:
+- **Inward:** Are our components performing? Are senses producing useful evaluations? Is the Motor Cortex converging? Are patterns crystallizing? Pruning complexity — conventions that aren't holding, decisions that are no longer relevant.
+- **Forward:** What's coming next? What will the next task need? Prospective preparation — seeding the future into every briefing so the system runs ahead of itself.
+- **Outward:** What does the environment need to provide? Is the intent clear enough? Are the right tools available? Does the human need to make a decision? Is the taste profile accurate given what we've learned? This is what turns the system from an executor into a partner — shaping upstream inputs, not just consuming them.
+
+**The world model.** The PFC maintains an integrated representation of reality — not where we're going (that's the manifested future), but where we are and what surrounds us. The manifested future is an abstraction without the world model. With it, the manifested future is a concrete destination because the system knows the terrain.
+
+The world model integrates all sources into a single coherent picture:
+- Working Memory (patterns, score trends, conventions, inhibitions, open questions)
+- Hippocampus (relevant episodes, crystallized principles)
+- Cerebellum (prediction accuracy, current forward models)
+- Task graph (progress, phase gate proximity, dependencies, what's completed)
+- PNS (available capabilities, recent perceptions)
+- Project context (intent, taste, constraints)
+- System health (vital signs, WM load, learning signal health)
+
+No single component holds this picture. Each holds its slice. The world model is the integration — rebuilt at every rhythm boundary (between-tasks, phase gates, project start). Not stored as a new data structure — computed from all sources and cached as the foundation for everything that follows.
+
+When a task arrives, the Thalamus produces a **task gestalt**: the world model + this specific task's features. The gestalt is the "cortical representation" that subcortical systems (BG, Cerebellum, Inhibitor) read from — pre-processed, structured, available before the expensive sensory cortex fires. Consumer-specific briefings are then derived from the gestalt, not assembled independently.
+
+Three layers: **world model** (PFC maintains, rebuilt at boundaries) → **task gestalt** (Thalamus assembles per-task from world model + task features) → **consumer briefings** (Thalamus extracts per-component from gestalt).
+
+The conviction loop runs against the world model, not against raw signals. When new information arrives (dopamine signal, human feedback, environment change), the world model updates first. Then the PFC tests: does the manifested future still make sense given the updated terrain?
+
 ### 1. Planner
-Decomposes project into task graph with dependencies. Identifies parallel tracks. Runs integration checks at phase gates to verify cross-task coherence.
+Two phases, not one. Planning is itself a task that runs through the sensory cortex loop.
+
+**Phase A: Manifestation.** Before decomposing anything, the system imagines the completed outcome concretely. This runs as a sensory-cortex rhythm: the senses consult on what must be true about the finished artifact from their perspective (Design manifests the visual language, Performance manifests the load profile, Security manifests the threat surface). The Motor Cortex synthesizes these into a **manifested future** — concrete enough that the system can reason backward from it. The senses then evaluate whether the manifested future satisfies the intent. Tensions about the *vision* get resolved before a single task is planned.
+
+**Phase B: Path reasoning.** Given the manifested future, reason backward to the minimum path. Every proposed step passes Jensen's three gates: Does it need to exist? Does it need to be this? Does it need to take this long? The task graph emerges from backward reasoning, not forward decomposition. Integration checks at phase gates verify cross-task coherence against the manifested future.
+
+This nests recursively. A project-level plan spawns phase-level plans, each of which is itself a sensory-cortex task. The plan carries tension resolution forward — the senses have already argued about the vision, so execution starts with shared understanding, not discovery.
+
+The manifested future also anchors the speed-of-light ceiling. Evaluation during execution doesn't ask "how good is this?" — it asks "how close is this to the outcome that must exist?" The ceiling is concrete, not statistical.
 
 ### 2. Working Memory
 Active scratchpad — not long-term storage. Holds patterns established, score trends across tasks, key decisions made, conventions adopted. What's in mind right now.
@@ -74,6 +116,12 @@ Compares cumulative trajectory against original intent. Catches slow divergence 
 ### 7. Attention Scheduler
 Drives the whole system. Picks next task based on dependencies + drift signals + confidence. Checks prospective triggers before dispatch. Decides what needs human input. Determines explore or exploit. Absorbs the role of the old orchestrator — there is no central controller, just the PFC deciding what happens next.
 
+**Prospective preparation.** The Scheduler doesn't just decide what's next — it prepares the system for what's next. During the between-tasks phase, the Scheduler consumes Cerebellum predictions (score forecasts, ceiling estimates), Hippocampus episodes (what happened last time with similar tasks), the task graph (what's coming, what phase gate is approaching), and the strategic intent. It synthesizes all of this into a **forward briefing** that the Thalamus dissolves into every consumer's context for the upcoming task.
+
+The senses don't read the roadmap. They don't need to. By the time Design receives its consultation briefing for task 8, the PFC has already seeded it: "this is the third of four image-heavy pages, tension between visual richness and load time is predicted, the established pattern is dark/bold, the phase gate after this task checks cross-page visual consistency." The system runs slightly ahead of itself — every component operates with a forward model of what's coming, shaped by the one component that sees the full picture.
+
+This is how the system avoids starting from scratch on each task. Not through memory alone (that's the Hippocampus), but through anticipation — the PFC pre-positioning the entire system before the work begins.
+
 ---
 
 ## 🔀 Thalamus — context routing
@@ -89,7 +137,7 @@ Central relay. Routes the right context to the right consumer. Draws from workin
 Activated senses weigh in from their perspective. Each sense maintains its own running project summary across tasks — Design knows "dark/bold established," Performance knows "image-heavy pages are a risk." Recommendations always integrate with the build so far.
 
 ### 10. Explore Phase
-Generates 3-5 divergent approaches before committing. Sketches, not paintings — cheap, one LLM call. Selection criterion: surprise × quality. The approach that most defies the Cerebellum's prediction while meeting a quality floor is the most creative. Skipped when Basal Ganglia has a strong routine match (exploit known patterns instead).
+Generates 3-5 divergent *paths* from the current state to the manifested future. The destination is fixed (the Planner's Phase A output); the creativity is in how to get there. Sketches, not paintings — cheap, one LLM call per path. Selection criterion: surprise × quality — the path that most defies the Cerebellum's prediction while meeting a quality floor is the most creative. Skipped when Basal Ganglia has a strong routine match (exploit known patterns instead).
 
 ### 11. Motor Cortex
 The builder. Premotor plans the implementation approach. Primary motor produces the artifact. Proprioception provides real-time feedback mid-build for self-correction. Connected to Cerebellum for prediction/correction (cerebellum is primarily a motor coordination organ in the brain).
@@ -135,7 +183,20 @@ Trained by eval scores via dopamine signal.
 Priority override. Bypasses normal scheduling. Security vulnerability found → reconfigure Thalamus immediately. Breaking change detected → interrupt current task. Human escalation → override attention queue. Talks directly to Inhibitor (override suppression list) and Thalamus (urgent reconfiguration), not through the PFC.
 
 ### 18. Cerebellum
-Prediction engine. Forward models: given this task + these senses, predict evaluation scores before building. Compares predictions to actual outcomes. The delta IS the dopamine signal — the most information-rich signal in the entire system. Primarily connected to Motor Cortex (it's a motor coordination organ — predicts where your hand will be, corrects mid-movement).
+Prediction engine and speed-of-light calculator. Two roles:
+
+**Role 1: Score prediction.** Forward models: given this task + these senses + this approach, predict evaluation scores before building. Compares predictions to actual outcomes. The delta IS the dopamine signal — the most information-rich signal in the entire system.
+
+**Role 2: Ceiling estimation.** For each cognitive dimension, predict the theoretical maximum achievable by the current approach — the speed of light. Not "what score will this get?" but "what's the *best possible* score this approach can get?" The gap between current performance and the ceiling is diagnostic:
+- Near the ceiling → optimize execution (revise, don't rearchitect)
+- Far from ceiling → the approach is the bottleneck (rearchitect from scratch)
+- Ceiling too low → escalate (constraints need to change, or fundamentally different strategy needed)
+
+Cognitive dimensions tracked: build convergence (predicted cycles to acceptance), tension resolution quality (can this approach satisfy competing senses?), evaluation accuracy (distance from human satisfaction), context fidelity (signal preservation through Thalamus).
+
+This is what replaces hardcoded cycle limits. The gate doesn't stop because a counter expired — it stops because the Cerebellum says the system is near its speed of light, or rearchitects because it says the ceiling is too low.
+
+Primarily connected to Motor Cortex (it's a motor coordination organ — predicts where your hand will be, corrects mid-movement). The ceiling estimates flow to the gate (stopping criteria) and to Cognitive Flexibility (is the approach worth continuing?).
 
 ---
 

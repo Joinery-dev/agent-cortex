@@ -24,10 +24,12 @@ import type {
   OpenQuestion,
   InhibitedSense,
   TaskSummary,
+  OscillationSignal,
 } from "../types/working-memory.js";
 import type { SenseEvaluation } from "../types/sense.js";
 import type { DecisionRecord } from "../types/intent.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
+import type { WeightedEvaluation } from "./evaluation-weighter.js";
 import { newId } from "../util/ids.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
@@ -104,14 +106,16 @@ export class WorkingMemory {
     }
 
     // Extract TaskSummary
+    // When driven by the rhythm system, confidence comes from the weighted
+    // composite. For the fallback path, we compute a raw mean.
     const scores = result.evaluations.map((e) => e.score);
-    const meanScore =
+    const weightedMean =
       scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
 
     task.summary = {
       cycles: result.cycles,
       confidence: result.confidence,
-      meanScore,
+      weightedMean,
       highTensionCount: result.tensions.filter((t) => t.severity === "high")
         .length,
       completedAt: new Date(),
@@ -131,6 +135,7 @@ export class WorkingMemory {
             receptorId: evaluation.senseId,
             activationPath: evaluation.activationPath,
             score: evaluation.score,
+            stake: 1.0, // fallback path — no weighted evaluations available
           }),
         ),
         recordedAt: new Date(),
@@ -151,7 +156,7 @@ export class WorkingMemory {
       taskId,
       cycles: result.cycles,
       confidence: result.confidence,
-      meanScore,
+      weightedMean,
       evaluationCount: result.evaluations.length,
       decisionCount: result.decisionLog.length,
     });
@@ -160,7 +165,7 @@ export class WorkingMemory {
       taskId,
       cycles: result.cycles,
       confidence: result.confidence,
-      meanScore: meanScore.toFixed(2),
+      weightedMean: weightedMean.toFixed(2),
     });
   }
 
@@ -183,7 +188,7 @@ export class WorkingMemory {
    * Record scores outside of the completeTask flow.
    * Useful for intermediate cycle evaluations or external scoring.
    */
-  recordScores(taskId: string, evaluations: SenseEvaluation[]): void {
+  recordScores(taskId: string, evaluations: WeightedEvaluation[]): void {
     if (evaluations.length === 0) return;
 
     const snapshot: ScoreSnapshot = {
@@ -193,6 +198,7 @@ export class WorkingMemory {
           receptorId: evaluation.senseId,
           activationPath: evaluation.activationPath,
           score: evaluation.score,
+          stake: evaluation.adjustedStake,
         }),
       ),
       recordedAt: new Date(),
@@ -204,6 +210,69 @@ export class WorkingMemory {
       taskId,
       evaluationCount: evaluations.length,
     });
+  }
+
+  // ── Oscillation Detection ──────────────────────────────────────
+
+  /** Swing threshold: score change of 3+ points between consecutive cycles. */
+  private static OSCILLATION_THRESHOLD = 3;
+
+  /**
+   * Detect receptors whose scores oscillated significantly across
+   * build cycles within a single task. Indicates thrashing or
+   * collateral damage from revisions targeting other dimensions.
+   */
+  detectOscillations(taskId: string): OscillationSignal[] {
+    const snapshots = this.state.scoreHistory.filter((s) => s.taskId === taskId);
+    if (snapshots.length < 2) return [];
+
+    // Group scores by receptor across snapshots
+    const byReceptor = new Map<string, { scores: number[]; path: string[] }>();
+    for (const snapshot of snapshots) {
+      for (const entry of snapshot.scores) {
+        let record = byReceptor.get(entry.receptorId);
+        if (!record) {
+          record = { scores: [], path: entry.activationPath };
+          byReceptor.set(entry.receptorId, record);
+        }
+        record.scores.push(entry.score);
+      }
+    }
+
+    const signals: OscillationSignal[] = [];
+    for (const [receptorId, record] of byReceptor) {
+      if (record.scores.length < 2) continue;
+
+      // Find max swing between consecutive scores
+      let maxSwing = 0;
+      for (let i = 1; i < record.scores.length; i++) {
+        const swing = Math.abs(record.scores[i] - record.scores[i - 1]);
+        if (swing > maxSwing) maxSwing = swing;
+      }
+
+      if (maxSwing >= WorkingMemory.OSCILLATION_THRESHOLD) {
+        signals.push({
+          receptorId,
+          activationPath: record.path,
+          recentScores: record.scores,
+          swingMagnitude: maxSwing,
+        });
+      }
+    }
+
+    if (signals.length > 0) {
+      emit("stability:oscillation", {
+        taskId,
+        count: signals.length,
+        receptors: signals.map((s) => ({
+          path: s.activationPath.join(" > "),
+          scores: s.recentScores,
+          swing: s.swingMagnitude,
+        })),
+      });
+    }
+
+    return signals;
   }
 
   // ── Score Trends (computed on demand) ───────────────────────────
@@ -352,7 +421,7 @@ export class WorkingMemory {
 
   /**
    * Suppress a sense. Idempotent: if already inhibited, updates
-   * the reason and source (Amygdala overrides Inhibitor, etc.).
+   * the reason and source (Amygdala overrides Basal Ganglia, etc.).
    */
   inhibitSense(senseId: string, reason: string, source: string, scope?: string): void {
     const existing = this.state.inhibitedSenses.find(

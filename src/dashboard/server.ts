@@ -73,20 +73,50 @@ export function startDashboard(port: number = 3000): Promise<string> {
         return;
       }
 
-      // List available diagrams
+      // List available diagrams with frontmatter metadata
       if (req.url === "/diagrams") {
         const diagramDir = path.join(__dirname, "..", "..", "diagrams");
         const files = fs.readdirSync(diagramDir).filter((f: string) => f.endsWith(".mmd"));
         const diagrams = files.map((f: string) => {
           const content = fs.readFileSync(path.join(diagramDir, f), "utf-8");
           const titleMatch = content.match(/title:\s*["']?(.+?)["']?\s*$/m);
-          return { file: f, title: titleMatch ? titleMatch[1] : f.replace(".mmd", "") };
+          const scopeMatch = content.match(/scope:\s*(\S+)\s*$/m);
+          const phaseMatch = content.match(/phase:\s*(\d+)\s*$/m);
+          const featureMatch = content.match(/feature:\s*(\d+)\s*$/m);
+          return {
+            file: f,
+            title: titleMatch ? titleMatch[1] : f.replace(".mmd", ""),
+            scope: scopeMatch ? scopeMatch[1] : "global",
+            phase: phaseMatch ? parseInt(phaseMatch[1], 10) : null,
+            feature: featureMatch ? parseInt(featureMatch[1], 10) : null,
+          };
         });
         res.writeHead(200, {
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*",
         });
         res.end(JSON.stringify(diagrams));
+        return;
+      }
+
+      // Check which src files exist (for live subtask status)
+      if (req.url === "/src-files") {
+        const projectRoot = path.join(__dirname, "..", "..");
+        const dirs = ["src/types", "src/kernel", "src/brainstem", "src/brainstem/rhythms", "src/senses", "src/llm"];
+        const files: string[] = [];
+        for (const dir of dirs) {
+          const full = path.join(projectRoot, dir);
+          if (fs.existsSync(full)) {
+            for (const f of fs.readdirSync(full)) {
+              if (f.endsWith(".ts")) files.push(`${dir}/${f}`);
+            }
+          }
+        }
+        res.writeHead(200, {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        });
+        res.end(JSON.stringify(files));
         return;
       }
 
