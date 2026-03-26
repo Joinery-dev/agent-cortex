@@ -721,7 +721,7 @@
             {
               "name": "Efference copy types",
               "status": "complete",
-              "detail": "src/types/efference-copy.ts — EfferenceCopy, EfferenceSenseFeasibility, TensionCost, EfferenceCopyContext, SerializedEpisode. Re-exported from src/types/index.ts."
+              "detail": "src/types/efference-copy.ts — EfferenceCopy, EfferenceSenseFeasibility, TensionCost, EfferenceCopyContext, SerializedEpisode. Re-exported from src/types/index.ts. EfferenceCopySource ('predicted'|'synthesized'), SynthesisProvenance added for NE-gated synthesis path."
             },
             {
               "name": "Efference copy preliminary matching",
@@ -751,7 +751,27 @@
             {
               "name": "Efference copy sensory-cortex integration",
               "status": "complete",
-              "detail": "src/brainstem/rhythms/sensory-cortex.ts — efference copy runs before consultation in prepare(). serializeEpisodes() helper converts Map-based episodes to plain objects. src/types/task.ts — 'efference_copy' TaskEvent type."
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — NE-gated efference copy: reads plastic threshold, synthesizes from episodes when NE < threshold, falls back to LLM when NE ≥ threshold or no episodes. serializeEpisodes() helper. src/types/task.ts — 'efference_copy' TaskEvent type."
+            },
+            {
+              "name": "Efference copy NE-gated synthesis",
+              "status": "complete",
+              "detail": "src/kernel/motor-cortex.ts — synthesizeFeasibility(context): derives EfferenceCopy from similar episodes without LLM call. Similarity-weighted per-sense ceilings, empirical tension detection, convergence from similarity. Returns null on cold start (falls back to LLM)."
+            },
+            {
+              "name": "Efference synthesis plastic threshold",
+              "status": "complete",
+              "detail": "src/types/plasticity.ts — motor-cortex.threshold.efference-synthesis: default 0.3, range [0.1, 0.7], category 'threshold'. NE below threshold → synthesize; at/above → predict. Learns from accuracy: rises when synthesized copies miss, decays via rest."
+            },
+            {
+              "name": "Efference synthesis accuracy learning",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — gate completion: compares synthesized efference ceilings to actual eval scores (MAE). Error > 2.0 → pushes threshold up via plasticity.update('dopamine'). Accurate synthesis → no push (decay handles drift down). Emits efference:synthesis-inaccurate event."
+            },
+            {
+              "name": "Efference copy plasticity threading",
+              "status": "complete",
+              "detail": "PlasticityStore threaded from Brainstem → createProjectDefinition → createTaskDispatchDefinition → createSensoryCortexDefinition. All three factory signatures updated with optional plasticity? param."
             }
           ]
         },
@@ -2225,6 +2245,46 @@
               "detail": "src/kernel/working-memory.ts — getDismissalRates() returns per-source-component dismissal rate (total, dismissed, rate)"
             }
           ]
+        },
+        {
+          "id": 43,
+          "name": "LLM Interface Quality",
+          "region": "LLM / Brainstem",
+          "status": "complete",
+          "description": "Three-layer self-awareness at the LLM boundary: schema-aware prompts, prompt fingerprinting for persistent artifacts, and failure pattern aggregation.",
+          "notes": "Layer 1 (schema walker) auto-injects annotated JSON templates into every callStructured prompt. Layer 2 (fingerprinting) stores prompt version hashes on ExtractionContext for principles. Layer 3 (failure aggregator) parses ZodError issues into structured per-(purpose, field, code) data in Homeostasis.",
+          "subtasks": [
+            {
+              "name": "Zod schema walker (describeSchema)",
+              "status": "complete",
+              "detail": "src/llm/schema-describer.ts — describeSchema(): walks Zod v4 _zod.def tree, produces annotated JSON templates. Handles 12 types: string, number, boolean, enum, literal, array, object, union, tuple, optional, nullable. Reads constraints from _zod.bag, descriptions from z.globalRegistry."
+            },
+            {
+              "name": "Prompt fingerprinting function",
+              "status": "complete",
+              "detail": "src/llm/schema-describer.ts — promptFingerprint(): sha256(system + schema desc).slice(0, 12). Version marker for persistent LLM artifacts."
+            },
+            {
+              "name": "Schema description injection in callStructured",
+              "status": "complete",
+              "detail": "src/llm/structured.ts — Auto-injects \"Expected JSON structure:\" block between system prompt and format instruction. Includes schemaDescription in emitted llm:schema-mismatch events."
+            },
+            {
+              "name": "ExtractionContext promptFingerprint field",
+              "status": "complete",
+              "detail": "src/types/hippocampus.ts — Optional promptFingerprint?: string on ExtractionContext. Backward-compatible."
+            },
+            {
+              "name": "Fingerprint computation at extraction sites",
+              "status": "complete",
+              "detail": "src/subcortical/hippocampus.ts — Computed at all 4 ExtractionContext construction sites: extractSensePrinciple, extractPrinciple, refinePrinciple (refine + replace)."
+            },
+            {
+              "name": "SchemaFailureAggregator in Homeostasis",
+              "status": "complete",
+              "detail": "src/brainstem/homeostasis.ts — Parses ZodError issues into FieldFailure records, aggregates per (purpose, field, code) in 5-min rolling window. Exposes getSchemaHealth() on HomeostasisMonitor."
+            }
+          ]
         }
       ]
     }
@@ -2248,7 +2308,9 @@
       "[Reconciled] src/types/runtime.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/runtime-manager.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/budget-allocator.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/collapse.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/collapse-detector.ts exists but isn't referenced in any subtask."
     ]
   }
 }

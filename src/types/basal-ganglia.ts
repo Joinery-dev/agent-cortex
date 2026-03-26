@@ -154,26 +154,8 @@ export interface CollapseContext {
   work: string;
 }
 
-/** Output of collapsed-tension detection. */
-export interface CollapseSignal {
-  /** Whether any tensions collapsed (vs. genuine resolution). */
-  collapsed: boolean;
-  /** Per-tension details. */
-  details: CollapseDetail[];
-}
-
-export interface CollapseDetail {
-  /** Which tension this applies to. */
-  tensionId: string;
-  /** Whether this specific tension collapsed. */
-  collapsed: boolean;
-  /** Which sense capitulated (if any). */
-  capitulatedSense?: string;
-  /** Why we think this is capitulation vs. synthesis. */
-  explanation: string;
-  /** Guidance for the next build cycle to re-engage this tension. */
-  reEngagementGuidance?: string;
-}
+// CollapseSignal and CollapseDetail live in types/collapse.ts
+export type { CollapseSignal, CollapseDetail } from "./collapse.js";
 
 // ─── Thalamus Briefing ──────────────────────────────────────────
 

@@ -23,13 +23,12 @@ import type {
   InhibitionScope,
   SuppressionDecision,
   CollapseContext,
-  CollapseSignal,
-  CollapseDetail,
   InhibitionBriefing,
   Routine,
   RoutineFingerprint,
   RoutineMatch,
 } from "../types/basal-ganglia.js";
+import type { CollapseSignal, CollapseDetail } from "../types/collapse.js";
 import {
   DEFAULT_BASAL_GANGLIA_CONFIG,
   SCOPE_HIERARCHY,

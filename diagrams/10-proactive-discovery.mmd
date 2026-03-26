@@ -3,42 +3,56 @@ title: "Proactive Discovery — Finding Problems Before They Find You"
 scope: global
 ---
 flowchart TD
-    subgraph OBSERVE["TERRITORY OBSERVATIONS — Passive Signals"]
-        O1["Motor Cortex notices<br/>something odd while building<br/>(unexpected file structure,<br/>stale dependency, odd pattern)"]
-        O2["Evaluators notice<br/>something outside their<br/>dimension's scope"]
-        O3["Drift Monitor detects<br/>convention breaking<br/>or taste divergence"]
-        O4["Observations stored<br/>in Working Memory<br/>(not acted on yet)"]
+    TITLE["<b>PROACTIVE DISCOVERY</b><br/>Finding problems before they find you"]
+    style TITLE fill:#f8fafc,stroke:#94a3b8,color:#1a1a2e
+
+    TITLE --> OBSERVE
+
+    subgraph OBSERVE["TERRITORY OBSERVATIONS — passive signals during execution"]
+        O1["Builder notices something odd<br/>(unexpected structure, stale dep)"]
+        O2["Evaluator notices something<br/>outside their dimension's scope"]
+        O3["Proprioception spots<br/>plan drift or uncertainty"]
+        O4["Integration check finds<br/>cross-task coherence issue"]
+        O5["Each observation: fact + source +<br/>relevance score (0–1)<br/>NE modulates threshold:<br/>high NE → notice more (0.2)<br/>low NE → only important (0.6)"]
     end
 
-    subgraph SIMULATE["HIPPOCAMPAL SIMULATION — What Could Happen?"]
-        S1["Episodes of similar<br/>observations from past projects"]
-        S2["'Last time we saw this pattern,<br/>the deploy failed 3 tasks later'"]
-        S3["Simulated outcome:<br/>risk level + likely impact<br/>+ how many tasks away"]
+    O1 & O2 & O3 & O4 --> O5
+    O5 -->|"stored in WM"| SIM
+
+    subgraph SIM["HIPPOCAMPAL SIMULATION — what could happen?"]
+        S1["Recombines principles +<br/>episodes + world model maxims"]
+        S2["Constructs hypothetical<br/>future failure scenarios"]
+        S3["Each scenario: narrative +<br/>affected tasks + impact +<br/>confidence + suggested response"]
     end
 
-    subgraph TRIAGE["PFC SYNTHESIS — Two Speeds"]
-        T1["QUICK TRIAGE<br/>(after every task)<br/>Scan observations + simulations<br/>→ anything urgent?"]
-        T2["DEEP PHASE-GATE ANALYSIS<br/>(at phase boundaries)<br/>Full cross-task coherence check<br/>→ integration issues?"]
+    S1 --> S2 --> S3
+
+    subgraph TRIAGE["PFC SYNTHESIS — two speeds"]
+        T1["QUICK TRIAGE<br/>(after every task, no LLM)<br/>Filter by NE-modulated threshold<br/>Match observations to ready tasks<br/>Can only produce 'amend' proposals"]
+        T2["DEEP SYNTHESIS<br/>(at phase gates, uses LLM)<br/>Full cross-task coherence check<br/>Can produce all 4 surgery types"]
     end
 
-    subgraph ACT["GRAPH SURGERY — Signal, Don't Act"]
-        A1["Add task to graph<br/>(new dependency discovered)"]
-        A2["Reorder tasks<br/>(risk moved earlier)"]
-        A3["Flag for human<br/>(ambiguity or high risk)"]
-        A4["Inject integration check<br/>(coherence concern)"]
-    end
-
-    O1 & O2 & O3 --> O4
-    O4 --> S1 --> S2 --> S3
     S3 --> T1
     T1 -->|"nothing urgent"| WAIT["Continue task dispatch"]
-    T1 -->|"something found"| ACT
+    T1 -->|"pressure > 0.7 or<br/>relevance > 0.8"| T2
+
     T2 --> ACT
+
+    subgraph ACT["GRAPH SURGERY — 4 atomic operations"]
+        A1["INSERT<br/>Add new task node"]
+        A2["AMEND<br/>Add context to<br/>not-yet-started task"]
+        A3["REWORK<br/>Reopen a completed task"]
+        A4["REORDER<br/>Add dependency edge<br/>(never remove)"]
+    end
+
+    ACT -->|"blast radius computed<br/>+ validated before applying"| DISPATCH["Attention Scheduler<br/>decides when to address"]
 
     NOTE["Key principle:<br/>SIGNAL, don't act.<br/>Discovery identifies problems.<br/>The Attention Scheduler<br/>decides when to fix them."]
 
-    style OBSERVE fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
-    style SIMULATE fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
-    style TRIAGE fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
-    style ACT fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
-    style NOTE fill:#2d2235,stroke:#facc15,color:#facc15
+    style OBSERVE fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style SIM fill:#e8e0f0,stroke:#7c6af0,color:#1a1a2e
+    style TRIAGE fill:#bfdbfe,stroke:#2563eb,color:#1a1a2e
+    style ACT fill:#ffedd5,stroke:#ea580c,color:#1a1a2e
+    style WAIT fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style DISPATCH fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+    style NOTE fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e

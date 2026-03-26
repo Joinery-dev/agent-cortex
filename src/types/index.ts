@@ -181,8 +181,6 @@ export type {
   SuppressionEntry,
   ReactivationEntry,
   CollapseContext,
-  CollapseSignal,
-  CollapseDetail,
   InhibitionBriefing,
   InhibitionEnrichment,
   SenseSummary,
@@ -191,6 +189,11 @@ export type {
   RoutineMatch,
 } from "./basal-ganglia.js";
 export { DEFAULT_BASAL_GANGLIA_CONFIG, SCOPE_HIERARCHY } from "./basal-ganglia.js";
+
+export type {
+  CollapseSignal,
+  CollapseDetail,
+} from "./collapse.js";
 
 export type {
   DeltaSource,

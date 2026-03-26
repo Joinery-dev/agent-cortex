@@ -16,7 +16,7 @@
 
 import type { Tension, ResolutionOutcome } from "../types/tension.js";
 import type { WeightedEvaluation } from "./evaluation-weighter.js";
-import type { CollapseSignal } from "../types/basal-ganglia.js";
+import type { CollapseSignal } from "../types/collapse.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
 
