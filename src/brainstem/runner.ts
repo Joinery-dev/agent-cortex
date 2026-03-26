@@ -17,9 +17,11 @@ import type {
   SoftInterrupt,
   HardInterrupt,
 } from "../types/rhythm.js";
+import type { EscalationResolution } from "../types/brainstem.js";
 import { newId } from "../util/ids.js";
 import { createLogger } from "../util/logger.js";
-import { emit } from "../events.js";
+import { emit, emitError, emitCritical, bus } from "../events.js";
+import type { RhythmContext, EventDiagnosticContext } from "../events.js";
 import { EscalationError, RhythmAbortedError } from "./errors.js";
 
 const log = createLogger("rhythm-runner");
@@ -30,12 +32,20 @@ interface RunningRhythm<TContext, TResult> {
   state: RhythmState<TContext, TResult>;
   definition: RhythmDefinition<TContext, TResult, unknown, unknown, unknown>;
   abortController: AbortController;
+  /** Non-null when the rhythm is paused. Calling this resumes the loop. */
+  pauseResolver?: (resolution: EscalationResolution) => void;
 }
 
 // ─── Runner implementation ──────────────────────────────────────
 
 export class RhythmRunnerImpl implements RhythmRunner {
   private running = new Map<string, RunningRhythm<unknown, unknown>>();
+  /** TTL for paused rhythms in milliseconds. Prevents infinite waits on human input. */
+  private pauseTimeoutMs: number;
+
+  constructor(opts?: { pauseTimeoutMs?: number }) {
+    this.pauseTimeoutMs = opts?.pauseTimeoutMs ?? 30 * 60 * 1000; // 30 minutes default
+  }
 
   /** Get current state of a running rhythm (for observability). */
   getState<TCtx, TRes>(rhythmId: string): RhythmState<TCtx, TRes> | undefined {
@@ -63,6 +73,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
     parentId?: string,
   ): Promise<TRes> {
     const rhythmId = newId();
+    const abortController = new AbortController();
 
     const state: RhythmState<TCtx, TRes> = {
       id: rhythmId,
@@ -74,11 +85,10 @@ export class RhythmRunnerImpl implements RhythmRunner {
       parentId,
       activeChildren: [],
       pendingInterrupts: [],
+      signal: abortController.signal,
       startedAt: new Date(),
       lastPhaseTransition: new Date(),
     };
-
-    const abortController = new AbortController();
 
     const entry: RunningRhythm<TCtx, TRes> = {
       state,
@@ -104,10 +114,37 @@ export class RhythmRunnerImpl implements RhythmRunner {
 
     log.info(`Starting rhythm ${definition.name}`, { rhythmId, parentId });
 
+    // Push rhythm context onto the event bus stack so all events
+    // emitted during this rhythm automatically inherit it.
+    const rhythmContext: RhythmContext = {
+      rhythmId,
+      rhythmType: definition.name,
+      phase: "prepare",
+      cycle: 0,
+      parentRhythmId: parentId,
+    };
+    bus.pushContext(rhythmContext);
+
     try {
       const result = await this.driveLoop(entry);
       return result;
+    } catch (err) {
+      // Call cleanup on abnormal exit — stop runtimes, discard sandbox, etc.
+      // On normal exit the rhythm's own gate phase handles cleanup.
+      if (definition.cleanup) {
+        await definition.cleanup(state).catch((cleanupErr) => {
+          log.warn("Rhythm cleanup failed", {
+            rhythmId,
+            rhythmType: definition.name,
+            error: String(cleanupErr),
+          });
+        });
+      }
+      throw err;
     } finally {
+      // Pop rhythm context before cleanup
+      bus.popContext();
+
       // Clean up
       this.running.delete(rhythmId);
       if (parentId) {
@@ -180,29 +217,35 @@ export class RhythmRunnerImpl implements RhythmRunner {
       this.checkAbort(signal, state);
       this.transitionPhase(state, "prepare");
 
-      const prepared = await definition.prepare(
-        state.initialContext,
-        state,
+      const prepared = await this.runPhase(
+        "prepare", state, undefined,
+        () => definition.prepare(state.initialContext, state),
       );
 
       // ── Execute ─────────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "execute");
 
-      const executed = await definition.execute(prepared, state, this);
+      const executed = await this.runPhase(
+        "execute", state, prepared,
+        () => definition.execute(prepared, state, this),
+      );
 
       // ── Integrate ───────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "integrate");
 
-      const integrated = await definition.integrate(executed, state);
+      const integrated = await this.runPhase(
+        "integrate", state, executed,
+        () => definition.integrate(executed, state),
+      );
 
       // ── Gate ────────────────────────────────────────────
       this.transitionPhase(state, "gate");
 
-      const decision: GateDecision<TRes> = await definition.gate(
-        integrated,
-        state,
+      const decision: GateDecision<TRes> = await this.runPhase(
+        "gate", state, integrated,
+        () => definition.gate(integrated, state),
       );
 
       emit("rhythm:gate-decision", {
@@ -222,6 +265,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
       switch (decision.action) {
         case "continue":
           state.completedCycles++;
+          bus.updateCycle(state.completedCycles);
           // No hardcoded cycle limit. Convergence is governed by the gate
           // strategy, collapse detection (Basal Ganglia), cognitive flexibility
           // (Phase 4), and drift monitoring (Phase 4). If the system can't
@@ -247,18 +291,160 @@ export class RhythmRunnerImpl implements RhythmRunner {
             rhythmId: state.id,
             rhythmType: state.rhythmType,
             reason: decision.reason,
+            escalationContext: decision.escalationContext,
           });
 
-          // For now, paused rhythms throw — resume support comes later
-          // when we have the external signal infrastructure
-          throw new EscalationError(state.id, {
-            action: "escalate",
-            severity: "medium",
-            reason: `Rhythm paused: ${decision.reason}`,
-            context: { pausedAt: state.pausedAt },
+          log.info(`Rhythm ${state.rhythmType} paused, awaiting resume`, {
+            rhythmId: state.id,
+            reason: decision.reason,
           });
+
+          // Await external resume signal with TTL. The Promise resolves when
+          // resume() is called, rejects on hard interrupt or timeout.
+          const pauseTimeoutMs = this.pauseTimeoutMs;
+          const resolution = await Promise.race([
+            new Promise<EscalationResolution>(
+              (resolve, reject) => {
+                entry.pauseResolver = resolve;
+
+                // If a hard interrupt arrives while paused, abort the wait
+                if (signal.aborted) {
+                  reject(new RhythmAbortedError(state.id, "hard-interrupt", "Aborted while paused"));
+                  return;
+                }
+                signal.addEventListener("abort", () => {
+                  entry.pauseResolver = undefined;
+                  reject(new RhythmAbortedError(state.id, "hard-interrupt", "Aborted while paused"));
+                }, { once: true });
+              },
+            ),
+            // TTL: prevent infinite waits on human input
+            new Promise<never>((_, reject) => {
+              setTimeout(() => {
+                entry.pauseResolver = undefined;
+                emitCritical(
+                  "rhythm:pause-timeout",
+                  {
+                    rhythmId: state.id,
+                    rhythmType: state.rhythmType,
+                    pausedForMs: pauseTimeoutMs,
+                    reason: decision.reason,
+                  },
+                  {
+                    component: "runner",
+                    expected: `resume within ${pauseTimeoutMs}ms`,
+                    received: "timeout — no human response",
+                  },
+                );
+                reject(new RhythmAbortedError(
+                  state.id,
+                  "pause-timeout",
+                  `Pause TTL expired after ${pauseTimeoutMs}ms — no human response`,
+                ));
+              }, pauseTimeoutMs);
+            }),
+          ]);
+
+          // Resumed — clear pause state
+          entry.pauseResolver = undefined;
+          state.pausedAt = undefined;
+
+          // Store the resolution on the accumulator so the next cycle can see it
+          state.accumulator.__escalationResolution = resolution;
+
+          emit("rhythm:resumed", {
+            rhythmId: state.id,
+            rhythmType: state.rhythmType,
+            answer: resolution.answer.slice(0, 200),
+          });
+
+          log.info(`Rhythm ${state.rhythmType} resumed`, {
+            rhythmId: state.id,
+          });
+
+          // Continue the loop — next iteration starts at prepare
+          state.completedCycles++;
+          bus.updateCycle(state.completedCycles);
+          break;
         }
       }
+    }
+  }
+
+  /**
+   * Resume a paused rhythm with a resolution payload.
+   * The rhythm continues from where it paused (the gate phase)
+   * and enters its next cycle with the resolution available
+   * on state.accumulator.__escalationResolution.
+   */
+  resume(rhythmId: string, resolution: EscalationResolution): void {
+    const entry = this.running.get(rhythmId);
+    if (!entry) {
+      log.warn(`Resume for unknown rhythm ${rhythmId}`);
+      return;
+    }
+    if (!entry.pauseResolver) {
+      log.warn(`Rhythm ${rhythmId} is not paused`);
+      return;
+    }
+
+    log.info(`Resuming rhythm ${entry.state.rhythmType}`, {
+      rhythmId,
+      answer: resolution.answer.slice(0, 100),
+    });
+
+    entry.pauseResolver(resolution);
+  }
+
+  /**
+   * Run a single rhythm phase with error context capture.
+   * On failure, emits a diagnostic event with the phase name,
+   * phase input snapshot, and accumulator state, then re-throws.
+   */
+  private async runPhase<TCtx, TRes, TOut>(
+    phaseName: RhythmPhase,
+    state: RhythmState<TCtx, TRes>,
+    phaseInput: unknown,
+    fn: () => Promise<TOut>,
+  ): Promise<TOut> {
+    try {
+      return await fn();
+    } catch (err) {
+      // Don't wrap abort/escalation errors — they're control flow, not failures
+      if (err instanceof RhythmAbortedError || err instanceof EscalationError) {
+        throw err;
+      }
+
+      const snapshot: Record<string, unknown> = {
+        phase: phaseName,
+        rhythmType: state.rhythmType,
+        cycle: state.completedCycles,
+        accumulator: Object.keys(state.accumulator),
+      };
+
+      // Capture a safe summary of the phase input (keys only to avoid huge payloads)
+      if (phaseInput != null && typeof phaseInput === "object") {
+        snapshot.phaseInputKeys = Object.keys(phaseInput as Record<string, unknown>);
+      }
+
+      emitError(
+        `rhythm:phase-error:${phaseName}`,
+        {
+          rhythmId: state.id,
+          rhythmType: state.rhythmType,
+          phase: phaseName,
+          cycle: state.completedCycles,
+          error: String(err),
+        },
+        {
+          component: "rhythm-runner",
+          expected: `${phaseName} phase to complete`,
+          received: String(err),
+          snapshot,
+        },
+      );
+
+      throw err;
     }
   }
 
@@ -279,6 +465,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
     const from = state.phase;
     state.phase = to;
     state.lastPhaseTransition = new Date();
+    bus.updatePhase(to);
 
     emit("rhythm:phase-change", {
       rhythmId: state.id,

@@ -1,0 +1,79 @@
+---
+title: "Three-Layer Context — World Model → Gestalt → Briefings"
+scope: global
+---
+flowchart TD
+    subgraph LAYER1["Layer 1: WORLD MODEL (PFC maintains)"]
+        direction TB
+        WM_SRC["Working Memory<br/>patterns, trends,<br/>conventions, decisions"]
+        HIPP_SRC["Hippocampus<br/>episodes, principles<br/>(per-sense + cross-project)"]
+        CERE_SRC["Cerebellum<br/>accuracy, episode count<br/>ceilings, bottlenecks"]
+        PNS_SRC["PNS<br/>capabilities,<br/>constraints"]
+        PROJ_SRC["Project<br/>intent, taste"]
+        VITAL_SRC["Homeostasis<br/>vital signs"]
+
+        SYNTH["WORLD MODEL SYNTHESIS<br/>(LLM at rhythm boundaries)<br/><br/>→ Weltanschauung: maxims at 4 layers<br/>  empirical (what we've observed)<br/>  axiological (what we value)<br/>  operational (how we work)<br/>  volitional (what we're committed to)"]
+
+        WM_SRC --> SYNTH
+        HIPP_SRC --> SYNTH
+        CERE_SRC --> SYNTH
+        PNS_SRC --> SYNTH
+        PROJ_SRC --> SYNTH
+        VITAL_SRC --> SYNTH
+    end
+
+    subgraph LAYER2["Layer 2: TASK GESTALT (Thalamus assembles per-task)"]
+        direction TB
+        WELT["Weltanschauung<br/>(from world model)"]
+        ACCUM["Accumulated Context<br/>(WM snapshot frozen<br/>for this task)"]
+        EPISO["Episodic Context<br/>(Hippocampus pre-indexed<br/>by sense)"]
+        CAPS["Capabilities<br/>(PNS description)"]
+        GRAPH["Graph Position<br/>(deps, phase gate,<br/>completed neighbors)"]
+        PRED["Cerebellum Prediction<br/>(scores + confidence)"]
+        SOL["Speed of Light<br/>(per-sense + approach<br/>ceilings)"]
+        FWD["Forward Briefing<br/>(predicted tensions,<br/>bottlenecks, cycles)"]
+        PM["Prospective Directives<br/>(fired trigger actions)"]
+        EFF["Efference Copy<br/>(builder feasibility<br/>assessment)"]
+    end
+
+    SYNTH --> WELT
+
+    subgraph LAYER3["Layer 3: CONSUMER BRIEFINGS (Thalamus extracts per-component)"]
+        direction TB
+        CONS["CONSULTATION BRIEFING<br/>For senses: what to weigh in on<br/>Includes: patterns, principles,<br/>predictions, predicted tensions,<br/>efference copy, PM directives,<br/>forward context"]
+        MOTB["MOTOR BRIEFING<br/>For builder: what to build<br/>Includes: task + intent + taste +<br/>consultation + SOL + capabilities +<br/>predicted cycles + bottleneck senses"]
+        EVALB["EVALUATION BRIEFING<br/>For evaluators: how to judge<br/>Includes: receptor trends,<br/>isBottleneck flag,<br/>relevant principles"]
+        INHB["INHIBITION BRIEFING<br/>For inhibitor: what to suppress<br/>Includes: all senses + hints +<br/>current inhibitions + trends +<br/>NE level + mode"]
+        SCHEDB["SCHEDULING BRIEFING<br/>For scheduler: what to decide<br/>Includes: WM load + trends +<br/>questions + vital signs"]
+    end
+
+    WELT --> CONS
+    ACCUM --> CONS
+    EPISO --> CONS
+    FWD --> CONS
+    PM --> CONS
+    EFF --> CONS
+
+    WELT --> MOTB
+    ACCUM --> MOTB
+    CAPS --> MOTB
+    SOL --> MOTB
+    FWD --> MOTB
+
+    PRED --> EVALB
+    SOL --> EVALB
+    EPISO --> EVALB
+
+    ACCUM --> INHB
+
+    ACCUM --> SCHEDB
+    GRAPH --> SCHEDB
+
+    NE_MOD["NE MODULATES<br/>High → rich briefings, prescriptive<br/>Low → lean briefings, invitational"]
+    NE_MOD -.-> CONS
+    NE_MOD -.-> MOTB
+    NE_MOD -.-> EVALB
+
+    style LAYER1 fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style LAYER2 fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style LAYER3 fill:#1a1d27,stroke:#4ade80,color:#e2e4ea

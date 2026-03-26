@@ -19,20 +19,31 @@ import type {
   CerebellumConfig,
   CerebellumEpisode,
   CerebellumPrediction,
+  SpeedOfLight,
+  SenseCeiling,
+  ApproachCeiling,
   DopamineSignal,
   AccuracyRecord,
   TaskFingerprint,
+  ScoredEpisode,
 } from "../types/cerebellum.js";
 import { DEFAULT_CEREBELLUM_CONFIG } from "../types/cerebellum.js";
+import type { Sense } from "../types/sense.js";
+import type { SensoryCortex } from "../senses/cortex.js";
 import {
   extractFingerprint,
+  extractPreliminaryFingerprint,
   findSimilarEpisodes,
   predictFromEpisodes,
   computeOverallConfidence,
+  computeSpeedOfLight,
+  filterByApproachTags,
+  computeApproachCeiling,
 } from "./forward-model.js";
+import { classifyApproach as classifyApproachLLM } from "./approach-classifier.js";
 import { computeDopamine, computeAccuracy } from "./dopamine.js";
 import { createLogger } from "../util/logger.js";
-import { emit } from "../events.js";
+import { emit, emitWarn } from "../events.js";
 
 const log = createLogger("cerebellum");
 
@@ -46,6 +57,8 @@ interface PendingPrediction {
 export class Cerebellum {
   private episodes: CerebellumEpisode[] = [];
   private pending: Map<string, PendingPrediction> = new Map();
+  private speedOfLightCache: Map<string, SpeedOfLight> = new Map();
+  private approachTagCache: Map<string, string[]> = new Map();
   private accuracyHistory: AccuracyRecord[] = [];
   private sequenceCounter = 0;
   private config: CerebellumConfig;
@@ -73,6 +86,27 @@ export class Cerebellum {
       this.episodes,
       this.config,
     );
+
+    // Speed of light — always computed, even on cold start.
+    // The theoretical ceiling comes from sense estimates (always available).
+    // Historical enrichment comes from episodes (grows over time).
+    const sol = computeSpeedOfLight(taskId, consultation, matches);
+    this.speedOfLightCache.set(taskId, sol);
+
+    log.info("Speed of light computed", {
+      taskId,
+      compositeCeiling: sol.compositeCeiling.toFixed(1),
+      hasHistory: sol.hasHistory,
+      senses: sol.perSense.map((s) => `${s.senseName}: ${s.ceiling}`).join(", "),
+    });
+
+    emit("cerebellum:speed-of-light", {
+      taskId,
+      compositeCeiling: sol.compositeCeiling,
+      compositeBestAchieved: sol.compositeBestAchieved,
+      compositeGap: sol.compositeGap,
+      hasHistory: sol.hasHistory,
+    });
 
     if (matches.length < this.config.minEpisodes) {
       log.info("Cold start — insufficient episodes for prediction", {
@@ -135,6 +169,24 @@ export class Cerebellum {
     return prediction;
   }
 
+  // ── Preliminary matching (for efference copy) ────────────────
+
+  /**
+   * Find similar episodes using a preliminary fingerprint — before
+   * consultation. Used by the efference copy so the Motor Cortex
+   * can assess feasibility before senses deliberate.
+   *
+   * Uses uniform stakes and all receptors per sense (directionally
+   * correct, not precise). Returns raw episodes, no predictions.
+   */
+  findPreliminaryMatches(
+    activeSenses: Sense[],
+    library: SensoryCortex,
+  ): ScoredEpisode[] {
+    const fingerprint = extractPreliminaryFingerprint(activeSenses, library);
+    return findSimilarEpisodes(fingerprint, this.episodes, this.config);
+  }
+
   // ── Outcome recording ───────────────────────────────────────
 
   /**
@@ -147,14 +199,53 @@ export class Cerebellum {
   recordOutcome(
     taskId: string,
     evaluations: SenseEvaluation[],
+    costData?: {
+      cost: number;
+      callCount: number;
+      costByPurpose: Partial<Record<import("../llm/client.js").Purpose, number>>;
+      modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
+      briefingDepth?: import("../types/cost.js").BriefingDepth;
+    },
   ): DopamineSignal | null {
+    // Filter out degraded evaluations — the cerebellum must never learn from
+    // garbage data. A degraded evaluation (e.g., from an agentic parse failure)
+    // has a fake score that would corrupt prediction models and accuracy tracking.
+    const cleanEvaluations = evaluations.filter((e) => !e.degraded);
+    const degradedCount = evaluations.length - cleanEvaluations.length;
+
+    if (cleanEvaluations.length === 0 && evaluations.length > 0) {
+      // All evaluations are degraded — skip episode recording entirely.
+      // No learning signal is better than a corrupted learning signal.
+      log.warn("All evaluations degraded, skipping episode recording", {
+        taskId,
+        degradedCount,
+      });
+      emitWarn("cerebellum:all-evaluations-degraded", { taskId, degradedCount }, {
+        component: "cerebellum",
+        expected: "at least one genuine evaluation",
+        received: `${degradedCount} degraded evaluations`,
+      });
+      this.pending.delete(taskId);
+      this.speedOfLightCache.delete(taskId);
+      this.approachTagCache.delete(taskId);
+      return null;
+    }
+
+    if (degradedCount > 0) {
+      log.info("Filtered degraded evaluations from outcome recording", {
+        taskId,
+        degradedCount,
+        remainingCount: cleanEvaluations.length,
+      });
+    }
+
     const entry = this.pending.get(taskId);
 
-    // Build actual score maps for the episode
+    // Build actual score maps from clean evaluations only
     const receptorScores = new Map<string, number>();
     const senseTotals = new Map<string, { sum: number; count: number }>();
 
-    for (const evaluation of evaluations) {
+    for (const evaluation of cleanEvaluations) {
       receptorScores.set(evaluation.senseId, evaluation.score);
 
       // Aggregate to sense level
@@ -188,15 +279,23 @@ export class Cerebellum {
         )
       : null;
 
-    // Record episode
+    // Record episode (with V2 approach tags if classified)
+    const approachTags = this.approachTagCache.get(taskId);
     const episode: CerebellumEpisode = {
       taskId,
       fingerprint,
       receptorScores,
       senseScores,
       predictedScores,
+      approachTags: approachTags ?? undefined,
       sequenceNumber: this.sequenceCounter++,
       recordedAt: new Date(),
+      // Cost metadata for cost prediction learning
+      cost: costData?.cost,
+      callCount: costData?.callCount,
+      costByPurpose: costData?.costByPurpose,
+      modelsByPurpose: costData?.modelsByPurpose,
+      briefingDepth: costData?.briefingDepth,
     };
 
     this.episodes.push(episode);
@@ -208,8 +307,10 @@ export class Cerebellum {
       log.debug("Pruned oldest episodes", { pruned });
     }
 
-    // Clean up pending
+    // Clean up pending state
     this.pending.delete(taskId);
+    this.speedOfLightCache.delete(taskId);
+    this.approachTagCache.delete(taskId);
 
     // If no prediction was made, no dopamine — but episode is stored
     if (!entry?.prediction) {
@@ -224,17 +325,17 @@ export class Cerebellum {
       return null;
     }
 
-    // Compute dopamine
+    // Compute dopamine from clean evaluations only
     const dopamine = computeDopamine(
       entry.prediction,
-      evaluations,
+      cleanEvaluations,
       entry.consultation,
     );
 
-    // Track accuracy
+    // Track accuracy from clean evaluations only
     const { accuracy, meanAbsoluteError, receptorCount } = computeAccuracy(
       entry.prediction,
-      evaluations,
+      cleanEvaluations,
     );
 
     this.accuracyHistory.push({
@@ -290,9 +391,190 @@ export class Cerebellum {
     return Math.max(0, 1 - meanError / 9);
   }
 
+  // ── Cost prediction ─────────────────────────────────────────
+
+  /**
+   * Predict the dollar cost of a task from similar episodes.
+   * Uses the same similarity matching as score prediction.
+   * Returns null on cold start (no episodes with cost data).
+   */
+  predictCost(fingerprint: import("../types/cerebellum.js").TaskFingerprint): number | null {
+    const episodesWithCost = this.episodes.filter((e) => e.cost !== undefined);
+    if (episodesWithCost.length < this.config.minEpisodes) return null;
+
+    // Find similar episodes using existing similarity infrastructure
+    const matches = findSimilarEpisodes(fingerprint, episodesWithCost, this.config);
+    if (matches.length === 0) return null;
+
+    // Weighted average cost by similarity
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const { episode, similarity } of matches) {
+      if (episode.cost === undefined) continue;
+      weightedSum += episode.cost * similarity;
+      totalWeight += similarity;
+    }
+
+    return totalWeight > 0 ? weightedSum / totalWeight : null;
+  }
+
+  /**
+   * Predict quality (0–10) if a given model tier were used for a purpose.
+   * Returns null when insufficient episodes used that model for that purpose.
+   * Used by the ModelSelector for learned model downgrading.
+   */
+  predictQualityByModel(
+    purpose: import("../llm/client.js").Purpose,
+    modelTier: string,
+  ): number | null {
+    // Find episodes where this model tier was used for this purpose
+    const relevant = this.episodes.filter((ep) => {
+      if (!ep.modelsByPurpose) return false;
+      const usedModel = ep.modelsByPurpose[purpose];
+      return usedModel !== undefined && usedModel.includes(modelTier);
+    });
+
+    if (relevant.length < this.config.minEpisodes) return null;
+
+    // Average composite score across those episodes
+    let totalScore = 0;
+    for (const ep of relevant) {
+      let sum = 0;
+      let count = 0;
+      for (const score of ep.senseScores.values()) {
+        sum += score;
+        count++;
+      }
+      if (count > 0) totalScore += sum / count;
+    }
+
+    return totalScore / relevant.length;
+  }
+
   /** Number of episodes stored. */
   getEpisodeCount(): number {
     return this.episodes.length;
+  }
+
+  // ── Speed of light ──────────────────────────────────────────
+
+  /**
+   * Retrieve the speed of light computed during predict().
+   * Available even on cold start (sense ceilings always exist).
+   */
+  getSpeedOfLight(taskId: string): SpeedOfLight | null {
+    return this.speedOfLightCache.get(taskId) ?? null;
+  }
+
+  /**
+   * Composite ceiling from the most recently computed SoL.
+   * Returns null if no SoL has been computed yet.
+   */
+  getCompositeCeiling(): number | null {
+    const latest = this.getLatestSpeedOfLight();
+    return latest?.compositeCeiling ?? null;
+  }
+
+  /**
+   * Per-sense ceilings from the most recently computed SoL.
+   * Returns empty array if no SoL has been computed yet.
+   */
+  getPerSenseCeilings(): SenseCeiling[] {
+    const latest = this.getLatestSpeedOfLight();
+    return latest?.perSense ?? [];
+  }
+
+  /**
+   * Approach bottleneck info from the most recently computed SoL.
+   * Returns null if no approach-specific data exists.
+   */
+  getApproachBottleneckInfo(): { approachIsBottleneck: boolean; bottleneckGap: number | null } | null {
+    const latest = this.getLatestSpeedOfLight();
+    if (!latest?.approachSpecific) return null;
+    return {
+      approachIsBottleneck: latest.approachSpecific.approachIsBottleneck,
+      bottleneckGap: latest.approachSpecific.bottleneckGap,
+    };
+  }
+
+  /** Most recently cached SoL (by computedAt). */
+  private getLatestSpeedOfLight(): SpeedOfLight | null {
+    let latest: SpeedOfLight | null = null;
+    for (const sol of this.speedOfLightCache.values()) {
+      if (!latest || sol.computedAt > latest.computedAt) {
+        latest = sol;
+      }
+    }
+    return latest;
+  }
+
+  // ── V2: Approach classification ─────────────────────────────
+
+  /**
+   * Classify a premotor plan's approach into archetype tags, then
+   * compute an approach-specific ceiling by filtering historical
+   * episodes to those with matching tags.
+   *
+   * Called from build-cycle.execute after the Motor Cortex plans.
+   * Attaches the result as `approachSpecific` on the cached SpeedOfLight.
+   * Tags are stored by taskId for later episode recording.
+   */
+  async classifyAndEstimate(
+    taskId: string,
+    taskDescription: string,
+    approach: string,
+    model: string,
+  ): Promise<ApproachCeiling | null> {
+    let tags: string[];
+    try {
+      tags = await classifyApproachLLM(taskDescription, approach, model);
+    } catch (err) {
+      log.warn("Approach classification failed", { taskId, error: String(err) });
+      return null;
+    }
+
+    // Store tags for later episode recording
+    this.approachTagCache.set(taskId, tags);
+
+    // Get the V1 speed of light (computed during predict)
+    const sol = this.speedOfLightCache.get(taskId);
+    if (!sol) {
+      log.debug("No speed of light cached — approach classified but no ceiling comparison", { taskId, tags });
+      emit("cerebellum:approach-classified", { taskId, tags, hasCeiling: false });
+      return null;
+    }
+
+    // Recompute similar episodes (cheap — O(50))
+    const pending = this.pending.get(taskId);
+    const fingerprint = pending?.fingerprint;
+    const matches = fingerprint
+      ? findSimilarEpisodes(fingerprint, this.episodes, this.config)
+      : [];
+
+    // Filter to approach-matched episodes
+    const approachMatches = filterByApproachTags(matches, tags);
+    const approachCeiling = computeApproachCeiling(sol, approachMatches, tags);
+
+    // Attach to cached SpeedOfLight
+    sol.approachSpecific = approachCeiling;
+
+    log.info("Approach classified and ceiling estimated", {
+      taskId,
+      tags,
+      episodesConsidered: approachCeiling.episodesConsidered,
+      approachIsBottleneck: approachCeiling.approachIsBottleneck,
+      bottleneckGap: approachCeiling.bottleneckGap?.toFixed(2) ?? "n/a",
+    });
+
+    emit("cerebellum:approach-classified", {
+      taskId,
+      tags,
+      hasCeiling: true,
+      approachIsBottleneck: approachCeiling.approachIsBottleneck,
+      episodesConsidered: approachCeiling.episodesConsidered,
+    });
+
+    return approachCeiling;
   }
 
   // ── Recalibration ───────────────────────────────────────────

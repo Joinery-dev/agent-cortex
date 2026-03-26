@@ -84,10 +84,10 @@
           "id": 27,
           "name": "Brainstem / Project Lifecycle",
           "region": "Brainstem",
-          "status": "complete",
+          "status": "in-progress",
           "description": "Recursive rhythm pattern: prepare → execute → integrate → gate at every scale",
           "plan": "Define the end-to-end project lifecycle that the Attention Scheduler will drive. Not implementation — design specification. What happens at each beat, which components fire, what data flows.",
-          "notes": "The brainstem has three responsibilities, not one. (1) RHYTHM: recursive four-phase pattern (prepare/execute/integrate/gate) that nests at every scale. Each phase maps to a brain region. (2) HOMEOSTASIS: continuous monitoring of vital signs (WM load, prediction accuracy, context capacity, learning health, weight volatility) with reflex-level responses. Context management is breathing — evict/load without PFC involvement. (3) REST: load-triggered consolidation cycles (NE=0) using the same rhythm pattern. Crystallize episodes, prune memory, decay connections, recalibrate predictions, settle weights. Rest happens when the system needs it, not on a schedule.",
+          "notes": "The brainstem has three responsibilities, not one. (1) RHYTHM: recursive four-phase pattern (prepare/execute/integrate/gate) that nests at every scale. Each phase maps to a brain region. (2) HOMEOSTASIS: continuous monitoring of vital signs (WM load, prediction accuracy, context capacity, learning health, weight volatility) with reflex-level responses. Context management is breathing — evict/load without PFC involvement. (3) REST: load-triggered consolidation cycles (NE=0) using the same rhythm pattern. Crystallize episodes, prune memory, decay connections, recalibrate predictions, settle weights. Rest happens when the system needs it, not on a schedule. Replan cascade: drift→replan→re-manifest→diagnostics→escalate. Diagnostic event bus foundation complete (steps 1-5 of spec). Steps 6-8 (gate/pipeline/learning instrumentation) are incremental.\n[Reconciled] 'Instrument gate decisions with diagnostic emissions' references src/brainstem/rhythms/build-cycle.ts which exists on disk but is marked not-started.\n[Reconciled] 'Instrument learning boundaries with diagnostic emissions' references src/subcortical/hooks.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/project-discovery.ts exists but isn't referenced in any subtask.",
           "subtasks": [
             {
               "name": "Define recursive rhythm pattern",
@@ -195,14 +195,59 @@
               "detail": "Done via Phase 3 features: workingMemoryLoad (task-dispatch), predictionAccuracy (cerebellum hooks), tonicDopamine (dopamine hooks), weightVolatility (plasticity hooks), episodeDensity (hippocampus hooks). Remaining: contextCapacity (needs context manager), learningSignalHealth (needs convergence metric)"
             },
             {
-              "name": "Implement context manager (breathing reflex)",
-              "status": "not-started",
-              "detail": "ContextSlot and ContextTransition types exist but no runtime. Build: warmup (preload context on rhythm start), steady-state (evict by relevance when capacity critical), cooldown (flush on rhythm complete). Thalamus relevance scoring drives eviction priority."
+              "name": "Implement cost budget & breathing reflex",
+              "status": "complete",
+              "detail": "Reframed from eviction engine to dollar-budget-driven cognitive economy. New files: src/types/cost.ts, src/brainstem/cost-tracker.ts, src/kernel/budget-allocator.ts, src/kernel/model-selector.ts, src/util/tokens.ts. Types reshaped: ContextSlot→BriefingSlot, ContextTransition→CompactionConfig/Response. Budget flows end-to-end: ProjectIntent.budget → Planner (cost estimation + budget-aware prompts) → BudgetAllocator → CostTracker (per-task allocation) → Scheduler (budgetExhausted check + taskBudget on dispatch) → SensoryCortexContext → BuildCycleContext → Gate SignalLandscape. NE: budgetPressure as risk factor. Thalamus: budget-aware depth selection (full/standard/compressed/minimal) driven by NE+budgetPressure. Homeostasis: budgetUtilization vital sign + tighten-budget reflex. Cerebellum: cost/model/depth recorded per episode, predictCost + predictQualityByModel for learned model selection + depth selection. Model selection and briefing depth are LEARNED (Cerebellum predictions), not hardcoded — cold-start defaults act as training wheels."
             },
             {
               "name": "Wire runner pause/resume for human escalation",
-              "status": "not-started",
-              "detail": "Runner currently throws EscalationError on pause. Build: external resume signal, state restoration from pausedAt snapshot, re-entry at the paused phase. Required for human-in-the-loop escalation flow."
+              "status": "complete",
+              "detail": "src/brainstem/runner.ts — Promise-based pause/resume. driveLoop awaits resolve callback, resume() invokes it. Hard interrupt races via AbortSignal. Resolution on accumulator as __escalationResolution. Implemented as part of Escalation Pathways (#23)."
+            },
+            {
+              "name": "Enrich CortexEvent + diagnostic emit functions",
+              "status": "complete",
+              "detail": "src/events.ts — EventSeverity, RhythmContext, EventDiagnosticContext types; emit/emitInfo/emitWarn/emitError/emitCritical functions; rhythm context stack with push/pop/updatePhase/updateCycle"
+            },
+            {
+              "name": "Wire rhythm context stack into RhythmRunner",
+              "status": "complete",
+              "detail": "src/brainstem/runner.ts — pushContext at rhythm start, popContext at cleanup, updatePhase at transitions, updateCycle at increment"
+            },
+            {
+              "name": "Build persistent diagnostic JSONL log writer",
+              "status": "complete",
+              "detail": "src/diagnostics/log-writer.ts — DiagnosticLogWriter: append-only JSONL at ~/.agent-cortex/diagnostics/{projectId}/{sessionId}.jsonl for info+ severity events"
+            },
+            {
+              "name": "Instrument LLM client with diagnostic emissions",
+              "status": "complete",
+              "detail": "src/llm/client.ts — llm:max-retries (error), llm:retry-success (info); src/llm/structured.ts — llm:schema-mismatch (warn), llm:schema-mismatch-fatal (error), llm:retry-success (info)"
+            },
+            {
+              "name": "Add diagnosticLoad vital sign to HomeostasisMonitor",
+              "status": "complete",
+              "detail": "src/brainstem/homeostasis.ts — DiagnosticLoadTracker (rolling tanh-normalized warn+ rate/min), spike-ne reflex (>0.3), trigger-rest reflex (>0.7), getDiagnosticLoad() accessor"
+            },
+            {
+              "name": "Instrument gate decisions with diagnostic emissions",
+              "status": "complete",
+              "detail": "gate.ts: emitInfo gate:decision with full signal landscape (NE, conviction, routineConfidence), evaluation breakdown (rejectionDrivers with path/score/stake), tension counts, budget context. build-cycle.ts: emitInfo gate:decision at build-cycle level with taskId, cycle, conviction, NE, composite scores, flexibility assessment. task-dispatch.ts: emitInfo gate:decision at dispatch level with conviction, completion counts, phase gate results."
+            },
+            {
+              "name": "Instrument pipeline boundaries with diagnostic emissions",
+              "status": "complete",
+              "detail": "thalamus.ts: emitWarn pipeline:gestalt-missing-layer for missing weltanschauung, episodic principles, accumulated context during gestalt assembly. build-cycle.ts: emitWarn pipeline:conviction-missing-input for missing speedOfLight and neLevel at conviction loop entry. task-dispatch.ts: emitWarn pipeline:dopamine-missing-input for empty evaluations at dopamine computation."
+            },
+            {
+              "name": "Instrument learning boundaries with diagnostic emissions",
+              "status": "complete",
+              "detail": "src/subcortical/hooks.ts — emitInfo learning:episode-recorded (taskId, dopamine, encodingStrength, episodeDensity), learning:potentiation (principlesExtracted), learning:routine-update (reinforcement, explorationBias, routineCount), learning:plasticity-applied (learningRate, receptorsUpdated, weightVolatility)."
+            },
+            {
+              "name": "Phase gate integration check",
+              "status": "complete",
+              "detail": "src/kernel/integration-check.ts — IntegrationChecker: detectPhaseGate(), preCheck() (quantitative Layer 1), check() (LLM Layer 2 per-sense evaluation). src/types/integration-check.ts — PhaseGateResult, PreCheckResult, IntegrationEvalEntry. src/types/thalamus.ts — IntegrationCheckBriefing. src/kernel/thalamus.ts — forIntegrationCheck(). src/llm/prompts.ts — integrationEvaluatorSystem/User. src/kernel/evaluation-weighter.ts — weighEvaluationsWithStakes(). Wired into task-dispatch.ts integrate+gate phases, project.ts threads phases. examples/integration-check-smoke.ts — 18 assertions."
             }
           ],
           "diagrams": [
@@ -249,47 +294,52 @@
             {
               "name": "Build PNS class",
               "status": "complete",
-              "detail": "src/kernel/pns.ts — PeripheralNervousSystem: capability registry (register/remove/get/describe), intention execution (Phase 1 skeleton, records effects), shouldCheckpoint() modulated by NE + cerebellum, receiveAfferent() for unsolicited signals, full event emission"
+              "detail": "src/kernel/pns.ts — PeripheralNervousSystem: capability registry (register/remove/get/describe), intention execution (Phase 1 skeleton, records effects), shouldCheckpoint() modulated by NE + cerebellum, receiveAfferent() for unsolicited signals, full event emission. PNS Real Execution: innate capability registration (8 Agent SDK tools with ToolBindings), activateToolsForTask() NE-modulated tool curation, sdkToolMap for binding lookup"
             },
             {
               "name": "Wire Thalamus → PNS capability query",
-              "status": "not-started",
-              "detail": "Wave 1.2: Thalamus calls describeCapabilities() to include available tools in Motor Cortex briefings. This is the PNS-Thalamus contract."
+              "status": "complete",
+              "detail": "PNS instantiated in Brainstem, wired into Thalamus as source. Capabilities flow to Motor (enrichment.capabilities) and Consultation (enrichment.capabilitySummary) briefings via both legacy and gestalt paths. PNS also wired into WorldModel rebuild sources. Files: src/brainstem/index.ts, src/kernel/thalamus.ts, src/types/thalamus.ts, src/llm/prompts.ts, src/types/world-model.ts, src/kernel/world-model.ts, src/brainstem/rhythms/project.ts, src/brainstem/rhythms/task-dispatch.ts"
             },
             {
               "name": "Wire Motor Cortex → Intention → PNS execution",
-              "status": "not-started",
-              "detail": "Wave 2.3: Motor Cortex produces Intention[] instead of raw strings. PNS execute() resolves operations to real Agent SDK tool calls. Proprioception uses shouldCheckpoint() to gate the iterative build loop."
+              "status": "complete",
+              "detail": "Redesigned: Motor Cortex is now an agentic LLM with real tools (Architecture A). PNS curates which tools the builder gets via activateToolsForTask() (NE-modulated). agenticCall() in src/llm/client.ts wraps query() with tools + maxTurns > 1. Motor Cortex primaryProduceAgentic() uses agentic call when PNS present, falls back to legacy text mode when absent. Files: src/kernel/motor-cortex.ts, src/kernel/pns.ts, src/llm/client.ts, src/types/pns.ts (ToolBinding, ActivatedToolSet), src/types/motor-cortex.ts (AgenticMotorResult, ToolUseTrace)"
             },
             {
               "name": "Wire build-cycle rhythm to use Intentions",
-              "status": "not-started",
-              "detail": "Build-cycle execute phase currently calls build() which returns a raw string. Replace with: Motor Cortex emits Intention[], PNS.execute() translates to tool calls, Perception[] returns. Build-cycle's execute output becomes Perception[] not string. Integrate phase evaluates against Perceptions."
+              "status": "complete",
+              "detail": "Redesigned: build-cycle creates git sandbox (task branch) before motor cortex runs, passes NE to motor opts. Agentic mode skips PNS execute loop (Agent SDK handles tool execution). Sandbox inspected for changed files. EvaluationContext assembled from sandbox diff + file contents, passed to evaluator. Gate phase merges sandbox on accept, discards on strategy reset. Files: src/brainstem/rhythms/build-cycle.ts, src/kernel/sandbox.ts (new), src/kernel/evaluator.ts (EvaluationContext)"
             },
             {
               "name": "Wire PNS checkpoint as build-cycle proprioception",
-              "status": "not-started",
-              "detail": "PNS.shouldCheckpoint() is the proprioception gate inside the build-cycle. Between operations within a single build, check: should we pause and evaluate mid-build? This is a micro-rhythm within the build-cycle's execute phase — or a new innermost rhythm level."
+              "status": "complete",
+              "detail": "build-cycle.ts execute phase: when shouldCheckpoint() fires, runs Motor Cortex proprioception on work-so-far, emits pns:checkpoint-proprioception with planAdherence/driftAreas/confidence. Significant drift areas logged for next cycle's revision context."
             },
             {
               "name": "Wire afferent signals as brainstem interrupts",
-              "status": "not-started",
-              "detail": "PNS.receiveAfferent() creates Perceptions but nothing routes them as rhythm interrupts. Human feedback mid-task → soft interrupt on sensory-cortex rhythm. Environment alerts → hard interrupt via amygdala pathway. Route through runner.interrupt()."
+              "status": "complete",
+              "detail": "src/brainstem/index.ts wireAfferentRouting(): subscribes to pns:afferent events via bus.onCortex, routes to runner.interrupt() by source type. environment-alert/change → hard interrupt, human-feedback/correction → soft interrupt, tool errors → soft interrupt. Targets innermost active rhythm."
             },
             {
               "name": "Thread brainstem AbortSignal through PNS",
-              "status": "not-started",
-              "detail": "When a rhythm is hard-interrupted (AbortController.abort()), PNS.execute() should also cancel in-flight tool operations. Add signal?: AbortSignal param to PNS.execute(), thread from RhythmState."
+              "status": "complete",
+              "detail": "RhythmState.signal exposed from AbortController (types/rhythm.ts + runner.ts). PNS.execute() takes optional AbortSignal, checks before + between operations. build-cycle.ts threads state.signal to both PNS.execute() and MotorCortex.execute()."
             },
             {
               "name": "Wire PNS capabilities into context warmup",
-              "status": "not-started",
-              "detail": "During rhythm warmup (brainstem breathing reflex), query PNS.describeCapabilities() to preload tool availability into context slots. Feeds into Motor Cortex briefing during build-cycle prepare phase."
+              "status": "complete",
+              "detail": "Already wired: thalamus.ts snapshotCapabilities() calls pns.describeCapabilities() + pns.getCapabilities() during gestalt assembly. Capabilities flow to MotorBriefing.enrichment.capabilities, ConsultationBriefing.enrichment.capabilitySummary, and Planner.reasonBackward()."
             },
             {
               "name": "Wire real NeurotransmitterSignals into checkpoint gate",
-              "status": "not-started",
-              "detail": "Phase 3 (Cerebellum confidence) + Phase 4 (Norepinephrine arousal): currently shouldCheckpoint() accepts signals but nothing produces them. Wire Cerebellum.predict().confidence and computeNE() as live inputs."
+              "status": "complete",
+              "detail": "[Completed as part of Feature #22] build-cycle execute phase constructs NeurotransmitterSignals { norepinephrine: effectiveNE, predictionConfidence: gestalt.prediction.overallConfidence } and passes to pns.shouldCheckpoint() + pns.execute() for each intention. PNS threaded through task-dispatch → sensory-cortex → build-cycle factory chain."
+            },
+            {
+              "name": "Agentic evaluation — evaluators perceive with real tools",
+              "status": "complete",
+              "detail": "Evaluators conditionally use agenticCall() with read-only tools (Read, Glob, Grep, Bash — no Write/Edit). PNS consumer-aware activation (ToolConsumer: builder|evaluator). SenseEvaluation gains EvaluatorObservation[] for structured evidence. Evaluator prompts: observe-then-judge. Observations feed into revisionPrompt for grounded feedback. Build-cycle wires PNS + NE to evaluate(). Runtime lifecycle: RuntimeConfig on ProjectIntent, runtime-manager.ts (start/stop/readiness), build-cycle starts shared runtime before eval (NE > 0.5), stops after. Per-sense minimumObservation level gating. Files: src/kernel/evaluator.ts, src/kernel/pns.ts, src/types/sense.ts, src/types/runtime.ts (new), src/types/intent.ts, src/kernel/runtime-manager.ts (new), src/llm/prompts.ts, src/brainstem/rhythms/build-cycle.ts, src/kernel/evaluation-weighter.ts"
             },
             {
               "name": "Wire afferent routing through Thalamus",
@@ -386,23 +436,23 @@
             },
             {
               "name": "Wire NE modulation of briefing depth",
-              "status": "not-started",
-              "detail": "Phase 4. Scheduler produces neLevel per task. Thalamus consumes it to modulate extraction depth: high NE → more patterns, more trend detail, more decision history. Low NE → lean briefings, essentials only. Requires: Norepinephrine signal (#22) to be real. The neLevel is already threaded through SensoryCortexContext — Thalamus just needs to read it."
+              "status": "complete",
+              "detail": "[Completed as part of Feature #22] Thalamus forConsultationFromGestalt, forMotorFromGestalt, forEvaluationFromGestalt read g.neLevel. Low NE (<0.3) → lean briefings (skip principles, prediction, speedOfLight, worldModelMaxims, capabilities). Moderate/High → full enrichment."
             },
             {
               "name": "Wire explore/exploit mode into briefing framing",
-              "status": "not-started",
-              "detail": "Phase 4. Scheduler determines explore vs exploit per task. Thalamus responds: exploit → emphasize established patterns, highlight what's working, constrain toward proven approaches. Explore → de-emphasize patterns, surface open questions, frame capabilities as possibilities. Same WM data, different emphasis. Requires: Basal Ganglia (#16) or Explore Phase (#10) to make mode meaningful."
+              "status": "complete",
+              "detail": "Thalamus stores per-task mode via setTaskMode(). forConsultation() and forMotor() include mode in enrichment. Prompt functions render APPROACH: EXPLORE (think divergently, patterns are reference points not constraints) or APPROACH: EXPLOIT (follow proven approaches, refine not reinvent). Framing appears before patterns section so the LLM reads the frame before the data. sensory-cortex.prepare wires mode from SensoryCortexContext."
             },
             {
               "name": "Build forEscalation() convenience composer",
-              "status": "not-started",
-              "detail": "Phase 5. When the Scheduler escalates, Thalamus assembles rich human-facing context: which trends are declining, what was tried, what patterns exist, what decisions led here, what questions are open. Semantic enrichment for the human consumer — not just 'scores are cratering' but the full picture. Requires: Escalation Pathways (#23)."
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — forEscalation(escalation, rhythmState) Layer 2 non-task-scoped composer. Assembles EscalationBriefing: Escalation record + EscalationRhythmContext (rhythm type, phase, cycle) + EscalationProjectSnapshot (intent summary, task progress, open questions, sense trends, world model maxims). Follows forScheduling() pattern. Implemented as part of Escalation Pathways (#23)."
             },
             {
               "name": "Wire taste dissolution into briefings",
-              "status": "not-started",
-              "detail": "Future. LLM-powered contextual rewriting of taste per consumer. The founding conversation's breakthrough: 'the taste profile is a source the distiller draws from, never a document the agent reads.' Currently taste is passed as structured fields. Dissolution would rewrite it into task-specific natural language guidance. Requires: the routing infrastructure (done) + an LLM call in the Thalamus's convenience composers."
+              "status": "complete",
+              "detail": "thalamus.ts: dissolveTaste() method rewrites taste per consumer role (consultation/motor/evaluation/inhibition) into natural language. ConsultationEnrichment.dissolvedTaste + MotorEnrichment.dissolvedTaste + InhibitionEnrichment.dissolvedTaste added to types. Wired into forConsultationFromGestalt(), forMotorFromGestalt(), and forInhibition(). prompts.ts: dissolved taste rendered as 'HUMAN PREFERENCES' section in consultation, motor, and BG inhibition prompts. BG system prompt guides taste-informed suppression. Budget-aware: skipped at compressed depth. Event: thalamus:taste-dissolved (task now optional for project/phase-level inhibition)."
             },
             {
               "name": "Wire Hippocampus as Thalamus source",
@@ -411,13 +461,13 @@
             },
             {
               "name": "Wire Cerebellum predictions as Thalamus source",
-              "status": "not-started",
-              "detail": "Phase 3. Add cerebellum to ThalamusSources. New getPredictiveContext() getter. forMotor enrichment includes 'the system predicts these scores — adjust accordingly.' forEvaluation enrichment includes predicted vs actual for this receptor. Requires: Cerebellum (#18)."
+              "status": "complete",
+              "detail": "Update pattern: sensory-cortex.prepare calls thalamus.setPrediction() after cerebellum predicts. Thalamus stores predictions in Map<taskId, CerebellumPrediction>. forMotor() includes full CerebellumPrediction in MotorEnrichment. forEvaluation() includes per-receptor ReceptorPrediction in EvaluationBriefing. prompts.ts renders PREDICTED SCORES section in motor briefing + evaluatorUser() gains predictionContext param. evaluator.ts extracts prediction from same forEvaluation() call used for trends. Files: src/types/thalamus.ts, src/kernel/thalamus.ts, src/llm/prompts.ts, src/brainstem/rhythms/sensory-cortex.ts, src/kernel/evaluator.ts."
             },
             {
               "name": "Wire PFC forward briefing into Thalamus",
-              "status": "not-started",
-              "detail": "The Scheduler produces a forward briefing during between-tasks (prospective preparation). Thalamus receives it and dissolves it into every consumer's briefing for the upcoming task. New field on ThalamusSources or a setForwardBriefing() method. Consultation briefings gain predicted tensions, relevant patterns, phase gate proximity. Motor briefings gain predicted cycle count, approach ceiling. Requires: Scheduler prospective preparation + Cerebellum ceiling estimation."
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — setForwardBriefing()/clearForwardBriefing(). Gestalt includes forwardBriefing. Consumer methods dissolve: consultation gets predictedTensions + convictionNotes, motor gets predictedCycles + approachNotes + bottleneckSenses, evaluation gets isBottleneck. Implemented as part of Features #32 + #33."
             }
           ]
         },
@@ -466,38 +516,38 @@
             },
             {
               "name": "Wire Drift Monitor signals",
-              "status": "not-started",
-              "detail": "Phase 4. assembleSignals() reads from Drift Monitor → populates driftLevel + driftSummary on SchedulerSignals. Cascade priorities 3 (replan) and 4 (escalate) already handle these. Requires: Drift Monitor (#6)."
+              "status": "complete",
+              "detail": "[Completed as part of Feature #6 wiring] assembleSignals() reads driftMonitor.getAssessment() → populates driftLevel + driftSummary on SchedulerSignals. Cascade priorities 3 (replan at ≥0.8) and 4 (escalate at ≥0.5) already handle these."
             },
             {
               "name": "Wire Cognitive Flexibility signals",
-              "status": "not-started",
-              "detail": "Phase 4. assembleSignals() reads from Cognitive Flexibility → populates perseverating on SchedulerSignals. Cascade priority 2 already handles it. Requires: Cognitive Flexibility (#5)."
+              "status": "complete",
+              "detail": "[Completed as part of Feature #6 wiring] assembleSignals() computes perseverating from recent task results: last 2 tasks both exhausted maxCycles with confidence < 0.5 → perseverating = true. Cascade priority 2 already handles it."
             },
             {
               "name": "Wire Basal Ganglia routine matches",
-              "status": "not-started",
-              "detail": "Phase 3. assembleSignals() queries BG per ready task → populates routineMatches on SchedulerSignals. determineMode() already uses it for explore/exploit. Requires: Basal Ganglia (#16)."
+              "status": "complete",
+              "detail": "Already wired: task-dispatch.ts assembleSignals() queries basalGanglia.getRoutineMatches() per ready task with gestalt-like context. Populates routineMatches Map on SchedulerSignals. attention-scheduler.ts determineMode() reads routineMatches — confidence > 0.7 → exploit, else explore."
             },
             {
               "name": "Wire Prospective Memory triggers",
-              "status": "not-started",
-              "detail": "Phase 5. assembleSignals() checks PM for fired triggers → populates prospectiveTriggers on SchedulerSignals. Need to add trigger-aware task prioritization to scoreTask() — currently triggers are declared but unused in scoring. Requires: Prospective Memory (#3)."
+              "status": "complete",
+              "detail": "assembleSignals() runs PM fast-path per ready task → populates prospectiveTriggers Map on SchedulerSignals. scoreTask() adds additive PM bonus (0.15 weight). Implemented as part of Feature #3."
             },
             {
               "name": "Wire NE + mode to Thalamus briefing modulation",
-              "status": "not-started",
-              "detail": "Phase 4. neLevel and mode already flow through SensoryCortexContext.briefing but Thalamus doesn't read them. Higher NE → richer briefings (more patterns, more context). Explore mode → de-emphasize patterns, surface capability range. Exploit → emphasize what's working, constrain the builder. Requires: Norepinephrine (#22)."
+              "status": "in-progress",
+              "detail": "[NE portion completed as part of Feature #22] Thalamus reads g.neLevel in all gestalt briefing methods. NE modulation live. Mode (explore/exploit) modulation still not-started — requires shaping briefing framing based on mode (de-emphasize patterns in explore, constrain in exploit)."
             },
             {
               "name": "Wire replan action to Planner",
-              "status": "not-started",
-              "detail": "Phase 5. Scheduler returns 'replan' but it currently surfaces as GateEscalate to the human. When Planner exists, project rhythm gate should catch replan escalations (context.type === 'replan-request') and re-invoke Planner to re-decompose. Requires: Planner (#1)."
+              "status": "complete",
+              "detail": "Already wired: Scheduler replan → task-dispatch gate wraps as escalation with context.type 'replan-request' → project rhythm catches EscalationError → ProjectDiagnostics.triage() routes to replan/re-manifest/full-diagnostic/escalate → Planner.replan() re-decomposes with carry-over context. Full triage-driven cascade with MAX_REPLAN_CASCADES safety valve."
             },
             {
               "name": "Wire escalation resume flow",
-              "status": "not-started",
-              "detail": "Phase 5. When Scheduler escalates and human responds, system needs to resume from where it paused. Depends on brainstem's pause/resume wire (runner.ts pausedAt snapshot + re-entry). Human answer should resolve open questions in WM, then Scheduler re-evaluates. Requires: Escalation Pathways (#23) + brainstem pause/resume wire."
+              "status": "complete",
+              "detail": "Implemented via Escalation Pathways (#23). EscalationHandler.resolve() resolves WM questions + calls runner.resume(). Resolution stored on accumulator as __escalationResolution, available to next cycle's prepare/execute. Scheduler re-evaluates naturally on the next dispatch cycle after resume."
             },
             {
               "name": "Make task selection weights plastic",
@@ -506,8 +556,8 @@
             },
             {
               "name": "Build prospective preparation",
-              "status": "not-started",
-              "detail": "The Scheduler's most important future capability. During between-tasks, synthesize: Cerebellum predictions (scores + ceilings for upcoming task), Hippocampus episodes (what happened with similar tasks), task graph (what's coming, phase gate proximity, dependency context), and strategic intent. Produce a forward briefing that the Thalamus dissolves into every consumer's context. The senses don't read the roadmap — the PFC seeds it into their briefings. Requires: Cerebellum ceiling estimation + Hippocampus episodes + Thalamus forward briefing slot."
+              "status": "complete",
+              "detail": "src/kernel/prospective-preparation.ts — prepareForward() pure function. Three tension algorithms + bottleneck detection + predicted cycles + conviction carry-forward. Wired in task-dispatch.ts integrate phase. Implemented as Feature #32."
             }
           ],
           "diagrams": [
@@ -522,11 +572,11 @@
       "features": [
         {
           "id": 4,
-          "name": "Inhibitor",
-          "region": "Prefrontal Cortex",
+          "name": "Basal Ganglia",
+          "region": "Basal Ganglia",
           "status": "complete",
-          "description": "Sense suppression — project-level and per-task. Writes InhibitedSense to WM (slot exists). Wave 4 — no Phase 2 dependencies.",
-          "notes": "Two modes: (1) suppress() — LLM-based relevance evaluation at scope boundaries (project/phase/subphase/task), modulated by NE level and explore/exploit mode, enforces minimum active senses. Clears narrower scopes hierarchically before re-evaluating. (2) detectCollapse() — judges whether tension resolutions are genuine synthesis or capitulation, returns CollapseSignal as build-cycle gate input. Consumes InhibitionBriefing from Thalamus with full sense library + WM state. Owned by Brainstem, threaded through rhythm definitions.",
+          "description": "Action selection through tonic inhibition + learned routines. Subsumes the original Inhibitor (Feature #4) with a learning layer. Three pathways: direct (learned routine shortcut), indirect (learned suppression), hyperdirect (LLM deliberation fallback). Also hosts detectCollapse() as PFC-delegated function.",
+          "notes": "Renamed from Inhibitor. Core insight: the inhibitor IS the basal ganglia — tonic inhibition of all senses, selective disinhibition of relevant ones. The learning layer (routine store, fingerprint matching, dopamine reinforcement) was added in Phase 3 of the Basal Ganglia build. Routines form from repeated observations of consistent sense activation patterns, reinforced via striatal dopamine projection. Feature #16 (original Basal Ganglia spec in ARCHITECTURE.md) is now merged into this feature. Taste integration: RoutineFingerprint now includes tasteKeywords (from patterns+decisionStyle), computeSimilarity() weights taste at 0.25 — taste changes invalidate old routines by reducing similarity below the confidence threshold. Dissolved taste from Thalamus renders as 'HUMAN PREFERENCES' in hyperdirect pathway prompt.",
           "subtasks": [
             {
               "name": "Define Inhibitor types",
@@ -584,9 +634,34 @@
               "detail": "src/types/index.ts — exports all inhibitor types + DEFAULT_INHIBITOR_CONFIG + SCOPE_HIERARCHY."
             },
             {
-              "name": "Smoke test",
+              "name": "Smoke test (original inhibitor tests)",
               "status": "complete",
-              "detail": "examples/inhibitor-smoke.ts — 50 assertions: config defaults, scope hierarchy (4 levels), WM scope-aware clear (hierarchical cascade, amygdala survives), idempotent inhibitSense with scope update, Thalamus forInhibition() briefing (project-level and task-level, NE/mode passthrough, existing inhibitions), Brainstem integration pattern, type exports. All existing tests passing (38/38 WM, 31/31 scheduler)."
+              "detail": "examples/basal-ganglia-smoke.ts — 50 assertions: config defaults, scope hierarchy, WM scope-aware clear, idempotent inhibitSense, Thalamus forInhibition() briefing, Brainstem integration pattern, type exports."
+            },
+            {
+              "name": "Rename Inhibitor → BasalGanglia across codebase",
+              "status": "complete",
+              "detail": "Renamed types (BasalGangliaConfig, DEFAULT_BASAL_GANGLIA_CONFIG), class, logger, events, WM source string, prompt functions, model config key, ~25 files updated. Old files deleted."
+            },
+            {
+              "name": "Routine types + store",
+              "status": "complete",
+              "detail": "src/types/basal-ganglia.ts — Routine, RoutineFingerprint, RoutineMatch, PathwayDecision types. Extended BasalGangliaConfig with routineConfidenceThreshold, similarityThreshold, routineDecayRate, stableObservationCount, maxRoutines. src/kernel/basal-ganglia.ts — routine Map, candidate accumulator, extractFingerprint(), findBestMatch() with weighted Jaccard similarity, getRoutineMatches()."
+            },
+            {
+              "name": "Three pathways: selectAction() + learning loop",
+              "status": "complete",
+              "detail": "src/kernel/basal-ganglia.ts — selectAction() wraps suppress() as direct/hyperdirect pathway decision. applyRoutine() converts routine to SuppressionDecision with NE/mode modulation. recordDeliberation() bridges task to fingerprint. reinforceRoutine() adjusts confidence from StriatalProjection, tracks override rate, promotes candidates to routines after stableObservationCount observations. decayRoutines() for rest cycles."
+            },
+            {
+              "name": "Wire into SubcorticalHooks + rest cycles",
+              "status": "complete",
+              "detail": "src/subcortical/hooks.ts — basalGanglia field added to CompositeHooksSources. updateRoutines() reads lastProjections.striatal → calls basalGanglia.reinforceRoutine(). decayRoutines() delegates to basalGanglia.decayRoutines(). src/brainstem/stubs.ts — decayRoutines() added to interface + NoOp. src/brainstem/rhythms/rest.ts — decay-routines case."
+            },
+            {
+              "name": "Feed routine state to Scheduler + Gate",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — assembleSignals() populates signals.routineMatches from basalGanglia.getRoutineMatches(). Scheduler's determineMode() already reads this. src/brainstem/rhythms/build-cycle.ts — routineConfidence slot in SignalLandscape (undefined for now, populated when threaded through context)."
             }
           ]
         },
@@ -595,8 +670,8 @@
           "name": "Motor Cortex",
           "region": "Sensory Cortex",
           "status": "complete",
-          "description": "Replace builder — premotor plans, primary produces, proprioception self-corrects. Consumes Thalamus builder briefings + PNS Intentions.",
-          "notes": "MotorCortex class with three-phase execute(): premotor (callStructured → MotorPlan), primary motor (call → string with plan injected), proprioception (callStructured → SelfAssessment, modulated by checkpoint policy). Produces Intention[] from plan for Phase 3 learning systems. Backward-compat build() function preserved for deprecated orchestrator. Proprioception penalty applied in gate: low plan adherence penalizes effective min score by up to 2 points. RevisionPlan distinguishes execution-error (amend plan) from plan-error (re-plan from scratch).",
+          "description": "Replace builder — premotor plans, primary produces, proprioception self-corrects. Consumes Thalamus builder briefings + PNS Intentions. Efference copy: feedforward feasibility signal before senses deliberate.",
+          "notes": "MotorCortex class with three-phase execute(): premotor (callStructured → MotorPlan), primary motor (call → string with plan injected), proprioception (callStructured → SelfAssessment, modulated by checkpoint policy). Produces Intention[] from plan for Phase 3 learning systems. Backward-compat build() function preserved for deprecated orchestrator. Proprioception penalty applied in gate: low plan adherence penalizes effective min score by up to 2 points. RevisionPlan distinguishes execution-error (amend plan) from plan-error (re-plan from scratch). Efference copy: MotorCortex.predictFeasibility() runs before consultation via sensory-cortex.prepare(). Preliminary episode matching (Cerebellum.findPreliminaryMatches) uses uniform-stake fingerprints. EfferenceCopy attached to gestalt, dissolved into ConsultationEnrichment by Thalamus.",
           "subtasks": [
             {
               "name": "Define Motor Cortex types",
@@ -642,6 +717,41 @@
               "name": "Verify compilation + tests",
               "status": "complete",
               "detail": "npx tsc --noEmit: zero errors. 38/38 WM smoke tests pass. 31/31 scheduler smoke tests pass. Deprecated orchestrator.ts backward-compat verified."
+            },
+            {
+              "name": "Efference copy types",
+              "status": "complete",
+              "detail": "src/types/efference-copy.ts — EfferenceCopy, EfferenceSenseFeasibility, TensionCost, EfferenceCopyContext, SerializedEpisode. Re-exported from src/types/index.ts."
+            },
+            {
+              "name": "Efference copy preliminary matching",
+              "status": "complete",
+              "detail": "src/subcortical/forward-model.ts — extractPreliminaryFingerprint(activeSenses, library): uniform-stake fingerprint from active senses before consultation. src/subcortical/cerebellum.ts — Cerebellum.findPreliminaryMatches() delegates to forward-model."
+            },
+            {
+              "name": "Efference copy SubcorticalHooks",
+              "status": "complete",
+              "detail": "src/brainstem/stubs.ts — findPreliminaryMatches() on SubcorticalHooks interface + NoOpSubcorticalHooks stub. src/subcortical/hooks.ts — CompositeSubcorticalHooks delegates to Cerebellum."
+            },
+            {
+              "name": "Efference copy LLM + prompts",
+              "status": "complete",
+              "detail": "src/llm/client.ts — 'efference-copy' Purpose. src/llm/prompts.ts — efferenceCopySystem(), efferenceCopyUser(context). Consultation enrichment: efferenceCopy, efferenceTensionCosts, efferenceHardConstraints sections in consultationUser()."
+            },
+            {
+              "name": "Efference copy MotorCortex.predictFeasibility",
+              "status": "complete",
+              "detail": "src/kernel/motor-cortex.ts — predictFeasibility(context): callStructured with EfferenceCopyOutputSchema. Model fallback: efferenceCopy ?? premotor ?? motorCortex. Emits motor:efference-copy event."
+            },
+            {
+              "name": "Efference copy gestalt + Thalamus wiring",
+              "status": "complete",
+              "detail": "src/types/task-gestalt.ts — efferenceCopy? field. src/types/thalamus.ts — efferenceCopy/efferenceTensionCosts/efferenceHardConstraints on ConsultationEnrichment. src/kernel/thalamus.ts — attachEfferenceCopy() + dissolution in forConsultationFromGestalt()."
+            },
+            {
+              "name": "Efference copy sensory-cortex integration",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — efference copy runs before consultation in prepare(). serializeEpisodes() helper converts Map-based episodes to plain objects. src/types/task.ts — 'efference_copy' TaskEvent type."
             }
           ]
         },
@@ -836,7 +946,12 @@
             {
               "name": "Smoke test",
               "status": "complete",
-              "detail": "examples/cerebellum-smoke.ts — 57 assertions: fingerprinting, similarity, episode retrieval, prediction, cold start, full lifecycle, dopamine, accuracy, recalibration."
+              "detail": "examples/cerebellum-smoke.ts — 84 assertions: fingerprinting, similarity, episode retrieval, prediction, cold start, full lifecycle, dopamine, accuracy, recalibration, speed-of-light V1 (sense ceilings, historical enrichment, composite, cold start caching, cleanup)."
+            },
+            {
+              "name": "Speed of Light V1 — theoretical performance ceiling",
+              "status": "complete",
+              "detail": "Senses estimate theoretical max (ceiling + ceilingRationale) during consultation — SensePerspective type, consul.ts schema, consultation prompt. Cerebellum aggregates per-sense ceilings + enriches with historical best-achieved from episodes via computeSpeedOfLight(). Cached during predict(), available even on cold start. Thalamus routes SpeedOfLight into forMotor() and senseCeiling into forEvaluation(). Motor prompt includes SPEED OF LIGHT section. Evaluation prompt includes THEORETICAL CEILING context. New types: SpeedOfLight, SenseCeiling. New hook: getSpeedOfLight(taskId)."
             },
             {
               "name": "Diagram",
@@ -844,24 +959,14 @@
               "detail": "diagrams/cerebellum.mmd — per-task flow, dopamine signal consumers, recalibration cycle."
             },
             {
-              "name": "Define ceiling estimation types",
-              "status": "not-started",
-              "detail": "Speed-of-light types: CeilingEstimate per cognitive dimension (buildConvergence, tensionResolutionQuality, evaluationAccuracy, contextFidelity). Each has ceiling (0-1), current (0-1), gapRatio, recommendation (optimize | rearchitect | escalate)."
-            },
-            {
-              "name": "Build ceiling estimation from episodes",
-              "status": "not-started",
-              "detail": "Extend Cerebellum class: estimateCeiling(fingerprint, approach) → CeilingEstimate[]. Uses similar episodes to estimate best-case outcomes for this approach type. Cold-start returns null (same honest pattern as score prediction)."
-            },
-            {
-              "name": "Wire ceiling into gate stopping criteria",
-              "status": "not-started",
-              "detail": "Gate receives CeilingEstimate[] in SignalLandscape. Strategies use gapRatio: near ceiling (≥80%) → accept; far from ceiling (<50%) → signal rearchitect; ceiling too low → escalate. Replaces the removed maxCycles enforcement."
+              "name": "Speed of Light V2 — approach-aware ceiling",
+              "status": "complete",
+              "detail": "src/subcortical/approach-classifier.ts — classifies approach into archetype tags (fixed vocabulary, one LLM call). src/subcortical/forward-model.ts — filterByApproachTags(), computeApproachCeiling() with bottleneck detection (gap > 1.5). Cerebellum gains classifyAndEstimate(), approachTagCache, approach tags on episodes. New hook classifyApproach() called from build-cycle.execute after premotor planning (non-blocking). OrchestratorResult gains approach field, threaded from sensory-cortex.integrate. ApproachCeiling attached to SpeedOfLight.approachSpecific. 99 smoke test assertions."
             },
             {
               "name": "Wire ceiling into Cognitive Flexibility",
               "status": "not-started",
-              "detail": "Phase 4. Cognitive Flexibility reads ceiling estimates: if ceiling is too low across multiple dimensions, force strategy reset (re-plan from scratch, not revise). This is the 74-days-to-6-days move."
+              "detail": "Phase 4. Cognitive Flexibility reads speed-of-light gap: if large gap between ceiling and best-achieved across multiple dimensions, force strategy reset (re-plan from scratch, not revise). This is the Jensen 74-days-to-6-days move."
             }
           ]
         },
@@ -1047,6 +1152,11 @@
               "name": "Cross-project scope on existing extraction",
               "status": "complete",
               "detail": "src/subcortical/hippocampus.ts — extractPrinciple() sets scope: 'cross-project'. refinePrinciple() replace path inherits scope from original. Refine path uses spread (inherits automatically)."
+            },
+            {
+              "name": "Sense verification at principle integration points",
+              "status": "complete",
+              "detail": "src/types/hippocampus.ts — senseVerification field on Principle (optional SenseVerificationResult). src/subcortical/hippocampus.ts — setLibrary(), verifyPrincipleWithSenses(), 5 insertion points calling verification (extractPrinciple, refinePrinciple, merge path, sense-scoped extraction, after-task evidence update). src/senses/sense-verification.ts — shared utility: verifySense(), verifyWithSenses(), resolveSenseByName(). src/llm/client.ts — 3 new Purpose values: 'principle-verification', 'escalation-assessment', 'taste-verification' + totalUsage entries. src/llm/prompts.ts — principleVerificationSystem/User prompt functions. src/brainstem/index.ts — setLibrary() wired on Hippocampus."
             }
           ]
         },
@@ -1094,29 +1204,124 @@
           "id": 16,
           "name": "Basal Ganglia",
           "region": "Subcortical",
-          "status": "in-progress",
-          "description": "Learned routines — task type → sense activation, gates explore/exploit. Trained by dopamine signal, stores routines via plastic weights. Fires on task gestalt (pre-processed task representation). Wave 8 — depends on Dopamine (#21) + Plasticity (#19)."
+          "status": "complete",
+          "description": "Learned routines — task type → sense activation, gates explore/exploit. Trained by dopamine signal, stores routines via plastic weights. Fires on task gestalt (pre-processed task representation). Wave 8 — depends on Dopamine (#21) + Plasticity (#19).",
+          "notes": "Merged into Feature #4. All routine learning, fingerprinting, three-pathway (direct/indirect/hyperdirect) logic, and striatal dopamine reinforcement implemented there."
         },
         {
           "id": 29,
-          "name": "World Model",
+          "name": "World Model (Weltanschauung)",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "PFC's integrated representation of reality — where we are, not where we're going. Integrates WM + Hippocampus + Cerebellum + task graph + PNS + project context + system health into a single coherent picture. Rebuilt at rhythm boundaries. The conviction loop runs against this. Wave 9 — depends on all Phase 3 learning systems being complete."
+          "status": "in-progress",
+          "description": "PFC's integrated representation of reality — where we are, not where we're going. Integrates WM + Hippocampus + Cerebellum + task graph + PNS + project context + system health into a single coherent picture. Rebuilt at rhythm boundaries. The conviction loop runs against this. Wave 9 — depends on all Phase 3 learning systems being complete.",
+          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/world-model.ts — Maxim, Weltanschauung, WorldModelSources (WM/Cerebellum/Tonic/Plasticity source interfaces), RebuildTrigger, WorldModelConfig, WorldModelState. Re-exported from src/types/index.ts."
+            },
+            {
+              "name": "Persistence store",
+              "status": "complete",
+              "detail": "src/kernel/world-model-store.ts — WorldModelStore: loadMaxims/saveMaxims, loadMeta/saveMeta, atomic writes (tmp+rename), Date serialization. Storage at ~/.agent-cortex/world-model/"
+            },
+            {
+              "name": "LLM prompts",
+              "status": "complete",
+              "detail": "src/llm/client.ts — added 'weltanschauung' Purpose. src/llm/prompts.ts — weltanschauungSystem(scope) with Dilthean three-layer guidance + good/bad maxim examples, weltanschauungUser(inputs) with WeltanschauungInputs interface assembling all sources dynamically."
+            },
+            {
+              "name": "WorldModel class",
+              "status": "complete",
+              "detail": "src/kernel/world-model.ts — WorldModel: load/save via WorldModelStore, bindProject(), rebuild(trigger, sources) with LLM synthesis via callStructured + Zod schema, assembleInputs() reads all sources and interprets plasticity at category level, maxim evolution (supersedes + droppedMaximIds), cold start guard, cross-project update on project-complete."
+            },
+            {
+              "name": "Thalamus integration",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts — WorldModelSource interface, worldModelMaxims field on ConsultationEnrichment + MotorEnrichment, worldModel field on ThalamusSources. src/kernel/thalamus.ts — accepts worldModel in constructor, getWorldModelMaxims() helper, wires maxims into forConsultation() + forMotor(). src/llm/prompts.ts — SYSTEM UNDERSTANDING section at TOP of consultation + motor prompts."
+            },
+            {
+              "name": "Brainstem wiring + rhythm integration",
+              "status": "complete",
+              "detail": "src/brainstem/index.ts — WorldModel created in constructor, wired into Thalamus sources, load() in runProject/runTask, getWorldModel() getter, passed to createProjectDefinition. src/brainstem/rhythms/project.ts — bindProject + rebuild('project-start') in prepare, rebuild('project-complete') in integrate. src/brainstem/rhythms/task-dispatch.ts — worldModel param, rebuild('between-tasks') after fast path with vitals."
+            },
+            {
+              "name": "Smoke test + diagram",
+              "status": "not-started",
+              "detail": "examples/weltanschauung-smoke.ts + diagrams/weltanschauung.mmd"
+            }
+          ]
         },
         {
           "id": 30,
           "name": "Task Gestalt",
           "region": "Thalamus",
-          "status": "not-started",
-          "description": "World model + this specific task's features. The pre-processed 'cortical representation' that BG, Cerebellum, and Inhibitor read from — available before the expensive sensory cortex fires. Assembled by Thalamus, derived from World Model. Wave 10 — depends on World Model (#29)."
+          "status": "complete",
+          "description": "World model + this specific task's features. The pre-processed 'cortical representation' that BG, Cerebellum, and Inhibitor read from — available before the expensive sensory cortex fires. Assembled by Thalamus, derived from World Model. Wave 10 — depends on World Model (#29).",
+          "notes": "Three-layer architecture: World Model → Task Gestalt → Consumer Briefings. Gestalt assembled once per task in task-dispatch.prepare, predictions/SoL attached during sensory-cortex.prepare, cleared on task complete/escalate. All four consumer briefings (consultation, motor, evaluation, inhibition) derive from the gestalt. Non-task-scoped consumers (scheduling, project/phase inhibition) stay on the direct-read path. Evaluator has graceful fallback for non-gestalt contexts.\n[Reconciled] src/types/task.ts exists but isn't referenced in any subtask.",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/task-gestalt.ts — TaskGestalt, GestaltWeltanschauung, GestaltAccumulated, GestaltEpisodic, GestaltCapabilities, GestaltGraphPosition, GestaltAssemblyContext. Re-exported from src/types/index.ts. WorldModelSource extended with getWeltanschauung() in src/types/thalamus.ts."
+            },
+            {
+              "name": "Gestalt lifecycle on Thalamus",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — assembleGestalt(context), getGestalt(taskId), attachPrediction(taskId), attachSpeedOfLight(taskId), clearGestalt(taskId). Private helpers: snapshotAccumulated(), snapshotCapabilities(), requireGestalt(). Gestalts stored in Map<string, TaskGestalt>."
+            },
+            {
+              "name": "Gestalt-based briefing derivation",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — forConsultationFromGestalt(taskId), forMotorFromGestalt(taskId, consultation), forEvaluationFromGestalt(taskId, receptorId, activationPath), forInhibitionFromGestalt(taskId, library). Pre-indexed principlesBySense for O(1) evaluation lookups. Legacy direct-read methods preserved for non-task-scoped use."
+            },
+            {
+              "name": "Rhythm wiring",
+              "status": "complete",
+              "detail": "task-dispatch.ts: assembleGestalt in prepare (with graph context), forInhibitionFromGestalt for BG, clearGestalt in integrate (both complete + escalate paths). sensory-cortex.ts: forConsultationFromGestalt, attachPrediction, attachSpeedOfLight. build-cycle.ts: forMotorFromGestalt. evaluator.ts: forEvaluationFromGestalt with fallback to direct read."
+            }
+          ]
         },
         {
           "id": 31,
           "name": "PFC Conviction Loop",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Reasoning protocol at every gate: necessity → conviction → speed-of-light → shape downstream. Runs against the world model. New information triggers conviction testing — persist, reshape the manifested future, or escalate. Low conviction → higher NE, more senses, tighter evaluation. Wave 10 — depends on World Model (#29) + Cerebellum Ceiling."
+          "status": "complete",
+          "description": "Reasoning protocol at every gate: necessity → conviction → speed-of-light → shape downstream. Runs against the world model. New information triggers conviction testing — persist, reshape the manifested future, or escalate. Low conviction → higher NE, more senses, tighter evaluation. Wave 10 — depends on World Model (#29) + Cerebellum Ceiling.",
+          "notes": "Pure functions (no class, no LLM calls). Fires at build-cycle and task-dispatch gates. Conviction level flows into SignalLandscape for gate strategies. Reshape guidance prepended to revision reasons. Escalate short-circuits before gate strategy runs. manifestedFuture stub ready for Phase 4 Planner. Shaping notes stored in accumulator for downstream consumers (bridge to Prospective Preparation #32).",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/conviction.ts — ConvictionContext, ConvictionResult, ConvictionEvidence, ConvictionShaping, NecessityResult, ConvictionTestResult, SpeedOfLightTestResult. Re-exported from src/types/index.ts."
+            },
+            {
+              "name": "Core logic",
+              "status": "complete",
+              "detail": "src/kernel/conviction.ts — runConvictionLoop, testNecessity, testConviction, testSpeedOfLight, computeShaping. All pure exported functions."
+            },
+            {
+              "name": "SignalLandscape extension",
+              "status": "complete",
+              "detail": "src/types/gate.ts — added conviction?: number to SignalLandscape."
+            },
+            {
+              "name": "Build-cycle integration",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/build-cycle.ts — conviction loop runs before gate strategy in gate phase. Accumulator stores previousConviction + convictionShaping. Escalate short-circuits. Reshape guidance prepended to revision reason."
+            },
+            {
+              "name": "Task-dispatch integration",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — conviction loop runs before existing gate decisions. Accumulator stores previousConviction. Escalate bubbles up as high-severity escalation."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/conviction-smoke.ts — 13 test cases, 38 assertions. Covers necessity, conviction, speed-of-light, shaping, delta tracking, evidence valence, manifested future stub."
+            }
+          ]
         }
       ]
     },
@@ -1128,64 +1333,423 @@
           "id": 5,
           "name": "Cognitive Flexibility",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Detects perseveration — forces strategy reset when stuck. Uses Cerebellum ceiling estimates: if ceiling is too low, the approach is the problem, not the execution. Reads world model for full context. Wave 11 — depends on World Model (#29) + Conviction Loop (#31)."
+          "status": "complete",
+          "description": "Detects perseveration — diagnoses WHY the system is stuck and prescribes course corrections. Acts on conviction loop 'reshape' verdicts with one LLM call.",
+          "notes": "Four diagnoses: execution-problem (targeted revision), strategy-limited (full re-plan), tension-evasion (re-engage suppressed sense), irreconcilable (escalate). Reset directive flows to premotor with avoid/retain/direction constraints. Approach history tracked in build-cycle accumulator.",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/cognitive-flexibility.ts — FlexibilityDiagnosis, FlexibilityContext, FlexibilityAssessment, ResetDirective, ApproachHistoryEntry. Exported from index.ts."
+            },
+            {
+              "name": "CognitiveFlexibility class",
+              "status": "complete",
+              "detail": "src/kernel/cognitive-flexibility.ts — assess() method, one callStructured call. Falls back to execution-problem on LLM failure. Emits flexibility:assessment events."
+            },
+            {
+              "name": "Prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — cognitiveFlexibilitySystem() and cognitiveFlexibilityUser(). User prompt assembles task, approach, conviction evidence, speed of light, world model maxims, approach history, tensions, oscillations."
+            },
+            {
+              "name": "Build-cycle integration",
+              "status": "complete",
+              "detail": "build-cycle.ts — Accumulator gains approachHistory, resetPending, resetDirective, flexibilityAssessment. Gate phase calls assess() on reshape. Prepare phase handles strategy reset (re-derive motor briefing). Execute phase tracks approach history."
+            },
+            {
+              "name": "Motor cortex integration",
+              "status": "complete",
+              "detail": "motor-cortex.ts — MotorCortexOpts gains resetDirective. premotorPlan() prepends STRATEGY RESET section with avoid/retain/direction constraints."
+            },
+            {
+              "name": "Factory wiring",
+              "status": "complete",
+              "detail": "CognitiveFlexibility threaded through brainstem → project → task-dispatch → sensory-cortex → build-cycle factory chain. Constructed in Brainstem constructor."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/cognitive-flexibility-smoke.ts — 33 assertions: context construction, assessment shapes, reset directive structure, diagnosis→action mapping, approach history patterns, conviction evidence integration, speed-of-light approach ceiling."
+            }
+          ]
         },
         {
           "id": 6,
           "name": "Drift Monitor",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Trajectory vs. intent, catches slow divergence, stated vs. demonstrated taste. Compares world model trajectory against manifested future. Wave 11 — depends on World Model (#29)."
+          "status": "complete",
+          "description": "Trajectory vs. intent, catches slow divergence, stated vs. demonstrated taste. Compares world model trajectory against manifested future. Wave 11 — depends on World Model (#29).",
+          "subtasks": [
+            {
+              "name": "Define Drift Monitor types",
+              "status": "complete",
+              "detail": "src/types/drift-monitor.ts — DriftMonitorConfig + DEFAULT, DriftMonitorSources + DriftMonitorWMSource (dependency-inverted), QuickCheckSignals (profileShift/tensionEscalation/convergenceDifficulty), QuickCheckResult, DeepAnalysis (IntentAlignment/TasteDivergence/ConventionHealth), DriftAssessment (unified), DriftMonitorState (dashboard). Also: DriftEntry enriched in intent.ts (source/driftLevel/phaseGroup), 'drift-analysis' Purpose added to LLM client, re-exports in index.ts."
+            },
+            {
+              "name": "Build DriftMonitor class",
+              "status": "complete",
+              "detail": "src/kernel/drift-monitor.ts — DriftMonitor class: quickCheck() (3 procedural signals: profileShift via std of sense deltas, tensionEscalation via linear regression on highTensionCount, convergenceDifficulty via linear regression on cycles), deepAnalysis() (LLM call with Zod-validated DeepAnalysis schema), getAssessment(), getState(). Math helpers: linearRegressionSlope, std, clamp, readSensitivity. Events: drift-monitor:quick-check, drift-monitor:deep-analysis, drift-monitor:level-changed."
+            },
+            {
+              "name": "Add drift analysis prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — driftAnalysisSystem() (role, 3 dimensions, calibration, principles), driftAnalysisUser() (conditional sections: intent, taste, manifested future, maxims, task trajectory with per-sense means, trends, patterns, decisions, previous drift log, quick check history), DriftAnalysisInputs interface."
+            },
+            {
+              "name": "Wire into task-dispatch",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — assembleSignals() reads driftMonitor.getAssessment() → populates driftLevel + driftSummary on SchedulerSignals. integrate() calls driftMonitor.quickCheck() after world model rebuild. DriftMonitor threaded: brainstem/index.ts creates it, project.ts passes it through, task-dispatch receives and uses it. getDriftMonitor() accessor + re-export added."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/drift-monitor-smoke.ts — 30 assertions: cold start guard (zeros with <3 tasks), profile shift detection (diverging DESIGN/PERFORMANCE), tension escalation (increasing highTensionCount slope 0.5), convergence difficulty (increasing cycles slope 0.467), sensitivity modulation (high>low confirmed), getAssessment/getState shapes, live LLM deep analysis (correctly identified drifting+worsening with 0.52 level)."
+            }
+          ]
         },
         {
           "id": 22,
           "name": "Norepinephrine Signal",
           "region": "Neurotransmitter",
-          "status": "not-started",
-          "description": "Arousal/thoroughness dial — modulates how hard the system pays attention. Dynamic signal from task characteristics + Cerebellum confidence + conviction level. Replaces hardcoded NE in Scheduler. Wave 11 — depends on Cerebellum Ceiling."
+          "status": "complete",
+          "description": "Arousal/thoroughness dial — modulates how hard the system pays attention. Dynamic signal from task characteristics + Cerebellum confidence + conviction level. Replaces hardcoded NE in Scheduler. Wave 11 — depends on Cerebellum Ceiling.",
+          "notes": "Split computation: dispatch-time base NE (maturity+risk), sensory-cortex enriched NE (+novelty from bestSimilarity), build-cycle effective NE (+conviction). Max-blend formula (60% weighted avg + 40% max component). Conviction folds into NE — consumers see one number. Training wheels: baseline derived from cerebellum accuracy, not a config constant. Weights: maturity 0.30, risk 0.25, novelty 0.25, conviction 0.20. Absent inputs default conservative. Thalamus briefing depth modulated: low NE (<0.3) → lean briefings. Proprioception gated: NE < 0.3 → skip self-check.",
+          "subtasks": [
+            {
+              "name": "NE types",
+              "status": "complete",
+              "detail": "src/types/norepinephrine.ts — NEWeights, NEInputs, RiskFactors, NEResult, NEComponents. Re-exported from types/index.ts."
+            },
+            {
+              "name": "Core computeNE function",
+              "status": "complete",
+              "detail": "src/kernel/norepinephrine.ts — standalone pure function. Max-blend formula (60% weighted avg + 40% max component). DEFAULT_NE_WEIGHTS: maturity 0.30, risk 0.25, novelty 0.25, conviction 0.20. extractRiskFromSchedulerSignals() helper."
+            },
+            {
+              "name": "SubcorticalHooks.getCerebellumAccuracy()",
+              "status": "complete",
+              "detail": "src/brainstem/stubs.ts — added to interface + NoOp (returns 0.5). src/subcortical/hooks.ts — CompositeSubcorticalHooks delegates to cerebellum.getAccuracy()."
+            },
+            {
+              "name": "Migrate Scheduler NE computation",
+              "status": "complete",
+              "detail": "src/kernel/attention-scheduler.ts — replaced computeNE() with computeDispatchNE() using standalone function. Removed baselineNE/neBoostPerRisk from config. Added neWeights. src/types/attention-scheduler.ts — updated SchedulerConfig + SchedulerSignals (cerebellumAccuracy)."
+            },
+            {
+              "name": "Wire cerebellumAccuracy into task-dispatch",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — assembleSignals() gains hooks param, populates cerebellumAccuracy from hooks.getCerebellumAccuracy()."
+            },
+            {
+              "name": "Novelty-enriched NE in sensory-cortex",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — after prediction, recomputes full NE with bestSimilarity + risk from gestalt. Emits ne:novelty-enriched event. Threads to BuildCycleContext.neLevel."
+            },
+            {
+              "name": "Conviction-enriched effective NE in build-cycle",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/build-cycle.ts — effectiveNE on accumulator. Gate recomputes NE with conviction after conviction loop. Conviction reads previous cycle's NE (sequential, not circular). Emits ne:recomputed. Proprioception gated: enableProprioception = effectiveNE >= 0.3."
+            },
+            {
+              "name": "Thalamus NE-modulated briefing depth",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — forConsultationFromGestalt, forMotorFromGestalt, forEvaluationFromGestalt all read g.neLevel. Low NE (<0.3): lean briefings (skip principles, prediction, speedOfLight, worldModelMaxims, capabilities). Moderate/High: full enrichment."
+            },
+            {
+              "name": "Tests",
+              "status": "complete",
+              "detail": "examples/norepinephrine-smoke.ts — 44 assertions: cold start, mature+routine, mature+novel, conviction erosion, amygdala override, risk factors (max-of-risks), custom weights, clamping, risk extraction, full lifecycle, gate alignment. Scheduler regression (31 pass), cerebellum regression (99 pass)."
+            }
+          ]
         },
         {
           "id": 32,
           "name": "Prospective Preparation",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Scheduler synthesizes Cerebellum predictions + Hippocampus episodes + task graph + intent into forward briefings during between-tasks. Seeds the future into every consumer's context. The senses don't read the roadmap — the PFC shapes their briefings with it. Wave 11 — depends on World Model (#29)."
+          "status": "complete",
+          "description": "Scheduler synthesizes Cerebellum predictions + Hippocampus episodes + task graph + intent into forward briefings during between-tasks. Seeds the future into every consumer's context. The senses don't read the roadmap — the PFC shapes their briefings with it. Wave 11 — depends on World Model (#29).",
+          "notes": "Pure function (no class, no LLM). Three tension algorithms (score-divergence, trend-divergence, episode-pattern) + deduplication. Bottleneck detection compares WM trends against SpeedOfLight ceilings. Predicted cycles via median of hippocampus episodes. Conviction carry-forward bridges Phase 3 shaping to Phase 4 forward briefings. manifestedFuture stub for Wave 12 Planner.",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/forward-briefing.ts — ForwardBriefing, PredictedTension, PredictedBottleneck, ForwardBriefingSources, HippocampusEpisodeSummary. Re-exported from src/types/index.ts."
+            },
+            {
+              "name": "prepareForward() pure function",
+              "status": "complete",
+              "detail": "src/kernel/prospective-preparation.ts — prepareForward(sources): ForwardBriefing. Exported internals: detectTensions, detectBottlenecks, predictCycles. Three tension algorithms + dedup. Bottleneck gap > 2.0 threshold. Predicted cycles via median (min 2 episodes)."
+            },
+            {
+              "name": "Task-dispatch wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — prepareForward() called in integrate phase before clearGestalt(). Reads SpeedOfLight from completed gestalt, WM trends, hippocampus episodes via thalamus, conviction shaping from accumulator."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/prospective-preparation-smoke.ts — 39 assertions. Cold start, trend divergence, bottleneck detection, episode patterns, predicted cycles, score divergence, conviction carry-forward, deduplication, trending direction."
+            }
+          ]
         },
         {
           "id": 1,
           "name": "Planner",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Two phases: (A) Manifestation — senses imagine the completed outcome via sensory-cortex rhythm, producing a concrete manifested future. (B) Path reasoning — reason backward from the manifested future to minimum task graph, every step passing necessity gates. Planning is a task, not a special phase. Nests recursively. Wave 12 — depends on World Model (#29) + Conviction Loop (#31)."
+          "status": "complete",
+          "description": "Two phases: (A) Manifestation — senses imagine the completed outcome via sensory-cortex rhythm, producing a concrete manifested future. (B) Path reasoning — reason backward from the manifested future to minimum task graph, every step passing necessity gates. Planning is a task, not a special phase. Nests recursively. Wave 12 — depends on World Model (#29) + Conviction Loop (#31).",
+          "notes": "Phase A runs through sensory cortex (pluggable — same loop used for regular tasks). Phase B uses callStructured for backward decomposition. Planner is a kernel component called by project rhythm. Manifested future stored on Thalamus, flows to ForwardBriefing, ConvictionContext, DriftMonitor. Necessity gates use 25-char minimum threshold. Recursive nesting deferred — project-level planning only for v1.",
+          "subtasks": [
+            {
+              "name": "Planner types",
+              "status": "complete",
+              "detail": "src/types/planner.ts — PlannerConfig, ManifestedFuture, ProposedTask, ProposedPhase, PathReasoningRaw, RejectedTask, PlannerResult. Exported from src/types/index.ts."
+            },
+            {
+              "name": "Path reasoning LLM prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — pathReasoningSystem(), pathReasoningUser(), PathReasoningInputs. Backward reasoning prompt with Jensen's three gates. 'planner' added to Purpose type."
+            },
+            {
+              "name": "Planner kernel component",
+              "status": "complete",
+              "detail": "src/kernel/planner.ts — Planner class: createManifestationTask(), extractManifestedFuture(), reasonBackward(), applyNecessityGates(), buildGraph(). Cross-phase implicit dependency resolution."
+            },
+            {
+              "name": "Project rhythm integration",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — execute phase runs Planner when tasks empty: Phase A via sensory cortex, Phase B via Planner.reasonBackward(). Sensory cortex plugged into project rhythm."
+            },
+            {
+              "name": "Thalamus integration",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — setManifestedFuture()/getManifestedFuture(). Wired into task-dispatch: ForwardBriefing, ConvictionContext, DriftMonitor all receive manifestedFuture."
+            },
+            {
+              "name": "Brainstem wiring",
+              "status": "complete",
+              "detail": "src/brainstem/index.ts — Planner constructed with motorCortex model, passed to createProjectDefinition()."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/planner-smoke.ts — 52 assertions. Task creation, manifestation extraction, necessity gates, graph building with cross-phase deps, Thalamus integration. LLM end-to-end test (conditional on API key)."
+            },
+            {
+              "id": "1.7",
+              "description": "Planner.replan() — mid-project replanning with completed task awareness",
+              "status": "in-progress",
+              "detail": "src/types/planner.ts — ReplanContext, ReplanResult types added"
+            }
+          ]
         },
         {
           "id": 33,
           "name": "Thalamus Forward Briefing",
           "region": "Thalamus",
+          "status": "complete",
+          "description": "Thalamus receives PFC's forward briefing from Prospective Preparation and dissolves it into every consumer's context. Consultation briefings gain predicted tensions, phase gate context. Motor briefings gain predicted cycles, approach ceiling. Wave 12 — depends on Prospective Preparation (#32).",
+          "notes": "setForwardBriefing()/clearForwardBriefing() + getRecentEpisodeSummaries() on Thalamus. forwardBriefing field on TaskGestalt. Dissolved into gestalt-based + legacy consumer methods: consultation gets predictedTensions + convictionNotes, motor gets predictedCycles + approachNotes + bottleneckSenses, evaluation gets isBottleneck flag.",
+          "subtasks": [
+            {
+              "name": "Thalamus storage + episode summaries",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — setForwardBriefing(), clearForwardBriefing(), getForwardBriefing(), getRecentEpisodeSummaries(count). Maps full Episode to HippocampusEpisodeSummary."
+            },
+            {
+              "name": "Gestalt inclusion",
+              "status": "complete",
+              "detail": "src/types/task-gestalt.ts — forwardBriefing?: ForwardBriefing field. src/kernel/thalamus.ts — assembleGestalt() includes this.forwardBriefing."
+            },
+            {
+              "name": "Consumer briefing dissolution",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts — ConsultationEnrichment gains predictedTensions + convictionNotes, MotorEnrichment gains predictedCycles + approachNotes + bottleneckSenses, EvaluationBriefing gains isBottleneck. src/kernel/thalamus.ts — all six consumer methods (gestalt + legacy) dissolve forward briefing."
+            },
+            {
+              "name": "Wire forward briefing into LLM prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — consultationUser() renders PREDICTED TENSIONS (sense pairs + severity + basis) + TACTICAL NOTES FROM PREVIOUS TASK (conviction carry-forward). assembleMotorPromptBody() renders BOTTLENECK SENSES (prioritize these), TACTICAL GUIDANCE (approach notes from conviction), EXPECTED BUILD CYCLES (calibration). src/kernel/evaluator.ts — isBottleneck flag rendered as BOTTLENECK context telling evaluator their dimension has highest leverage."
+            }
+          ]
+        },
+        {
+          "id": 34,
+          "name": "Efference Copy",
+          "region": "Sensory Cortex",
           "status": "not-started",
-          "description": "Thalamus receives PFC's forward briefing from Prospective Preparation and dissolves it into every consumer's context. Consultation briefings gain predicted tensions, phase gate context. Motor briefings gain predicted cycles, approach ceiling. Wave 12 — depends on Prospective Preparation (#32)."
+          "description": "Motor Cortex's feedforward feasibility assessment — sent before building so senses calibrate expectations against what's actually achievable. One lightweight LLM call in sensory-cortex prepare (before consultation) that receives PNS capabilities + Cerebellum episodes + speed-of-light ceiling + codebase context. Produces per-dimension ceiling estimates, tension cost assessments, hard constraints, and convergence estimates. Thalamus dissolves into every sense's consultation briefing. Counterpart to proprioception (feedforward vs feedback). Depends on Motor Cortex (#11) + PNS + Cerebellum.",
+          "notes": "[Reconciled] src/types/efference-copy.ts exists but isn't referenced in any subtask."
         },
         {
           "id": 10,
           "name": "Explore Phase",
           "region": "Sensory Cortex",
-          "status": "not-started",
-          "description": "Generate 3-5 divergent paths from here to the manifested future. The destination is fixed (Planner Phase A); the creativity is in the path. Selection: surprise × quality. Skipped when BG has strong routine match. Wave 13 — depends on BG (#16) + Cerebellum (#18) + Planner (#1)."
+          "status": "complete",
+          "description": "Generate 3-5 divergent paths from here to the manifested future. The destination is fixed (Planner Phase A); the creativity is in the path. Selection: surprise × quality. Skipped when BG has strong routine match. Depends on BG (#16) + Cerebellum (#18) + Planner (#1) + Efference Copy (#34).",
+          "notes": "Explore phase generates 3-5 divergent paths via single structured LLM call. Selection: surprise x quality with quality floor 0.5. Skipped in exploit mode. Path flows through gestalt into motor briefing as strong premotor guidance.",
+          "subtasks": [
+            {
+              "name": "Type definitions",
+              "status": "complete",
+              "detail": "src/types/explore.ts — ExplorePath, ExploreResult, ExploreSelected, ExploreSkipped, EXPLORE_QUALITY_FLOOR"
+            },
+            {
+              "name": "Core explore function",
+              "status": "complete",
+              "detail": "src/kernel/explore.ts — Zod schema, system/user prompts, selectPath algorithm, archetype validation, event emission, error handling"
+            },
+            {
+              "name": "Task status + event",
+              "status": "complete",
+              "detail": "src/types/task.ts — added exploring status, explore_result event type"
+            },
+            {
+              "name": "Gestalt integration",
+              "status": "complete",
+              "detail": "src/types/task-gestalt.ts — explorePath field. src/kernel/thalamus.ts — attachExplorePath method, forMotorFromGestalt injects selectedPath into MotorEnrichment"
+            },
+            {
+              "name": "Motor prompt integration",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — assembleMotorPromptBody renders selectedPath as EXPLORE PATH SELECTED section"
+            },
+            {
+              "name": "Sensory cortex wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — explore() called in prepare phase after NE enrichment, result attached to gestalt"
+            },
+            {
+              "name": "Type plumbing",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts (MotorEnrichment.selectedPath), src/types/orchestrator.ts (explore model config), src/types/index.ts (re-exports), src/llm/client.ts (explore Purpose)"
+            }
+          ]
         },
         {
           "id": 3,
           "name": "Prospective Memory",
           "region": "Prefrontal Cortex",
-          "status": "not-started",
-          "description": "Future intentions attached to trigger conditions. Scheduler already has optional prospectiveTriggers signal field. Wave 13 — self-contained."
+          "status": "complete",
+          "description": "Future intentions attached to trigger conditions. Scheduler already has optional prospectiveTriggers signal field. Wave 13 — self-contained.",
+          "notes": "Hybrid matching: structural fast-paths (matchAll, matchTaskIds) + LLM semantic match via single callStructured call. Project-scoped, in-memory only. Actions: directive (flows into briefings) + optional question (escalates to human). Persistence: once (fire and consume) or per-match (fire repeatedly). Wired into task-dispatch prepare phase (full check before gestalt) + assembleSignals (fast-path for scoring). Thalamus dissolves directives into consultation + motor briefings. Scheduler scoreTask() adds additive PM bonus.",
+          "subtasks": [
+            {
+              "name": "Types",
+              "status": "complete",
+              "detail": "src/types/prospective-memory.ts — ProspectiveTrigger, TriggerCondition, TriggerAction, FiredTrigger, ProspectiveMemoryConfig, ProspectiveMemoryState. Re-exported from types/index.ts."
+            },
+            {
+              "name": "ProspectiveMemory class",
+              "status": "complete",
+              "detail": "src/kernel/prospective-memory.ts — register(), checkFastPath(taskId), check(task, intent, model) with LLM via callStructured + Zod schema, resolve(), expire(), getPending(), getFired(), getState()."
+            },
+            {
+              "name": "LLM integration",
+              "status": "complete",
+              "detail": "src/llm/client.ts — 'prospective-matching' Purpose. src/llm/prompts.ts — prospectiveMatchingSystem(), prospectiveMatchingUser(). Single LLM call evaluates all pending triggers. Confidence threshold 0.6."
+            },
+            {
+              "name": "Thalamus integration",
+              "status": "complete",
+              "detail": "src/types/task-gestalt.ts — prospectiveDirectives on TaskGestalt + GestaltAssemblyContext. src/types/thalamus.ts — prospectiveDirectives on ConsultationEnrichment + MotorEnrichment. src/kernel/thalamus.ts — gestalt assembly + dissolution into consumer briefings. src/llm/prompts.ts — PROSPECTIVE MEMORY section in consultation + motor prompts."
+            },
+            {
+              "name": "Scheduler scoring",
+              "status": "complete",
+              "detail": "src/kernel/attention-scheduler.ts — scoreProspectiveTriggers() additive bonus (0.15 weight). src/types/attention-scheduler.ts — prospectiveTriggers changed to Map<taskId, triggers[]>."
+            },
+            {
+              "name": "Task-dispatch + threading",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — fast-path in assembleSignals(), full LLM check in prepare phase before gestalt assembly, question escalation. src/brainstem/rhythms/project.ts + src/brainstem/index.ts — PM threaded through factory chain, instantiated in Brainstem constructor."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/prospective-memory-smoke.ts — 43 assertions. Registration, fast-path matching (matchAll, matchTaskIds), once/per-match persistence, resolve/expire lifecycle, question shapes, re-fire prevention."
+            }
+          ]
         },
         {
           "id": 17,
           "name": "Amygdala",
           "region": "Subcortical",
-          "status": "not-started",
-          "description": "Urgency/risk override — bypasses normal scheduling. Runner already supports hard interrupts. Wave 13 — self-contained."
+          "status": "complete",
+          "description": "Urgency/risk override — bypasses normal scheduling. Three responsibilities: detector registry, alarm receiver, response protocol.",
+          "subtasks": [
+            {
+              "name": "Type definitions",
+              "status": "complete",
+              "detail": "src/types/amygdala.ts — ThreatDetector, DetectedThreat, ThreatCategory, Alarm, ThreatAssessment, ResponseAction, ResponseProtocolResult, ResponseDeps, AmygdalaConfig, AmygdalaState"
+            },
+            {
+              "name": "Built-in detectors (pure functions)",
+              "status": "complete",
+              "detail": "src/subcortical/detectors.ts — destructiveOperationDetector, securityAntipatternDetector, dataLossRiskDetector, scopeViolationDetector (placeholder), computeResponseLevel, identifyBlockedIntentions"
+            },
+            {
+              "name": "Amygdala class",
+              "status": "complete",
+              "detail": "src/subcortical/amygdala.ts — Amygdala: registerDetector, removeDetector, scanIntentions, receiveAlarm, receiveHumanEscalation, executeResponse, getState"
+            },
+            {
+              "name": "Pre-action gate wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/build-cycle.ts — amygdala scans intentions before PNS execution, blocks threats, emergency triggers response protocol + NE override"
+            },
+            {
+              "name": "SubcorticalHooks integration",
+              "status": "complete",
+              "detail": "src/subcortical/hooks.ts — amygdala added as optional source in CompositeHooksSources with getAmygdala() accessor"
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/amygdala-smoke.ts — 15 sections, 72 assertions: detectors, scanning, alarms, human escalation, response protocol, modulation, learned detectors, state"
+            }
+          ],
+          "notes": "Alarm receiver interface ready for Feature #23 (Escalation Pathways). registerDetector() API ready for hippocampus-to-amygdala detector installation. Scope violation detector is placeholder until scope tracking exists."
+        },
+        {
+          "id": 29,
+          "name": "Project Diagnostics",
+          "description": "Project-level self-healing: diagnoses why drift persists after replanning. Five diagnoses, four self-healable.",
+          "status": "complete",
+          "subtasks": [
+            {
+              "id": "29.1",
+              "description": "Types — DiagnosticContext, DiagnosticResult, SelfHealAction",
+              "status": "complete",
+              "detail": "src/types/project-diagnostics.ts"
+            },
+            {
+              "id": "29.2",
+              "description": "Kernel component — ProjectDiagnostics class with triage() + diagnose()",
+              "status": "complete",
+              "detail": "src/kernel/project-diagnostics.ts — triage(): rule-based routing (7 heuristic rules R0-R6), diagnose(): heavy LLM call with graph diff enrichment"
+            },
+            {
+              "id": "29.3",
+              "description": "LLM prompts — projectDiagnosticsSystem/User + graph diff section",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — DiagnosticInputs.graphDiff, PLAN STRUCTURE CHANGES section, Purpose type fix in client.ts"
+            },
+            {
+              "id": "29.4",
+              "description": "Integration — triage-driven cascade in project rhythm + WM conviction ledger",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — positional cascade replaced with triage-driven dispatch. src/kernel/working-memory.ts — ConvictionEntry ledger, recordConviction(), getConvictionTrajectory(). src/brainstem/rhythms/task-dispatch.ts — wires conviction recording to WM. src/types/brainstem.ts — replanGeneration on TaskDispatchContext."
+            },
+            {
+              "id": "29.5",
+              "description": "Smoke test",
+              "status": "complete",
+              "detail": "examples/project-diagnostics-smoke.ts — 123 tests: conviction ledger, trajectory, all 7 triage rules, priority ordering, graph diff prompt, original type/shape tests"
+            }
+          ],
+          "notes": "Project-level analog of CogFlex (Feature 5). Redesigned from positional cascade (1st→2nd→3rd→human) to adaptive triage-driven dispatch. Triage reads conviction trajectory from WM, sense trends, drift level, cerebellum accuracy. Routes to replan|re-manifest|full-diagnostic|escalate. Heuristic rules are starting points — Basal Ganglia will learn to override them."
         }
       ]
     },
@@ -1197,29 +1761,470 @@
           "id": 25,
           "name": "Satisfaction Signal",
           "region": "Human Partnership",
-          "status": "not-started",
-          "description": "Human approval/correction → plasticity weights (Goodhart protection). Wave 14 — depends on Plasticity (#19)."
+          "status": "complete",
+          "description": "Human approval/correction → plasticity weights (Goodhart protection). Wave 14 — depends on Plasticity (#19).",
+          "subtasks": [
+            {
+              "id": "25.1",
+              "description": "Types — SatisfactionResponse, SatisfactionSignal, PlasticityMapping, TasteUpdate",
+              "status": "complete",
+              "detail": "src/types/satisfaction-signal.ts — TasteResponseType (update|keep|nuanced|deferred), SatisfactionResponse, SatisfactionSignal, SatisfactionKind, TaskSatisfactionSignal, PlasticityMapping, PlasticityUpdate, TasteUpdate, SatisfactionSignalConfig"
+            },
+            {
+              "id": "25.2",
+              "description": "processTasteResponse — four response types mapped to plasticity operations",
+              "status": "complete",
+              "detail": "src/kernel/satisfaction-signal.ts — processTasteResponse(): update→routing DOWN+taste mutated, keep→routing UP (Goodhart), nuanced→routing slight DOWN+taste mutated to new value, deferred→no changes"
+            },
+            {
+              "id": "25.3",
+              "description": "processTaskSignal — task approval/correction to evaluation-influence weights",
+              "status": "complete",
+              "detail": "src/kernel/satisfaction-signal.ts — processTaskSignal(): approval→positive delta to sense weights, correction→negative delta"
+            },
+            {
+              "id": "25.4",
+              "description": "applyMapping + applyTasteUpdate helpers",
+              "status": "complete",
+              "detail": "src/kernel/satisfaction-signal.ts — applyMapping() writes to PlasticityStore with source='satisfaction', applyTasteUpdate() produces immutable profile mutation"
+            },
+            {
+              "id": "25.5",
+              "description": "Smoke test — 51 assertions",
+              "status": "complete",
+              "detail": "examples/taste-feedback-smoke.ts — covers all four response types, plasticity store writes, taste profile mutation, task signals, expiration"
+            }
+          ]
         },
         {
           "id": 24,
           "name": "Taste Feedback Loop",
           "region": "Human Partnership",
-          "status": "not-started",
-          "description": "Stated vs. demonstrated preference divergence → propose taste updates. The outward direction of PFC awareness — shaping upstream inputs. Wave 14 — depends on Drift Monitor (#6)."
+          "status": "complete",
+          "description": "Stated vs. demonstrated preference divergence → propose taste updates. The outward direction of PFC awareness — shaping upstream inputs. Wave 14 — depends on Drift Monitor (#6).",
+          "subtasks": [
+            {
+              "id": "24.1",
+              "description": "Types — TasteProposal, TasteFeedbackConfig, DivergenceRecord, TasteFeedbackSources",
+              "status": "complete",
+              "detail": "src/types/taste-feedback.ts — TasteProposal, ProposalStatus, TasteFeedbackConfig, TasteFeedbackSources, TasteFeedbackDriftSource, DivergenceRecord, TasteFeedbackState"
+            },
+            {
+              "id": "24.2",
+              "description": "TasteFeedbackLoop — evaluate() with persistence tracking, maturity gating, LLM proposal framing",
+              "status": "complete",
+              "detail": "src/kernel/taste-feedback.ts — TasteFeedbackLoop class: evaluate() at phase gates, persistenceFactor()/maturityFactor() for proposal strength, callStructured for LLM framing, receiveResponse(), expireOldProposals(), getState()"
+            },
+            {
+              "id": "24.3",
+              "description": "LLM prompts — tasteProposalSystem/User for evidence-based proposal framing",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — TasteProposalInputs, tasteProposalSystem() (partner observation framing), tasteProposalUser()"
+            },
+            {
+              "id": "24.4",
+              "description": "Integration — type exports, fixed connections, brainstem type, Purpose",
+              "status": "complete",
+              "detail": "src/types/index.ts exports, src/types/plasticity.ts 5 new fixed connections, src/types/brainstem.ts tasteProposals on BetweenTasksSlowPath, src/llm/client.ts taste-proposal Purpose"
+            },
+            {
+              "id": "24.5",
+              "description": "Smoke test — 51 assertions covering both features",
+              "status": "complete",
+              "detail": "examples/taste-feedback-smoke.ts — covers no-divergence, persistence gating, mature/immature system, max pending, all four response types, plasticity mapping, taste mutation, task signals, expiration"
+            },
+            {
+              "id": "24.6",
+              "description": "Sense verification at taste proposal integration point",
+              "status": "complete",
+              "detail": "src/types/taste-feedback.ts — senseVerification field on TasteProposal (optional SenseVerificationResult). src/kernel/taste-feedback.ts — setLibrary(), TASTE_DIMENSION_TO_SENSE mapping, verifyCandidateWithSense(), verification step wired between candidate ranking and frameProposal. src/llm/prompts.ts — tasteVerificationSystem/User prompt functions. src/brainstem/index.ts — setLibrary() wired on TasteFeedbackLoop."
+            }
+          ],
+          "notes": "Task-dispatch wiring (slow path integration point) deferred to when the between-tasks slow path is implemented. The evaluate() method is ready to be called."
         },
         {
           "id": 13,
           "name": "Resolution Rework",
           "region": "Sensory Cortex",
-          "status": "not-started",
-          "description": "Add Goodhart weighting, dopamine learning signal to tension resolution. Wave 14 — depends on Dopamine (#21) + Plasticity (#19)."
+          "status": "complete",
+          "description": "Add Goodhart weighting, dopamine learning signal to tension resolution. Wave 14 — depends on Dopamine (#21) + Plasticity (#19).",
+          "subtasks": [
+            {
+              "id": "13.1",
+              "description": "Types — ResolutionOutcome, DeltaSource 'resolution', outcome on TensionSnapshot",
+              "status": "complete",
+              "detail": "src/types/tension.ts — ResolutionOutcome interface. src/types/plasticity.ts — 'resolution' DeltaSource. src/types/brainstem.ts + orchestrator.ts — resolutionOutcomes? on BuildCycleResult + OrchestratorResult. src/types/hippocampus.ts — outcome? on TensionSnapshot."
+            },
+            {
+              "id": "13.2",
+              "description": "Pure quality computation — gap shrinkage + score maintenance formula",
+              "status": "complete",
+              "detail": "src/kernel/resolution-quality.ts — computeQuality() (0.5×gapShrinkage + 0.5×maintenance, collapsed=0), computeResolutionOutcomes() matches tensions to pre/post weighted evals."
+            },
+            {
+              "id": "13.3",
+              "description": "Build-cycle integration — accumulator, integrate measurement, gate wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/build-cycle.ts — priorWeighted/lastCollapseSignal/resolutionOutcomes on accumulator. Integrate phase computes outcomes from prior cycle's resolutions. Gate revision path snapshots pre-scores + collapse signal. Accept path threads outcomes into result."
+            },
+            {
+              "id": "13.4",
+              "description": "Sensory cortex + episode builder threading",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — threads resolutionOutcomes into OrchestratorResult. src/subcortical/episode-builder.ts — extractTensions matches outcomes to TensionSnapshots by tensionId."
+            },
+            {
+              "id": "13.5",
+              "description": "SubcorticalHooks contract + plasticity learning implementation",
+              "status": "complete",
+              "detail": "src/brainstem/stubs.ts — applyResolutionLearning on interface + NoOp. src/subcortical/hooks.ts — CompositeSubcorticalHooks implementation: quality>0.5 boosts lower sense weight (0.02×quality), collapsed boosts capitulated sense (0.03). Source='resolution'."
+            },
+            {
+              "id": "13.6",
+              "description": "Between-tasks fast path wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — calls hooks.applyResolutionLearning after dopamine/episode/routine when resolutionOutcomes present."
+            },
+            {
+              "id": "13.7",
+              "description": "Resolver prompt enrichment — optional principles parameter",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — resolverUser() accepts optional principles[] param, renders as RELEVANT PRINCIPLES section when present. Ready for Thalamus to route crystallized resolution principles."
+            }
+          ],
+          "notes": "Two feedback loops closed: (1) Short-term: resolution quality → plasticity sense weights via 'resolution' DeltaSource in between-tasks phase. (2) Long-term: resolution outcomes enriched in episode TensionSnapshots for crystallization into principles. Quality = 0.5×gapShrinkage + 0.5×scoreMaintenance, collapsed=0. Thalamus routing of resolution principles to resolverUser() is future-ready (principles param exists, empty until crystallization produces them)."
         },
         {
           "id": 23,
           "name": "Escalation Pathways",
           "region": "Human Partnership",
-          "status": "not-started",
-          "description": "Four routes to human: drift, attention, flexibility, amygdala. Integration point — wires all escalation sources into runner pause/resume + world model outward awareness. Wave 15 — depends on Drift Monitor (#6), Cognitive Flexibility (#5), Amygdala (#17)."
+          "status": "complete",
+          "description": "Four routes to human: drift, attention, flexibility, amygdala. Integration point — wires all escalation sources into runner pause/resume + world model outward awareness. Wave 15 — depends on Drift Monitor (#6), Cognitive Flexibility (#5), Amygdala (#17).",
+          "subtasks": [
+            {
+              "name": "EscalationResolution type",
+              "status": "complete",
+              "detail": "src/types/brainstem.ts — EscalationResolution: answer, directive, resolvedQuestionIds, resolvedAt. Structured human response payload."
+            },
+            {
+              "name": "EscalationBriefing types",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts — EscalationBriefing, EscalationRhythmContext, EscalationProjectSnapshot. Human-facing context assembled by Thalamus."
+            },
+            {
+              "name": "GatePause escalationContext + resume() on RhythmRunner",
+              "status": "complete",
+              "detail": "src/types/rhythm.ts — GatePause extended with optional escalationContext (source, severity, detail, question, proposedActions). RhythmRunner interface extended with resume()."
+            },
+            {
+              "name": "Runner pause/resume mechanism",
+              "status": "complete",
+              "detail": "src/brainstem/runner.ts — Promise-based pause: driveLoop awaits resolve callback stored on RunningRhythm. resume() invokes callback. Hard interrupt races via AbortSignal listener. Resolution stored on accumulator as __escalationResolution."
+            },
+            {
+              "name": "forEscalation() Thalamus composer",
+              "status": "complete",
+              "detail": "src/kernel/thalamus.ts — Layer 2 non-task-scoped composer. Assembles EscalationBriefing from WM (open questions, sense trends) + intent + world model maxims. Follows forScheduling() pattern."
+            },
+            {
+              "name": "EscalationHandler integration glue",
+              "status": "complete",
+              "detail": "src/brainstem/escalation-handler.ts — createEscalation() builds Escalation record + adds WM question + calls forEscalation(). resolve() resolves WM questions + calls runner.resume(). getActive()/getBriefing() for dashboard access."
+            },
+            {
+              "name": "Project rhythm escalation-to-pause wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — Non-replan escalations (triage, diagnostic, conviction, scheduler) and RhythmAbortedError (amygdala) stored as __pendingEscalation on accumulator. Gate returns GatePause with escalationContext instead of re-throwing."
+            },
+            {
+              "name": "Brainstem class integration",
+              "status": "complete",
+              "detail": "src/brainstem/index.ts — EscalationHandler created in constructor, exposed via getEscalationHandler(). Exported for consumers."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/escalation-pathways-smoke.ts — 32 assertions: runner pause/resume, hard interrupt during pause, handler create+resolve, forEscalation briefing, edge cases. All pass."
+            },
+            {
+              "name": "Sense verification at escalation integration point",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts — senseAssessments field on EscalationProjectSnapshot (optional SenseVerificationResult[]). src/brainstem/escalation-handler.ts — setLibraryAndModel(), gatherSenseAssessments(), verification wired into createEscalation() so each escalation carries sense perspectives on severity/approach. src/llm/prompts.ts — escalationSenseAssessmentSystem/User prompt functions. src/brainstem/index.ts — setLibraryAndModel() wired on EscalationHandler."
+            }
+          ],
+          "notes": "Three pieces: (1) Runner pause/resume — Promise-based, await in driveLoop, resolve callback on RunningRhythm, abort-signal race for hard interrupts. (2) Thalamus forEscalation() — non-task-scoped Layer 2 composer with project snapshot + rhythm context. (3) EscalationHandler — thin glue connecting Thalamus briefings, WM questions, and runner pause/resume. Key design: GateEscalate bubbles up (child→parent), GatePause freezes in place (awaits external signal). Project rhythm is the boundary where escalate converts to pause. Sense verification (24) adds gatherSenseAssessments() to createEscalation() so each human-facing escalation carries multi-perspective sense assessments of severity and proposed actions."
+        }
+      ]
+    },
+    {
+      "name": "Phase 6: Core Loop",
+      "description": "The plan → build → evaluate loop at every scale. Sensory cortex becomes the outer loop — senses re-consult after seeing actual work.",
+      "features": [
+        {
+          "id": 35,
+          "name": "Sensory Cortex Loop",
+          "region": "Sensory Cortex",
+          "status": "in-progress",
+          "description": "Make the sensory cortex rhythm loop: senses consult → build-cycle runs → senses evaluate → gate checks improvement potential → re-consult. The same intelligence that plans also evaluates, and evaluation feeds back into the next plan.",
+          "notes": "Core insight: the senses are both the planners (consultation) and the evaluators (receptors). Previously they planned once and never re-engaged. Now the sensory cortex loops with selective re-consultation. Inner build-cycle (2 iterations) handles execution-level fixes. Outer sensory-cortex loop (3 iterations) handles guidance-level changes via re-consultation.",
+          "subtasks": [
+            {
+              "name": "Type changes — ImprovementPotential, Consultation generation, config",
+              "status": "complete",
+              "detail": "src/types/sense.ts — ImprovementPotential interface + field on SenseEvaluation. src/types/consultation.ts — generation + preservedSenseIds. src/types/brainstem.ts — outerCycle on BuildCycleContext. src/types/orchestrator.ts — maxOuterCycles, improvementThreshold, diminishingReturnsDelta on CortexConfig. src/types/task.ts — 're-consulting' status. src/types/index.ts — re-export."
+            },
+            {
+              "name": "Evaluator asks for improvement potential",
+              "status": "complete",
+              "detail": "src/kernel/evaluator.ts — Zod schema extended, improvementPotential threaded to SenseEvaluation. src/llm/prompts.ts — evaluatorSystem/User prompts updated. src/kernel/evaluation-weighter.ts — improvementPotential field on WeightedEvaluation, threaded through weighEvaluations."
+            },
+            {
+              "name": "Re-consultation function",
+              "status": "complete",
+              "detail": "src/kernel/consul.ts — ReconsultInput type, reconsult() function: selective re-consultation of senses with improvement potential, merges updated + preserved perspectives, recomputes evaluationPlan/stakeDistribution. src/llm/prompts.ts — reconsultationSystem/User prompts. src/llm/client.ts — 'reconsultation' Purpose."
+            },
+            {
+              "name": "Sensory cortex loop rewrite",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/sensory-cortex.ts — Full rewrite. SensoryCortexAccumulator with typed state. maxCycles from config.maxOuterCycles. Prepare: cycle 1 full pipeline, cycle 2+ selective re-consultation. Integrate: weighEvaluations + computeComposite at outer level. Gate: aggregate improvement potential (stake-weighted), NE-modulated threshold, diminishing returns, speed-of-light ceiling, selective re-consultation targeting. Subcortical hooks moved from integrate to gate (only on completion)."
+            },
+            {
+              "name": "Build-cycle outer loop awareness",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/build-cycle.ts — Seeds acc.lastWork from context.previousWork when outerCycle > 1. Motor cortex gets previous work context on outer loop revision cycles."
+            },
+            {
+              "name": "Smoke test",
+              "status": "not-started",
+              "detail": "examples/sensory-cortex-loop-smoke.ts — Test: single outer cycle (no improvement potential), multiple outer cycles, re-consultation merge, diminishing returns exit, speed-of-light exit, max cycles, previousWork threading, subcortical hooks only on completion."
+            },
+            {
+              "name": "Plan evaluation in project rhythm",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — After Phase B, creates plan-evaluation task → sensory-cortex loop. Replans with evaluation feedback if confidence < 0.6. Max 2 iterations. formatPlanForEvaluation() helper. Only for plans >= 3 tasks."
+            },
+            {
+              "name": "Final evaluation in project rhythm",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — After task-dispatch, creates final-evaluation task → sensory-cortex loop. Assembles manifested future + all completed work (truncated). Result on accumulator → retrospective."
+            },
+            {
+              "name": "Retrospective from final evaluation",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/project.ts — Integrate reads __finalEvaluation from accumulator → populates ProjectResult.retrospective. Was previously stubbed."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Phase 7: Proactive Problem Discovery",
+      "description": "The system notices problems during execution, imagines future issues, and makes targeted plan changes. Two input streams (observations + simulations) feed the PFC at two speeds (quick triage + deep synthesis). Graph surgery executes plan modifications.",
+      "features": [
+        {
+          "id": 36,
+          "name": "Graph Surgery",
+          "region": "Prefrontal Cortex",
+          "status": "complete",
+          "description": "Pure functions for four atomic operations on a live task graph: insert, amend, rework, reorder. Foundation for all proactive plan changes.",
+          "subtasks": [
+            {
+              "name": "Graph surgery types",
+              "status": "complete",
+              "detail": "src/types/graph-surgery.ts — ReworkDirective, GraphSurgeryOp (insert|amend|rework|reorder), SurgeryProposal, SurgeryResult, ValidationResult"
+            },
+            {
+              "name": "Graph surgery pure functions",
+              "status": "complete",
+              "detail": "src/kernel/graph-surgery.ts — discoveryId(), computeBlastRadius(), validateProposal() (cycle detection, safety checks), applySurgery() (immutable graph ops)"
+            },
+            {
+              "name": "Type exports",
+              "status": "complete",
+              "detail": "src/types/index.ts — all graph-surgery types exported"
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/graph-surgery-smoke.ts — 40 assertions: ID generation, blast radius, validation (cycles, active tasks, completed tasks), all 4 ops, multi-op proposals, partial failure"
+            }
+          ]
+        },
+        {
+          "id": 37,
+          "name": "Territory Observations",
+          "region": "Working Memory",
+          "status": "complete",
+          "description": "Observation channel in WM for objective facts discovered during execution. Separate from WM load. NE-modulated relevance threshold. Own pressure metric.",
+          "subtasks": [
+            {
+              "name": "Territory observation types",
+              "status": "complete",
+              "detail": "src/types/territory-observation.ts — TerritoryObservation, ObservationSource, ObservationStatus, relevanceThreshold(neLevel), observationPressure()"
+            },
+            {
+              "name": "WM observation channel",
+              "status": "complete",
+              "detail": "src/kernel/working-memory.ts — addObservation(), getObservations(status?), getNewObservations(), markObservationTriaged(), markObservationSynthesized(), dismissObservation(), getObservationPressure(). getLoad() unchanged — observations isolated from homeostasis."
+            },
+            {
+              "name": "WM state extension",
+              "status": "complete",
+              "detail": "src/types/working-memory.ts — observations: TerritoryObservation[] added to WorkingMemoryState"
+            },
+            {
+              "name": "Type exports",
+              "status": "complete",
+              "detail": "src/types/index.ts — TerritoryObservation, ObservationSource, ObservationStatus, relevanceThreshold, observationPressure exported"
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/territory-observation-smoke.ts — 26 assertions: NE threshold, pressure metric, WM lifecycle (add→triage→synthesize→dismiss), load isolation, snapshot"
+            }
+          ]
+        },
+        {
+          "id": 38,
+          "name": "Quick Triage",
+          "region": "Prefrontal Cortex",
+          "status": "complete",
+          "description": "Procedural between-task scan of observations against ready tasks. No LLM. Amend-only proposals. Wired after drift monitor quickCheck in task-dispatch.integrate.",
+          "subtasks": [
+            {
+              "name": "Quick triage function",
+              "status": "complete",
+              "detail": "src/kernel/quick-triage.ts — quickTriage() pure function with NE-modulated relevance filtering, keyword matching, amend-only proposals, pressure/relevance flags for deep synthesis. QuickTriageResult type."
+            },
+            {
+              "name": "Task-dispatch integration",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — wired after drift quickCheck in integrate phase. Amend proposals applied directly via applySurgery(). Inserted tasks registered in WM. flagForDeepSynthesis passed through."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/quick-triage-smoke.ts — 16 assertions: no-op on empty, matching→amend, NE filtering, pressure flag, high-relevance flag, triage marking, non-matching stays new"
+            }
+          ],
+          "notes": "[Reconciled] 'Task-dispatch integration' references src/brainstem/rhythms/task-dispatch.ts which exists on disk but is marked not-started.\n[Reconciled] 'Quick triage function' references src/kernel/quick-triage.ts which exists on disk but is marked not-started."
+        },
+        {
+          "id": 39,
+          "name": "Hippocampal Simulation",
+          "region": "Subcortical",
+          "status": "complete",
+          "description": "Constructive episodic simulation — hippocampus recombines principles + episodes + world model to imagine future failure scenarios. LLM-assisted.",
+          "subtasks": [
+            {
+              "name": "Simulation types",
+              "status": "complete",
+              "detail": "src/types/hippocampal-simulation.ts — SimulatedScenario, SimulationGrounding, SimulationTrigger, SimulationAccuracyRecord, SimulationConfig, SimulationLLMResult. Type exports in src/types/index.ts."
+            },
+            {
+              "name": "Hippocampus simulate() method",
+              "status": "complete",
+              "detail": "src/subcortical/hippocampus.ts — simulate() with LLM call, getSimulations(), getNewSimulations(), markSimulationSynthesized(), dismissSimulation(), recordSimulationOutcome(), getSimulationAccuracy() (rolling window of 20), pruneSimulations(). Zod SimulationSchema."
+            },
+            {
+              "name": "SubcorticalHooks wiring",
+              "status": "complete",
+              "detail": "src/brainstem/stubs.ts — simulate() on SubcorticalHooks interface + NoOpSubcorticalHooks stub. src/subcortical/hooks.ts — CompositeSubcorticalHooks routes to hippocampus.simulate()."
+            },
+            {
+              "name": "LLM prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — hippocampalSimulationSystem() + hippocampalSimulationUser(). SimulationPromptInputs interface. src/llm/client.ts — 'simulation' Purpose added."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/hippocampal-simulation-smoke.ts — 21 assertions: state management, accuracy tracking, prompt generation (system+user, empty inputs), status lifecycle, NoOp stub."
+            }
+          ]
+        },
+        {
+          "id": 40,
+          "name": "Deep Synthesis at Phase Gates",
+          "region": "Prefrontal Cortex",
+          "status": "complete",
+          "description": "LLM-assisted PFC synthesis at phase gates. Observations + simulations → typed surgery proposals → conviction check → graph surgery or replan.",
+          "subtasks": [
+            {
+              "name": "Deep synthesis function",
+              "status": "complete",
+              "detail": "src/kernel/deep-synthesis.ts — deepSynthesis() with LLM call, DeepSynthesisInputs/Result, operation conversion (insert/amend/rework/reorder), blast radius gating (>30% → shouldReplan), Zod DeepSynthesisSchema."
+            },
+            {
+              "name": "Plan-modification conviction level",
+              "status": "complete",
+              "detail": "src/types/conviction.ts — 'plan-modification' added to ConvictionContext.level union type"
+            },
+            {
+              "name": "Task-dispatch phase gate wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — liveGraph + discoveryCounter on DispatchAccumulator, all graph refs → acc.liveGraph, assembleSignals takes graph param. Integrate: quick triage after drift check (amend proposals applied directly), phase gate: discoveredProblems → WM observations, hippocampal simulation, deep synthesis → surgery or replan. Gate: synthesisReplanRequired escalation. IntegratedDispatch extended."
+            },
+            {
+              "name": "LLM prompts",
+              "status": "complete",
+              "detail": "src/llm/prompts.ts — deepSynthesisSystem() + deepSynthesisUser(). DeepSynthesisPromptInputs interface."
+            },
+            {
+              "name": "Smoke test",
+              "status": "complete",
+              "detail": "examples/deep-synthesis-smoke.ts — 28 assertions: empty inputs, prompt generation (system+user, minimal), blast radius threshold, conviction type extension, discovery IDs"
+            }
+          ],
+          "notes": "[Reconciled] 'Task-dispatch phase gate wiring' references src/brainstem/rhythms/task-dispatch.ts which exists on disk but is marked not-started."
+        },
+        {
+          "id": 41,
+          "name": "NE Modulation for Discovery",
+          "region": "Neurotransmitter",
+          "status": "complete",
+          "description": "Wire observation pressure into NE risk factors and scheduler signals. NE modulates simulation depth and synthesis thoroughness.",
+          "subtasks": [
+            {
+              "name": "RiskFactors extension",
+              "status": "complete",
+              "detail": "src/types/norepinephrine.ts — observationPressure?: number added to RiskFactors"
+            },
+            {
+              "name": "NE risk extraction",
+              "status": "complete",
+              "detail": "src/kernel/norepinephrine.ts — extractRiskFromSchedulerSignals() reads and passes observationPressure"
+            },
+            {
+              "name": "SchedulerSignals extension",
+              "status": "complete",
+              "detail": "src/types/attention-scheduler.ts — observationPressure?: number added to SchedulerSignals"
+            },
+            {
+              "name": "assembleSignals wiring",
+              "status": "complete",
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — wm.getObservationPressure() wired into assembleSignals()"
+            }
+          ]
+        },
+        {
+          "id": 42,
+          "name": "Calibration Feedback",
+          "region": "Subcortical",
+          "status": "complete",
+          "description": "Track simulation accuracy after task completion. Dismissal rates per observation source. Feed accuracy into NE computation.",
+          "subtasks": [
+            {
+              "name": "Simulation accuracy tracking",
+              "status": "complete",
+              "detail": "src/subcortical/hippocampus.ts — recordSimulationOutcome(), getSimulationAccuracy() with rolling window of 20. Built in Step 4."
+            },
+            {
+              "name": "Dismissal rate tracking",
+              "status": "complete",
+              "detail": "src/kernel/working-memory.ts — getDismissalRates() returns per-source-component dismissal rate (total, dismissed, rate)"
+            }
+          ]
         }
       ]
     }
@@ -1232,7 +2237,18 @@
       "[Reconciled] src/types/tension.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/orchestrator.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/resolver.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/rhythm-runner.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/rhythm-runner.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/sandbox.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/integration-check.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/integration-check.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/cost.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/graph-surgery.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/territory-observation.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/graph-surgery.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/runtime.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/runtime-manager.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/budget-allocator.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask."
     ]
   }
 }

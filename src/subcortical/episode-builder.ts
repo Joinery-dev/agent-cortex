@@ -8,7 +8,7 @@
 
 import type { OrchestratorResult } from "../types/orchestrator.js";
 import type { SenseEvaluation } from "../types/sense.js";
-import type { Tension, TensionResolution } from "../types/tension.js";
+import type { Tension, TensionResolution, ResolutionOutcome } from "../types/tension.js";
 import type { DecisionRecord } from "../types/intent.js";
 import type {
   Episode,
@@ -74,7 +74,7 @@ function buildNarrative(
     confidence: result.confidence,
     scoreProgression: extractScoreProgression(result),
     decisions: extractDecisions(result.decisionLog),
-    tensionSnapshots: extractTensions(result.tensions, result.resolutions),
+    tensionSnapshots: extractTensions(result.tensions, result.resolutions, result.resolutionOutcomes),
     approachesTried: extractApproaches(result.decisionLog),
   };
 }
@@ -138,11 +138,18 @@ function extractDecisions(
 function extractTensions(
   tensions: Tension[],
   resolutions: TensionResolution[],
+  resolutionOutcomes?: ResolutionOutcome[],
 ): TensionSnapshot[] {
+  // Index outcomes by tensionId for O(1) lookup
+  const outcomeByTension = new Map(
+    resolutionOutcomes?.map((o) => [o.tensionId, o]) ?? [],
+  );
+
   // Build a map of resolutions by matching tension order
   // (tensions and resolutions are parallel arrays from the resolver)
   return tensions.map((t, i) => {
     const resolution = t.resolution ?? resolutions[i];
+    const outcome = outcomeByTension.get(t.id);
 
     return {
       senseA: t.senseA.path[0] ?? t.senseA.id,
@@ -153,6 +160,14 @@ function extractTensions(
         ? {
             strategy: resolution.strategy,
             satisfiesBoth: resolution.satisfiesBoth,
+          }
+        : undefined,
+      outcome: outcome
+        ? {
+            quality: outcome.quality,
+            gapShrinkage: outcome.gapShrinkage,
+            scoresMaintained: outcome.scoresMaintained,
+            collapsed: outcome.collapsed,
           }
         : undefined,
     };

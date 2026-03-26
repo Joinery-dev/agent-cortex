@@ -1,0 +1,45 @@
+---
+title: "Between Tasks — The Learning Moment"
+scope: global
+---
+flowchart TD
+    DONE["Task Complete<br/>OrchestratorResult"]
+
+    subgraph LEARN["Learning (all fire in sequence)"]
+        L1["CEREBELLUM<br/>Compare predicted vs actual<br/>→ phasic dopamine signal"]
+        L2["DOPAMINE DISTRIBUTION<br/>→ Hippocampus (encoding strength)<br/>→ Basal Ganglia (reinforcement)<br/>→ Plasticity (weight deltas)<br/>→ PFC (WM gating)"]
+        L3["HIPPOCAMPUS<br/>Record full episode<br/>(per-sense participation, tensions, work)"]
+        L4["POTENTIATION CHECK<br/>Enough episodes? Surprise?<br/>Contradiction with existing principle?<br/>→ crystallize if triggered"]
+        L5["PLASTICITY UPDATE<br/>Dopamine deltas applied<br/>→ evaluation weights shift<br/>→ routine strengths shift"]
+        L6["BG ROUTINE UPDATE<br/>Strengthen or weaken<br/>matching routine"]
+    end
+
+    subgraph DIAGNOSE["Diagnosis"]
+        DG1["DRIFT MONITOR<br/>Quick check: trajectory vs intent<br/>Stated vs demonstrated taste"]
+        DG2["HOMEOSTASIS UPDATE<br/>WM load, prediction accuracy<br/>tonic dopamine, weight volatility<br/>episode density"]
+        DG3{Rest needed?}
+        DG4["REST CYCLE<br/>NE → 0<br/>Crystallize, prune, decay<br/>recalibrate, settle weights"]
+    end
+
+    subgraph PREPARE["Prepare for Next"]
+        PR1["PROSPECTIVE PREPARATION<br/>Synthesize: Cerebellum predictions<br/>+ episodes + task graph + conviction<br/>→ forward briefing"]
+        PR2["WORLD MODEL REBUILD<br/>Integrate all sources<br/>→ updated weltanschauung"]
+        PR3["CONVICTION TEST<br/>Does manifested future<br/>still hold given new info?"]
+        PR4{Conviction?}
+        PR5["PERSIST<br/>Forward briefing seeded<br/>System ready for next task"]
+        PR6["RESHAPE<br/>Re-manifest future<br/>Update forward briefings"]
+        PR7["ESCALATE<br/>Manifested future broken<br/>→ human or replan"]
+    end
+
+    DONE --> L1 --> L2 --> L3 --> L4 --> L5 --> L6
+    L6 --> DG1 --> DG2 --> DG3
+    DG3 -->|no| PR1
+    DG3 -->|yes| DG4 --> PR1
+    PR1 --> PR2 --> PR3 --> PR4
+    PR4 -->|holds| PR5
+    PR4 -->|challenged| PR6 --> PR5
+    PR4 -->|broken| PR7
+
+    style LEARN fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
+    style DIAGNOSE fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style PREPARE fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea

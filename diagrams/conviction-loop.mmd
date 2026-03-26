@@ -1,0 +1,65 @@
+---
+title: "PFC Conviction Loop — At Every Gate"
+scope: global
+---
+flowchart TD
+    GATE["Gate Phase Begins<br/>(build-cycle or task-dispatch)"]
+
+    subgraph STEP1["Step 1: Necessity"]
+        N1{"Oscillating?<br/>(scores swinging<br/>without converging)"}
+        N2{"Approach bottleneck?<br/>(SOL says ceiling<br/>too low for this approach)"}
+        N3{"Graph exhausted?<br/>(task-dispatch: all tasks<br/>done or escalated)"}
+        N4{"Tonic dopamine<br/>critically low?<br/>(system not learning)"}
+    end
+
+    subgraph STEP2["Step 2: Conviction"]
+        C1["Compute conviction level 0–1<br/><br/>Build-cycle:<br/>  score signal × 0.4<br/>  + world model orientation × 0.3<br/>  + momentum × 0.3<br/><br/>Task-dispatch:<br/>  progress ratio × 0.4<br/>  + tonic dopamine × 0.3<br/>  + escalation absence × 0.3"]
+        C2{"Level < escalate<br/>threshold?"}
+        C3{"Level < reshape<br/>threshold?"}
+    end
+
+    subgraph STEP3["Step 3: Speed of Light<br/>(build-cycle only)"]
+        S1{"Gap ratio < 20%?<br/>(near ceiling)"}
+        S2{"Gap ratio > 50%?<br/>(far from ceiling)"}
+    end
+
+    subgraph STEP4["Step 4: Shape Downstream"]
+        SH1["Conviction shaping notes<br/>→ forward briefing<br/>→ next task's consultation"]
+        SH2["Reshape guidance<br/>→ Cognitive Flexibility<br/>→ strategy reset?"]
+        SH3["Escalation reason<br/>→ human or replan"]
+    end
+
+    GATE --> N1
+    N1 -->|yes| ESC1["ESCALATE<br/>Necessity failed"]
+    N1 -->|no| N2
+    N2 -->|yes| RESHAPE1["RESHAPE<br/>Approach is bottleneck"]
+    N2 -->|no| N3
+    N3 -->|yes| COMPLETE["COMPLETE<br/>Graph exhausted"]
+    N3 -->|no| N4
+    N4 -->|yes| ESC2["ESCALATE<br/>Learning broken"]
+    N4 -->|no| C1
+
+    C1 --> C2
+    C2 -->|yes| ESC3["ESCALATE<br/>Conviction too low"]
+    C2 -->|no| C3
+    C3 -->|yes| RESHAPE2["RESHAPE<br/>Conviction weak"]
+    C3 -->|no| S1
+
+    S1 -->|yes| ACCEPT["PROCEED<br/>Near ceiling, optimize"]
+    S1 -->|no| S2
+    S2 -->|yes| RESHAPE3["RESHAPE<br/>Far from ceiling,<br/>rearchitect"]
+    S2 -->|no| PROCEED["PROCEED<br/>Room to improve"]
+
+    RESHAPE1 --> SH2
+    RESHAPE2 --> SH2
+    RESHAPE3 --> SH2
+    PROCEED --> SH1
+    ACCEPT --> SH1
+    ESC1 --> SH3
+    ESC2 --> SH3
+    ESC3 --> SH3
+
+    style STEP1 fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style STEP2 fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style STEP3 fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style STEP4 fill:#1a1d27,stroke:#4ade80,color:#e2e4ea

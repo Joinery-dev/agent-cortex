@@ -1,5 +1,14 @@
 # Agent Cortex
 
+## What this system is
+
+A software engineer whose job is to solve problems. Not a code generator. Not a task executor. A system that works as a team, diagnoses problems, evaluates results, looks for new problems to solve, innovates, and connects dots. Code is an artifact it produces along the way — the task, not the purpose.
+
+> *"I wanted my software engineers to solve problems. I didn't care how many lines of code they wrote. The purpose of their job didn't change. Solving problems, working as a team, diagnosing problems, evaluating the result, looking for new problems to solve, innovation. Connecting dots."*
+> — Jensen Huang
+
+The Motor Cortex writes code. That's the task. Everything else — the PFC reasoning about what must exist, the senses evaluating from competing perspectives, the Hippocampus learning from experience, the conviction loop testing the manifested future against reality, the Thalamus connecting every component to the context it needs — that's the purpose. The architecture is the shape of a problem-solver, not the shape of a code writer.
+
 ## Foundational principles
 
 **As complex as necessary, but as simple as possible.** This is the design law. Every type, every interface, every component earns its existence by being necessary — not by being clever, future-proof, or symmetrical. When in doubt, strip it back to zero and ask what's actually needed. The simplest thing that solves the real problem is the right thing. Complexity that doesn't serve the output is noise.

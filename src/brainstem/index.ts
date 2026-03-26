@@ -45,6 +45,19 @@ import type { StakeAdjuster } from "../kernel/evaluation-weighter.js";
 import { createGate } from "../kernel/gate.js";
 import { PlasticityStoreImpl } from "../subcortical/plasticity-store.js";
 import type { PlasticityStoreConfig } from "../subcortical/plasticity-store.js";
+import { WorldModel } from "../kernel/world-model.js";
+import { CognitiveFlexibility } from "../kernel/cognitive-flexibility.js";
+import { PeripheralNervousSystem } from "../kernel/pns.js";
+import { DriftMonitor } from "../kernel/drift-monitor.js";
+import { Planner } from "../kernel/planner.js";
+import { ProjectDiagnostics } from "../kernel/project-diagnostics.js";
+import { ProspectiveMemory } from "../kernel/prospective-memory.js";
+import { EscalationHandler } from "./escalation-handler.js";
+import { CostTracker } from "./cost-tracker.js";
+import { registerCostCallback, setCostTaskId } from "../llm/client.js";
+import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
+import { DEFAULT_COST_BUDGET } from "../types/cost.js";
+import { bus } from "../events.js";
 
 export class Brainstem {
   private runner: RhythmRunnerImpl;
@@ -63,6 +76,15 @@ export class Brainstem {
   private hippocampus: Hippocampus;
   private plasticityStore: PlasticityStoreImpl;
   private tonicTracker: TonicTracker;
+  private worldModel: WorldModel;
+  private cognitiveFlexibility: CognitiveFlexibility;
+  private pns: PeripheralNervousSystem;
+  private driftMonitor: DriftMonitor;
+  private planner: Planner;
+  private projectDiagnostics: ProjectDiagnostics;
+  private prospectiveMemory: ProspectiveMemory;
+  private escalationHandler: EscalationHandler;
+  private costTracker: CostTracker | null = null;
 
   constructor(
     config: CortexConfig,
@@ -95,13 +117,33 @@ export class Brainstem {
       new Map([["evaluator.sense-weight", senseIds]]),
     );
 
-    // Core kernel — thalamus gets hippocampus as a source
+    // PFC: world model
+    this.worldModel = new WorldModel({
+      synthesisModel: config.models.consultation,
+    });
+
+    // PNS: I/O boundary
+    this.pns = new PeripheralNervousSystem();
+
+    // Core kernel — thalamus gets hippocampus + world model + PNS as sources
     this.wm = wm ?? new WorkingMemory("default");
-    this.thalamus = new Thalamus({ wm: this.wm, hippocampus: this.hippocampus });
+    this.thalamus = new Thalamus({
+      wm: this.wm,
+      pns: this.pns,
+      hippocampus: this.hippocampus,
+      worldModel: this.worldModel,
+    });
     this.scheduler = new AttentionScheduler(schedulerConfig);
-    this.motorCortex = new MotorCortex(config);
+    this.motorCortex = new MotorCortex(config, this.pns);
     this.basalGanglia = new BasalGanglia(basalGangliaConfig);
     this.gate = gate ?? createGate();
+    this.cognitiveFlexibility = new CognitiveFlexibility(config);
+    this.driftMonitor = new DriftMonitor({
+      deepAnalysisModel: config.models.consultation,
+    });
+    this.planner = new Planner(config.models.motorCortex);
+    this.projectDiagnostics = new ProjectDiagnostics(config);
+    this.prospectiveMemory = new ProspectiveMemory();
 
     // StakeAdjuster: if caller provides one, use it. Otherwise build
     // one that reads evaluation-influence weights from the store.
@@ -113,9 +155,90 @@ export class Brainstem {
       hippocampus: this.hippocampus,
       homeostasis: this.homeostasis,
       plasticity: this.plasticityStore,
+      basalGanglia: this.basalGanglia,
       tonic: this.tonicTracker,
       projectId: "default",
     });
+
+    // Escalation handler — wires Thalamus briefings to runner pause/resume
+    this.escalationHandler = new EscalationHandler(this.thalamus, this.wm, this.runner);
+
+    // Wire sense library to components that need sense verification
+    this.hippocampus.setLibrary(library);
+    this.escalationHandler.setLibraryAndModel(library, config.models.consultation);
+
+    // ── Afferent signal routing ────────────────────────────────
+    // PNS.receiveAfferent() creates Perceptions and emits pns:afferent.
+    // Route them as rhythm interrupts based on source type:
+    //   human feedback → soft interrupt on active sensory-cortex
+    //   environment alerts → hard interrupt via amygdala pathway
+    //   tool errors → soft interrupt for gate-phase consideration
+    this.wireAfferentRouting();
+  }
+
+  /**
+   * Subscribe to pns:afferent events and route them as rhythm interrupts.
+   * Human feedback arrives mid-task and should be considered at the next
+   * gate. Environment alerts may require immediate attention.
+   */
+  private wireAfferentRouting(): void {
+    bus.onCortex((event) => {
+      if (event.type !== "pns:afferent") return;
+
+      const sourceKind = event.data.sourceKind as string;
+      const summary = event.data.summary as string;
+      const activeRhythms = this.runner.getActiveRhythms();
+
+      if (activeRhythms.length === 0) return;
+
+      // Find the innermost active rhythm (most specific scope)
+      const targetRhythmId = activeRhythms[activeRhythms.length - 1];
+
+      if (sourceKind === "environment-alert" || sourceKind === "environment-change") {
+        // Environment signals → hard interrupt. The system should stop
+        // and reassess — something in the world changed.
+        this.runner.interrupt(targetRhythmId, {
+          mode: "hard",
+          source: "pns-afferent",
+          reason: `Environment signal: ${summary}`,
+          context: { sourceKind, ...event.data },
+        });
+      } else if (sourceKind === "human-feedback" || sourceKind === "human-correction") {
+        // Human feedback → soft interrupt. Queued for the next gate
+        // so the system can incorporate it in its next decision.
+        this.runner.interrupt(targetRhythmId, {
+          mode: "soft",
+          source: "pns-afferent",
+          reason: `Human input: ${summary}`,
+          context: { sourceKind, ...event.data },
+        });
+      } else {
+        // Tool errors, other sources → soft interrupt
+        this.runner.interrupt(targetRhythmId, {
+          mode: "soft",
+          source: "pns-afferent",
+          reason: `Afferent signal (${sourceKind}): ${summary}`,
+          context: { sourceKind, ...event.data },
+        });
+      }
+    });
+  }
+
+  /**
+   * Initialize cost tracking for a project with a budget.
+   * Called by runProject() when the intent has a budget.
+   * Separated from constructor because the budget comes from
+   * the ProjectIntent, which arrives at project start — not
+   * at Brainstem construction time.
+   */
+  initCostTracking(budget: CostBudget): CostTracker {
+    this.costTracker = new CostTracker(budget);
+    registerCostCallback((record) => {
+      this.costTracker!.recordCall(record);
+      // Update the budgetUtilization vital sign
+      this.homeostasis.update("budgetUtilization", this.costTracker!.getUtilization());
+    });
+    return this.costTracker;
   }
 
   /**
@@ -147,6 +270,7 @@ export class Brainstem {
    */
   async runTask(context: SensoryCortexContext): Promise<SensoryCortexResult> {
     await this.hippocampus.load();
+    await this.worldModel.load();
     this.thalamus.updateProject(context.intent, context.taste);
 
     const definition = createSensoryCortexDefinition(
@@ -158,6 +282,7 @@ export class Brainstem {
       this.motorCortex,
       this.basalGanglia,
       this.gate,
+      this.cognitiveFlexibility,
       this.stakeAdjuster,
     );
 
@@ -170,6 +295,7 @@ export class Brainstem {
    */
   async runProject(context: ProjectContext): Promise<ProjectResult> {
     await this.hippocampus.load();
+    await this.worldModel.load();
     if (this.hooks instanceof CompositeSubcorticalHooks) {
       this.hooks.setProjectId(context.intent.id);
     }
@@ -186,7 +312,15 @@ export class Brainstem {
       this.motorCortex,
       this.basalGanglia,
       this.gate,
+      this.cognitiveFlexibility,
       this.stakeAdjuster,
+      this.worldModel,
+      this.pns,
+      this.driftMonitor,
+      this.planner,
+      this.projectDiagnostics,
+      this.prospectiveMemory,
+      this.costTracker ?? undefined,
     );
 
     return this.runner.run(definition, context);
@@ -242,6 +376,56 @@ export class Brainstem {
     return this.tonicTracker;
   }
 
+  /** Get the world model (Weltanschauung). */
+  getWorldModel(): WorldModel {
+    return this.worldModel;
+  }
+
+  /** Get cognitive flexibility (perseveration detection + strategy reset). */
+  getCognitiveFlexibility(): CognitiveFlexibility {
+    return this.cognitiveFlexibility;
+  }
+
+  /** Get the PNS (I/O boundary). */
+  getPns(): PeripheralNervousSystem {
+    return this.pns;
+  }
+
+  /** Get the drift monitor (trajectory vs. intent). */
+  getDriftMonitor(): DriftMonitor {
+    return this.driftMonitor;
+  }
+
+  /** Get project diagnostics (project-level self-healing). */
+  getProjectDiagnostics(): ProjectDiagnostics {
+    return this.projectDiagnostics;
+  }
+
+  /** Get prospective memory (future intentions with trigger conditions). */
+  getProspectiveMemory(): ProspectiveMemory {
+    return this.prospectiveMemory;
+  }
+
+  /** Get the escalation handler (pause/resume + human-facing briefings). */
+  getEscalationHandler(): EscalationHandler {
+    return this.escalationHandler;
+  }
+
+  /** Set a delivery adapter for active escalation transport to the human. */
+  setEscalationDelivery(adapter: import("../types/brainstem.js").EscalationDeliveryAdapter): void {
+    this.escalationHandler.setDeliveryAdapter(adapter);
+  }
+
+  /** Get the cost tracker (null when no budget is set). */
+  getCostTracker(): CostTracker | null {
+    return this.costTracker;
+  }
+
+  /** Get the project cost summary. Returns null when no budget is set. */
+  getCostSummary(): ProjectCostSummary | null {
+    return this.costTracker?.getProjectSummary() ?? null;
+  }
+
   /** Interrupt a running rhythm. */
   interrupt(rhythmId: string, interrupt: Interrupt): void {
     this.runner.interrupt(rhythmId, interrupt);
@@ -270,6 +454,8 @@ export { NoOpSubcorticalHooks } from "./stubs.js";
 export type { SubcorticalHooks } from "./stubs.js";
 export type { ReflexAction } from "./homeostasis.js";
 export { EscalationError, RhythmAbortedError } from "./errors.js";
+export { EscalationHandler } from "./escalation-handler.js";
+export { EventBusDeliveryAdapter, AgentSdkDeliveryAdapter, formatEscalationForHuman } from "./delivery-adapters.js";
 export { Thalamus } from "../kernel/thalamus.js";
 export { AttentionScheduler } from "../kernel/attention-scheduler.js";
 export { MotorCortex } from "../kernel/motor-cortex.js";
@@ -279,3 +465,7 @@ export { Hippocampus } from "../subcortical/hippocampus.js";
 export { PlasticityStoreImpl } from "../subcortical/plasticity-store.js";
 export { CompositeSubcorticalHooks, CerebellumSubcorticalHooks } from "../subcortical/hooks.js";
 export { TonicTracker } from "../subcortical/tonic.js";
+export { CognitiveFlexibility } from "../kernel/cognitive-flexibility.js";
+export { PeripheralNervousSystem } from "../kernel/pns.js";
+export { DriftMonitor } from "../kernel/drift-monitor.js";
+export { ProjectDiagnostics } from "../kernel/project-diagnostics.js";

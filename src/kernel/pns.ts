@@ -25,6 +25,8 @@ import type {
   ArtifactRef,
   Operation,
   SideEffect,
+  ToolBinding,
+  ActivatedToolSet,
 } from "../types/pns.js";
 import { DEFAULT_CHECKPOINT_POLICY } from "../types/pns.js";
 import { newId } from "../util/ids.js";
@@ -37,6 +39,9 @@ const log = createLogger("pns");
  * Neurotransmitter signals that modulate PNS behavior.
  * Passed in from other brain regions at execution time.
  */
+/** Who is consuming the tools — shapes which capabilities are activated. */
+export type ToolConsumer = "builder" | "evaluator";
+
 export interface NeurotransmitterSignals {
   /** Norepinephrine: arousal/thoroughness level [0-1] */
   norepinephrine: number;
@@ -47,9 +52,198 @@ export interface NeurotransmitterSignals {
 export class PeripheralNervousSystem {
   private capabilities = new Map<string, Capability>();
   private checkpointPolicy: CheckpointPolicy;
+  /** Maps Agent SDK tool name → capability ID for innate tools. */
+  private sdkToolMap = new Map<string, string>();
 
   constructor(policy: CheckpointPolicy = DEFAULT_CHECKPOINT_POLICY) {
     this.checkpointPolicy = policy;
+    this.registerInnateCapabilities();
+  }
+
+  // ── Innate Capability Registration ────────────────────────────
+  // The body's built-in appendages — always available.
+  // Agent SDK built-in tools registered as Capabilities with ToolBindings.
+
+  private registerInnateCapabilities(): void {
+    const innate: Array<{
+      sdkName: string;
+      name: string;
+      description: string;
+      direction: "afferent" | "efferent";
+      category: CapabilityCategory;
+    }> = [
+      { sdkName: "Read", name: "Read File", description: "Read file contents from disk", direction: "afferent", category: "tool_output" },
+      { sdkName: "Glob", name: "File Search", description: "Find files by glob pattern", direction: "afferent", category: "tool_output" },
+      { sdkName: "Grep", name: "Content Search", description: "Search file contents with regex", direction: "afferent", category: "tool_output" },
+      { sdkName: "Write", name: "Write File", description: "Create or overwrite files on disk", direction: "efferent", category: "file_system" },
+      { sdkName: "Edit", name: "Edit File", description: "Modify existing files with targeted edits", direction: "efferent", category: "file_system" },
+      { sdkName: "Bash", name: "Shell Command", description: "Run shell commands (build, test, install, git)", direction: "efferent", category: "tool_use" },
+      { sdkName: "WebSearch", name: "Web Search", description: "Search the web for information", direction: "afferent", category: "tool_output" },
+      { sdkName: "WebFetch", name: "Web Fetch", description: "Fetch content from a URL", direction: "afferent", category: "tool_output" },
+      { sdkName: "Agent", name: "Sub-Agent", description: "Spawn a sub-agent for parallel or specialized work", direction: "efferent", category: "tool_use" },
+      { sdkName: "AskUserQuestion", name: "Ask Human", description: "Escalate a question or decision to the human", direction: "efferent", category: "human_communication" },
+      { sdkName: "NotebookEdit", name: "Notebook Edit", description: "Create or modify Jupyter notebook cells", direction: "efferent", category: "file_system" },
+    ];
+
+    for (const def of innate) {
+      const id = `innate:${def.sdkName.toLowerCase()}`;
+      const binding: ToolBinding = {
+        kind: "agent-sdk",
+        toolName: def.sdkName,
+        innate: true,
+      };
+
+      const capability: Capability = {
+        id,
+        name: def.name,
+        description: def.description,
+        direction: def.direction,
+        category: def.category,
+        available: true,
+        toolBinding: binding,
+      };
+
+      this.capabilities.set(id, capability);
+      this.sdkToolMap.set(def.sdkName, id);
+    }
+
+    log.info("Innate capabilities registered", {
+      count: innate.length,
+      tools: innate.map((d) => d.sdkName),
+    });
+  }
+
+  // ── Tool Activation ───────────────────────────────────────────
+  // Curates which tools a consumer gets for a given task.
+  // NE-modulated: low NE = conservative, high NE = full set.
+  // Consumer-aware: builder gets read+write, evaluator gets read-only.
+  // Amygdala constraints remove specific tools from the active set.
+
+  activateToolsForTask(
+    taskDescription: string,
+    neLevel: number,
+    consumer: ToolConsumer = "builder",
+    constraints?: string[],
+  ): ActivatedToolSet {
+    const excluded = new Set(constraints ?? []);
+
+    // Gather all capabilities with tool bindings
+    const bound = Array.from(this.capabilities.values()).filter(
+      (c) => c.available && c.toolBinding && !excluded.has(c.toolBinding.toolName),
+    );
+
+    let activated: Capability[];
+    let allowedTools: string[];
+
+    // AskUserQuestion: always available for any consumer — escalation is never wrong
+    const alwaysAvailable = new Set(["AskUserQuestion"]);
+
+    if (consumer === "evaluator") {
+      // ── Evaluator activation: read-only. Never Write/Edit/NotebookEdit/Agent. ──
+      const forbiddenForEval = new Set(["Write", "Edit", "NotebookEdit", "Agent"]);
+      const readOnlyBound = bound.filter(
+        (c) => !forbiddenForEval.has(c.toolBinding!.toolName),
+      );
+
+      if (neLevel < 0.3) {
+        // Low NE: file-reading only + escalation. No Bash, no web.
+        activated = readOnlyBound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output" && !c.name.startsWith("Web"))
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      } else if (neLevel <= 0.7) {
+        // Medium NE: file-reading + Bash + escalation
+        activated = readOnlyBound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output" && !c.name.startsWith("Web"))
+          || c.toolBinding!.toolName === "Bash"
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      } else {
+        // High NE: file-reading + Bash + WebFetch + escalation
+        activated = readOnlyBound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output")
+          || c.toolBinding!.toolName === "Bash"
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      }
+
+      // Evaluator auto-allows: read-only always, Bash at medium+
+      const readOnly = ["Read", "Glob", "Grep"];
+      allowedTools = neLevel >= 0.3 ? [...readOnly, "Bash"] : readOnly;
+    } else {
+      // ── Builder activation: full read+write. ──
+      // Agent only at high NE (spawning sub-agents is expensive).
+      const highNEOnly = new Set(["Agent", "WebSearch"]);
+
+      if (neLevel < 0.3) {
+        // Low NE: read-only afferent + basic file writes + escalation. No shell, no web, no sub-agents.
+        activated = bound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output" && !c.name.startsWith("Web"))
+          || c.category === "file_system"
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      } else if (neLevel <= 0.7) {
+        // Medium NE: all innate tools except Agent and WebSearch
+        activated = bound.filter((c) =>
+          c.toolBinding!.innate && !highNEOnly.has(c.toolBinding!.toolName),
+        );
+      } else {
+        // High NE: full innate set including Agent and WebSearch
+        activated = bound.filter((c) => c.toolBinding!.innate);
+      }
+
+      // Builder auto-allows: read-only always, Write/Edit/NotebookEdit at medium+
+      const readOnly = ["Read", "Glob", "Grep"];
+      allowedTools = neLevel >= 0.3 ? [...readOnly, "Write", "Edit", "NotebookEdit"] : readOnly;
+    }
+
+    // Also include any non-innate (acquired) capabilities that passed filtering
+    const acquired = bound.filter(
+      (c) => c.toolBinding && !c.toolBinding.innate && !activated.includes(c),
+    );
+    activated = activated.concat(acquired);
+
+    const tools = activated
+      .filter((c) => c.toolBinding!.kind === "agent-sdk")
+      .map((c) => c.toolBinding!.toolName);
+
+    // Build natural language summary
+    const afferent = activated.filter((c) => c.direction === "afferent");
+    const efferent = activated.filter((c) => c.direction === "efferent");
+    const lines: string[] = [];
+    if (afferent.length > 0) {
+      lines.push("You can perceive: " + afferent.map((c) => c.name).join(", "));
+    }
+    if (efferent.length > 0) {
+      lines.push("You can act: " + efferent.map((c) => c.name).join(", "));
+    }
+    if (consumer === "evaluator") {
+      lines.push("You MUST NOT modify any files — you are an observer");
+    }
+    const systemContext = lines.join(". ") + ".";
+
+    emit("pns:tools-activated", {
+      taskDescription,
+      neLevel,
+      consumer,
+      toolCount: tools.length,
+      tools,
+      constraintsApplied: constraints?.length ?? 0,
+    });
+
+    log.info("Tools activated for task", {
+      consumer,
+      neLevel,
+      toolCount: tools.length,
+      tools,
+    });
+
+    return {
+      tools,
+      allowedTools: allowedTools.filter((t) => tools.includes(t)),
+      systemContext,
+      activatedCapabilityIds: activated.map((c) => c.id),
+    };
   }
 
   // ── Capability Registry ─────────────────────────────────────
@@ -142,9 +336,27 @@ export class PeripheralNervousSystem {
 
   async execute(
     intention: Intention,
-    signals: NeurotransmitterSignals
+    signals: NeurotransmitterSignals,
+    signal?: AbortSignal,
   ): Promise<Perception> {
     const startTime = Date.now();
+
+    // Respect brainstem AbortSignal — if already aborted, bail immediately
+    if (signal?.aborted) {
+      intention.status = "failed";
+      return {
+        id: newId(),
+        intentionId: intention.id,
+        taskId: intention.taskId,
+        success: false,
+        result: "Aborted before execution",
+        sideEffects: [],
+        summary: `Aborted: ${intention.description}`,
+        source: { kind: "efferent", intentionId: intention.id },
+        timestamp: new Date(),
+        duration: 0,
+      };
+    }
 
     emit("pns:execute-start", {
       intentionId: intention.id,
@@ -162,9 +374,48 @@ export class PeripheralNervousSystem {
     intention.status = "executing";
 
     try {
+      // Communicate intentions targeting a human: warn that delivery is unimplemented.
+      // The type system supports this path (ArtifactRef "human" + Effect "send"),
+      // but PNS.execute() doesn't yet translate it into an AskUserQuestion call.
+      if (intention.category === "communicate") {
+        const humanOps = intention.operations.filter(
+          (op) => op.target.kind === "human" && op.effect.type === "send",
+        );
+        if (humanOps.length > 0) {
+          log.warn("Communicate intention targets human but PNS delivery is not yet implemented", {
+            intentionId: intention.id,
+            taskId: intention.taskId,
+            humanOps: humanOps.length,
+            description: intention.description,
+          });
+          emit("pns:communicate-unimplemented", {
+            intentionId: intention.id,
+            taskId: intention.taskId,
+            humanOps: humanOps.length,
+          });
+        }
+      }
+
       const sideEffects: SideEffect[] = [];
 
       for (const op of intention.operations) {
+        // Check abort between operations — allows cancellation mid-intention
+        if (signal?.aborted) {
+          intention.status = "failed";
+          return {
+            id: newId(),
+            intentionId: intention.id,
+            taskId: intention.taskId,
+            success: false,
+            result: "Aborted mid-execution",
+            sideEffects,
+            summary: `Aborted mid-execution: ${intention.description}`,
+            source: { kind: "efferent", intentionId: intention.id },
+            timestamp: new Date(),
+            duration: Date.now() - startTime,
+          };
+        }
+
         // Phase 2: resolve each operation to a concrete tool call.
         // For now, record the intended effect.
         sideEffects.push({

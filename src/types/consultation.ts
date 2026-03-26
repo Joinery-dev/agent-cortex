@@ -30,6 +30,12 @@ export interface Consultation {
    * Who participated, who was inhibited, what modulation was active.
    */
   conditions: ConsultationConditions;
+
+  /** Which outer cycle produced this consultation. 0 = initial, 1+ = re-consultation. */
+  generation: number;
+
+  /** Sense IDs whose perspectives were preserved from a previous generation (not re-consulted). */
+  preservedSenseIds?: string[];
 }
 
 export interface EvaluationPlanEntry {

@@ -20,6 +20,7 @@ import type {
   EstablishedPattern,
   InhibitedSense,
 } from "./working-memory.js";
+import type { NEWeights, RiskFactors } from "./norepinephrine.js";
 
 // ─── Scheduler Actions ──────────────────────────────────────────
 
@@ -41,6 +42,10 @@ export interface SchedulerDispatch {
   mode: "explore" | "exploit";
   /** Why this task was selected over other ready tasks. */
   reasoning: string;
+  /** Budget allocated for this task (dollars). Absent when no budget set. */
+  taskBudget?: number;
+  /** Frozen risk factors from dispatch — carried forward so enrichment sites don't re-derive from shifting sources. */
+  riskSnapshot?: RiskFactors;
 }
 
 export interface SchedulerEscalate {
@@ -107,16 +112,30 @@ export interface SchedulerSignals {
 
   // ── Wired later (all optional) ──────────────────────────────
 
+  /** Cerebellum prediction accuracy (0–1). For NE maturity signal. */
+  cerebellumAccuracy?: number;
   /** Drift Monitor (Phase 4): trajectory divergence 0–1. */
   driftLevel?: number;
   /** Drift Monitor: textual explanation when drift is high. */
   driftSummary?: string;
   /** Cognitive Flexibility (Phase 4): is the system perseverating? */
   perseverating?: boolean;
-  /** Prospective Memory (Phase 5): triggered conditions. */
-  prospectiveTriggers?: Array<{ id: string; description: string }>;
+  /** Prospective Memory: triggered conditions per ready task. Keyed by taskId. */
+  prospectiveTriggers?: Map<string, Array<{ id: string; description: string }>>;
   /** Basal Ganglia (Phase 3): routine match per ready task. */
   routineMatches?: Map<string, { confidence: number; routineId: string }>;
+
+  // ── Cost budget signals ─────────────────────────────────────
+  /** Project-level budget utilization (0–1). From CostTracker. */
+  budgetUtilization?: number;
+  /** Per-task budget context. Keyed by taskId. */
+  taskBudgets?: Map<string, { allocated: number; spent: number; remaining: number }>;
+  /** Whether the project budget is exhausted (depends on enforcement mode). */
+  budgetExhausted?: boolean;
+
+  // ── Proactive Discovery signals ───────────────────────────────
+  /** Territory observation pressure (0–1). From WM.getObservationPressure(). */
+  observationPressure?: number;
 }
 
 // ─── Scheduler Config ───────────────────────────────────────────
@@ -133,10 +152,8 @@ export interface SchedulerConfig {
   driftEscalateThreshold: number;
   /** Maximum unresolved open questions before escalation. */
   maxOpenQuestions: number;
-  /** Default NE level when no risk signals are present. */
-  baselineNE: number;
-  /** NE boost per high-risk factor (additive, capped at 1.0). */
-  neBoostPerRisk: number;
+  /** Override NE signal weights (partial — missing keys use defaults). */
+  neWeights?: Partial<NEWeights>;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -145,6 +162,4 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   driftReplanThreshold: 0.8,
   driftEscalateThreshold: 0.5,
   maxOpenQuestions: 3,
-  baselineNE: 0.5,
-  neBoostPerRisk: 0.15,
 };

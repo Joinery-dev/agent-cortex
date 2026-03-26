@@ -1,0 +1,30 @@
+---
+title: "Mid-Build Sense Consultation"
+scope: feature
+phase: 2
+feature: 11
+---
+sequenceDiagram
+    participant MC as Motor Cortex
+    participant TH as Thalamus
+    participant S as Sense
+    participant U as User
+
+    Note over MC: Building... hits ambiguity<br/>in the specification
+
+    MC->>TH: BuildQuestion<br/>"Should X or Y?"<br/>+ buildContext + targetDimension
+
+    alt Dimension matches a sense (stake >= 0.3)
+        TH->>TH: Route by dimension match<br/>or highest-stake sense
+        TH->>S: SenseQuestionBriefing<br/>question + original perspective<br/>+ task context
+        S->>TH: Targeted answer<br/>from this dimension's perspective
+        TH->>MC: BuildAnswer<br/>source: sense
+    else No sense can answer
+        TH->>U: Escalate question<br/>(via PNS)
+        U->>TH: Human answer
+        TH->>MC: BuildAnswer<br/>source: user
+    end
+
+    Note over MC: Resumes building<br/>with the answer
+
+    Note over MC,U: NE modulates question threshold:<br/>High NE = ask more (unfamiliar territory)<br/>Low NE = make the call (calibrated builder)

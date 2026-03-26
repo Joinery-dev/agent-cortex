@@ -1,0 +1,55 @@
+---
+title: "Breathing & Budget — Context and Cost Management"
+scope: global
+---
+flowchart TD
+    subgraph BUDGET["COST TRACKING"]
+        B1["Every LLM call recorded:<br/>token count × model rate"]
+        B2["Budget utilization =<br/>spent / total budget"]
+        B3{"Utilization<br/>level?"}
+    end
+
+    subgraph NORMAL["< 85% — Normal Operation"]
+        N1["Full briefings (deep depth)"]
+        N2["Best model available"]
+        N3["All senses that should<br/>be active, are active"]
+    end
+
+    subgraph PRESSURED["≥ 85% — Breathing Active"]
+        P1["Briefing depth: moderate → shallow"]
+        P2["Model downgrade if available"]
+        P3["Economic gate strategy"]
+        P4["Stop early if ceiling too low<br/>vs remaining budget"]
+    end
+
+    subgraph EXHAUSTED["> 100% — Budget Exhausted"]
+        EX1["Hard stop: deliver what's done"]
+        EX2["Scheduler returns 'complete'<br/>regardless of task graph state"]
+    end
+
+    B1 --> B2 --> B3
+    B3 -->|"< 85%"| NORMAL
+    B3 -->|"≥ 85%"| PRESSURED
+    B3 -->|"> 100%"| EXHAUSTED
+
+    subgraph BREATHING["CONTEXT BREATHING — Three Phases"]
+        BR1["WARMUP<br/>At rhythm start:<br/>preload predicted context<br/>(Cerebellum hints what's needed)"]
+        BR2["STEADY STATE<br/>During task:<br/>evict least-relevant when<br/>context capacity critical"]
+        BR3["COOLDOWN<br/>At rhythm complete:<br/>flush or persist<br/>to external stores"]
+    end
+
+    subgraph THALAMUS_MOD["Thalamus Adapts"]
+        T1["Assembly-time: constrain<br/>what goes into briefings"]
+        T2["Compaction config: custom<br/>instructions for API compactor"]
+        T3["Post-compaction rehydration:<br/>re-inject from WM, Hippocampus,<br/>World Model after context shrinks"]
+    end
+
+    PRESSURED --> BREATHING
+    BREATHING --> THALAMUS_MOD
+
+    style BUDGET fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style NORMAL fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style PRESSURED fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
+    style EXHAUSTED fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style BREATHING fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style THALAMUS_MOD fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea

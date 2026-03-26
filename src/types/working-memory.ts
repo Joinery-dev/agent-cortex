@@ -24,6 +24,7 @@
  */
 
 import type { DecisionRecord } from "./intent.js";
+import type { TerritoryObservation } from "./territory-observation.js";
 
 // ─── Score tracking ─────────────────────────────────────────────
 
@@ -98,6 +99,39 @@ export interface OscillationSignal {
   recentScores: number[];
   /** Max absolute difference between consecutive scores. */
   swingMagnitude: number;
+}
+
+// ─── Conviction ledger ──────────────────────────────────────────
+
+/** A conviction result recorded in WM's ledger. */
+export interface ConvictionEntry {
+  /** Categorical verdict from the conviction loop. */
+  verdict: "proceed" | "reshape" | "escalate";
+  /** Continuous conviction level (0–1). */
+  level: number;
+  /** Change from previous conviction. */
+  delta: number;
+  /** Which step in the pipeline produced the verdict. */
+  decidingStep: "necessity" | "conviction" | "speed-of-light";
+  /** Which task triggered this conviction check (null for dispatch-level). */
+  taskId: string | null;
+  /** Which replan generation (0 = original plan, 1 = first replan, etc). */
+  replanGeneration: number;
+  recordedAt: Date;
+}
+
+/** Computed trajectory over the conviction ledger. */
+export interface ConvictionTrajectory {
+  /** All recorded levels in chronological order. */
+  levels: number[];
+  /** Split-halves direction (up/stable/down) using conviction-scale threshold. */
+  direction: TrendDirection;
+  /** Most recent conviction level. */
+  currentLevel: number;
+  /** Number of distinct replan generations in the ledger. */
+  generationCount: number;
+  /** Per-generation mean conviction level. */
+  generationMeans: Array<{ generation: number; meanLevel: number; entryCount: number }>;
 }
 
 // ─── Task tracking ──────────────────────────────────────────────
@@ -194,7 +228,6 @@ export interface InhibitedSense {
  * The complete serializable state of Working Memory.
  *
  * Future additions (single fields, trivially addable):
- * - arousalLevel: number       — norepinephrine state (Phase 4)
  * - predictions: ScoreTrend[]  — cerebellum forward models (Phase 3)
  * - dopamineSignal: number     — last surprise magnitude (Phase 3)
  */
@@ -214,6 +247,10 @@ export interface WorkingMemoryState {
   inhibitedSenses: InhibitedSense[];
   /** Questions awaiting resolution. */
   openQuestions: OpenQuestion[];
+  /** Conviction results across tasks and replan generations. */
+  convictionLedger: ConvictionEntry[];
+  /** Territory observations from builder/evaluator. Separate from WM load. */
+  observations: TerritoryObservation[];
   /** Timestamp of the most recent mutation. */
   lastUpdated: Date;
 }

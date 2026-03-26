@@ -18,7 +18,7 @@ import type {
   StrategySelector,
 } from "../types/gate.js";
 import type { WeightedEvaluation } from "./evaluation-weighter.js";
-import { emit } from "../events.js";
+import { emit, emitInfo } from "../events.js";
 
 // ─── Helper ──────────────────────────────────────────────────────
 
@@ -200,8 +200,26 @@ export const defaultSelector: StrategySelector = (
   signals: SignalLandscape,
   strategies: Map<string, GateStrategy>,
 ): { name: string; strategy: GateStrategy } => {
-  const ne = signals.ne;
+  // 1. Amygdala hijack — urgency forces deliberative
+  if (signals.urgency) {
+    return { name: "deliberative", strategy: strategies.get("deliberative")! };
+  }
 
+  // 2. Basal ganglia shortcut — high routine confidence allows expedient
+  if (signals.routineConfidence !== undefined && signals.routineConfidence > 0.85) {
+    return { name: "expedient", strategy: strategies.get("expedient")! };
+  }
+
+  // 3. Cerebellum uncertainty — low prediction accuracy shifts one notch toward deliberative
+  const ne = signals.ne;
+  if (signals.predictionAccuracy !== undefined && signals.predictionAccuracy < 0.4) {
+    if (ne !== undefined && ne < 0.3) {
+      return { name: "democratic", strategy: strategies.get("democratic")! };
+    }
+    return { name: "deliberative", strategy: strategies.get("deliberative")! };
+  }
+
+  // 4. NE baseline (unchanged)
   if (ne === undefined || ne > 0.7) {
     return { name: "deliberative", strategy: strategies.get("deliberative")! };
   }
@@ -239,7 +257,10 @@ export function createGate(
 
       const output = strategy(input);
 
-      emit("gate:decision", {
+      // ── Gate diagnostic emission: full reasoning chain ──────
+      // Info-level event with the complete decision context so
+      // diagnostics can trace why a gate accepted or rejected.
+      emitInfo("gate:decision", {
         accept: output.accept,
         reason: output.reason,
         strategy: output.strategy,
@@ -247,6 +268,24 @@ export function createGate(
         weightedAcceptability: input.composite.weightedAcceptability,
         confidence: input.composite.confidence,
         cycle: input.cycle,
+        // Signal landscape that drove the strategy selection
+        ne: input.signals.ne,
+        conviction: input.signals.conviction,
+        routineConfidence: input.signals.routineConfidence,
+        // Evaluation breakdown — which senses drove the outcome
+        evaluationCount: input.composite.evaluations.length,
+        rejectionDrivers: output.rejectionDrivers.map((d) => ({
+          path: d.activationPath.join(" > "),
+          score: d.score,
+          acceptable: d.acceptable,
+          adjustedStake: d.adjustedStake,
+        })),
+        tensionCount: input.tensions.length,
+        highSeverityTensions: input.tensions.filter((t) => t.severity === "high").length,
+        // Budget context for observability + future Cerebellum learning
+        taskBudgetRemaining: input.signals.taskBudgetRemaining,
+        estimatedCycleCost: input.signals.estimatedCycleCost,
+        projectBudgetUtilization: input.signals.projectBudgetUtilization,
       });
 
       return output;

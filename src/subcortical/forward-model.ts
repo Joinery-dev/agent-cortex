@@ -11,7 +11,10 @@
  * task — we just remember what happened with similar patterns.
  */
 
+import { emit as emitTrace } from "../events.js";
 import type { Consultation, EvaluationPlanEntry } from "../types/consultation.js";
+import type { Sense } from "../types/sense.js";
+import type { SensoryCortex } from "../senses/cortex.js";
 import type {
   TaskFingerprint,
   CerebellumEpisode,
@@ -19,6 +22,9 @@ import type {
   SimilarityWeights,
   ScoredEpisode,
   ReceptorPrediction,
+  SenseCeiling,
+  SpeedOfLight,
+  ApproachCeiling,
 } from "../types/cerebellum.js";
 
 // ─── Fingerprinting ─────────────────────────────────────────────
@@ -37,6 +43,39 @@ export function extractFingerprint(consultation: Consultation): TaskFingerprint 
   const activeReceptors = new Set<string>();
   for (const entry of consultation.evaluationPlan) {
     activeReceptors.add(entry.receptorId);
+  }
+
+  return { senseStakes, activeReceptors };
+}
+
+/**
+ * Extract a preliminary fingerprint from active senses BEFORE consultation.
+ * Used by the efference copy to find similar episodes without waiting
+ * for the full consultation (which needs the efference copy's output).
+ *
+ * Uses uniform stakes (0.5) since we don't have sense-reported stakes yet,
+ * and includes ALL receptors under each active sense since we don't know
+ * which the senses will select. Directionally correct, not precise —
+ * good enough for the efference copy's purposes.
+ */
+export function extractPreliminaryFingerprint(
+  activeSenses: Sense[],
+  library: SensoryCortex,
+): TaskFingerprint {
+  const senseStakes = new Map<string, number>();
+  const activeReceptors = new Set<string>();
+
+  for (const sense of activeSenses) {
+    // Uniform stake — we don't have consultation-derived stakes yet
+    senseStakes.set(sense.name, 0.5);
+
+    // Collect all receptor IDs under this sense
+    const subTree = library.getSubTree(sense.id);
+    for (const node of subTree) {
+      if (node.level === "receptor") {
+        activeReceptors.add(node.id);
+      }
+    }
   }
 
   return { senseStakes, activeReceptors };
@@ -230,6 +269,11 @@ function predictReceptor(
     );
   }
 
+  emitTrace("prediction:skipped:no-data", {
+    receptorId: entry.receptorId,
+    parentSenseName: entry.parentSenseName,
+    matchCount: matches.length,
+  });
   return null;
 }
 
@@ -280,3 +324,166 @@ export function computeOverallConfidence(
   const total = predictions.reduce((sum, p) => sum + p.confidence, 0);
   return total / predictions.length;
 }
+
+// ─── Speed of light ─────────────────────────────────────────────
+
+/**
+ * Compute the speed of light — theoretical performance ceiling.
+ *
+ * Per-sense ceilings come from the consultation (what physics allows).
+ * Historical best-achieved comes from similar episodes (what we've done).
+ * The gap between them is the most actionable signal: it tells you
+ * whether past approaches were fundamentally wrong.
+ *
+ * Always returns a result — the theoretical ceiling is available from
+ * task one (from sense estimates). Historical enrichment grows over time.
+ */
+export function computeSpeedOfLight(
+  taskId: string,
+  consultation: Consultation,
+  similarEpisodes: ScoredEpisode[],
+): SpeedOfLight {
+  const perSense: SenseCeiling[] = [];
+  let ceilingWeightedSum = 0;
+  let achievedWeightedSum = 0;
+  let achievedStakeSum = 0;
+  let totalStake = 0;
+  let hasAnyHistory = false;
+
+  for (const perspective of consultation.perspectives) {
+    const { senseId, senseName, stake, ceiling, ceilingRationale } = perspective;
+
+    // Find the best score this sense has achieved across similar episodes
+    let bestAchieved: number | null = null;
+    for (const match of similarEpisodes) {
+      const senseScore = match.episode.senseScores.get(senseName);
+      if (senseScore !== undefined) {
+        bestAchieved = bestAchieved === null
+          ? senseScore
+          : Math.max(bestAchieved, senseScore);
+        hasAnyHistory = true;
+      }
+    }
+
+    const gap = bestAchieved !== null ? ceiling - bestAchieved : null;
+
+    perSense.push({
+      senseName,
+      senseId,
+      stake,
+      ceiling,
+      ceilingRationale,
+      bestAchieved,
+      gap,
+    });
+
+    ceilingWeightedSum += stake * ceiling;
+    totalStake += stake;
+
+    if (bestAchieved !== null) {
+      achievedWeightedSum += stake * bestAchieved;
+      achievedStakeSum += stake;
+    }
+  }
+
+  const compositeCeiling = totalStake > 0
+    ? ceilingWeightedSum / totalStake
+    : 10;
+
+  // Only compute composite best-achieved when all senses have history
+  const allSensesHaveHistory = perSense.every((s) => s.bestAchieved !== null);
+  const compositeBestAchieved = allSensesHaveHistory && achievedStakeSum > 0
+    ? achievedWeightedSum / achievedStakeSum
+    : null;
+
+  const compositeGap = compositeBestAchieved !== null
+    ? compositeCeiling - compositeBestAchieved
+    : null;
+
+  return {
+    taskId,
+    perSense,
+    compositeCeiling,
+    compositeBestAchieved,
+    compositeGap,
+    hasHistory: hasAnyHistory,
+    computedAt: new Date(),
+  };
+}
+
+// ─── V2: Approach-aware filtering ───────────────────────────────
+
+/**
+ * Filter scored episodes to those with matching approach tags.
+ * Uses Jaccard overlap > 0 — any shared tag counts as a match.
+ */
+export function filterByApproachTags(
+  episodes: ScoredEpisode[],
+  tags: string[],
+): ScoredEpisode[] {
+  if (tags.length === 0) return [];
+
+  const tagSet = new Set(tags);
+  return episodes.filter((m) => {
+    const episodeTags = m.episode.approachTags;
+    if (!episodeTags || episodeTags.length === 0) return false;
+    return jaccardSimilarity(tagSet, new Set(episodeTags)) > 0;
+  });
+}
+
+/**
+ * Compute approach-specific ceiling by comparing approach-filtered
+ * best-achieved to the overall speed of light.
+ *
+ * If the approach class consistently underperforms the overall ceiling,
+ * `approachIsBottleneck` is true — the approach is fundamentally limited.
+ */
+export function computeApproachCeiling(
+  overallSol: SpeedOfLight,
+  approachMatches: ScoredEpisode[],
+  approachTags: string[],
+  bottleneckThreshold = 1.5,
+): ApproachCeiling {
+  // Per-sense best-achieved from approach-filtered episodes
+  const perSense: Array<{ senseName: string; bestAchieved: number | null }> = [];
+  let achievedWeightedSum = 0;
+  let achievedStakeSum = 0;
+
+  for (const sc of overallSol.perSense) {
+    let best: number | null = null;
+    for (const match of approachMatches) {
+      const score = match.episode.senseScores.get(sc.senseName);
+      if (score !== undefined) {
+        best = best === null ? score : Math.max(best, score);
+      }
+    }
+    perSense.push({ senseName: sc.senseName, bestAchieved: best });
+
+    if (best !== null) {
+      achievedWeightedSum += sc.stake * best;
+      achievedStakeSum += sc.stake;
+    }
+  }
+
+  const compositeBestAchieved = achievedStakeSum > 0
+    ? achievedWeightedSum / achievedStakeSum
+    : null;
+
+  // Bottleneck detection: compare approach best to overall best
+  const bottleneckGap =
+    overallSol.compositeBestAchieved !== null && compositeBestAchieved !== null
+      ? overallSol.compositeBestAchieved - compositeBestAchieved
+      : null;
+
+  const approachIsBottleneck = bottleneckGap !== null && bottleneckGap > bottleneckThreshold;
+
+  return {
+    approachTags,
+    perSense,
+    compositeBestAchieved,
+    episodesConsidered: approachMatches.length,
+    approachIsBottleneck,
+    bottleneckGap,
+  };
+}
+

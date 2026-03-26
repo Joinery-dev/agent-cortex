@@ -1,0 +1,46 @@
+---
+title: "Hippocampus — Episodes to Principles"
+scope: global
+---
+flowchart TD
+    subgraph RECORD["EPISODE RECORDING — Full Task Stories"]
+        E1["Task: 'Build services page'"]
+        E2["Consultation: Design (8), Perf (6),<br/>Intent (7) activated"]
+        E3["Explored: card grid vs accordion vs tabs"]
+        E4["Build cycle 1: card grid → scored 4<br/>Build cycle 2: card grid revised → scored 4.5<br/>Build cycle 3: switched to accordion → scored 7.5"]
+        E5["Tensions: Design vs Performance on animation<br/>Resolution: parameterized motion"]
+        E6["Outcome: success after strategy change"]
+    end
+
+    subgraph TRIGGER["CRYSTALLIZATION TRIGGERS"]
+        T1["PATTERN DENSITY<br/>Enough similar episodes<br/>accumulated (≥3 in cluster)"]
+        T2["LARGE DOPAMINE<br/>Surprising outcome<br/>demands explanation"]
+        T3["CONTRADICTION<br/>Old principle contradicted<br/>by new evidence"]
+    end
+
+    subgraph CRYSTAL["POTENTIATION — Episodes → Principles"]
+        C1["Cluster similar episodes<br/>(sense overlap + outcome range)"]
+        C2["LLM extracts meaning:<br/>not 'what happened' but<br/>'what this MEANS'"]
+        C3["PRINCIPLE emerges:<br/>'Fragmented layouts underperform<br/>for scope-heavy content because<br/>users need full scope visibility<br/>before committing'"]
+        C4["Principle replaces episodes<br/>in memory hierarchy<br/>(more compact, more general)"]
+    end
+
+    subgraph CONSUME["WHO USES THIS"]
+        U1["THALAMUS<br/>Dissolves principles into<br/>consultation + motor briefings"]
+        U2["CEREBELLUM<br/>Enriches predictions<br/>with similar episodes"]
+        U3["BASAL GANGLIA<br/>Routine learning from<br/>episode sense patterns"]
+        U4["PFC<br/>Drift monitor + planner<br/>reference episodic evidence"]
+    end
+
+    RECORD --> TRIGGER
+    T1 & T2 & T3 --> C1 --> C2 --> C3 --> C4
+
+    C4 --> U1 & U2 & U3 & U4
+
+    PERSIST["Persists to disk<br/>Survives across sessions<br/>Cross-project principles<br/>travel between projects"]
+
+    style RECORD fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style TRIGGER fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style CRYSTAL fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style CONSUME fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style PERSIST fill:#2d2235,stroke:#f472b6,color:#f472b6

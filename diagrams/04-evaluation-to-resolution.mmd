@@ -1,0 +1,51 @@
+---
+title: "Evaluation → Tensions → Resolution"
+scope: global
+---
+flowchart TD
+    ARTIFACT["Built Artifact"]
+
+    subgraph EVALUATE["EVALUATE — Each Receptor Scores"]
+        E1["Design receptors<br/>score 1–10"]
+        E2["Performance receptors<br/>score 1–10"]
+        E3["Correctness receptors<br/>score 1–10"]
+        E4["... all activated<br/>receptors score"]
+        E5["Each also judges:<br/>• acceptable? (yes/no)<br/>• tensions with other senses<br/>• improvement potential<br/>• structured observations"]
+    end
+
+    subgraph WEIGH["WEIGH — Stakes Shape Influence"]
+        W1["Raw stake<br/>(sense's self-assessed<br/>relevance to this task)"]
+        W2["Learned weight<br/>(plasticity: strengthened<br/>by what works over time)"]
+        W3["Effective weight =<br/>stake × learned weight<br/>× inverse of sense count"]
+        W4["COMPOSITE SCORE<br/>Weighted mean across<br/>all receptor scores"]
+    end
+
+    subgraph TENSION["TENSION DETECTION"]
+        T1{"Two senses score<br/>>2 points apart AND<br/>both ≥2 confidence?"}
+        T2["TENSION identified<br/>e.g., Design: 8, Performance: 4<br/>'Animation breaks load budget'"]
+    end
+
+    subgraph RESOLVE["RESOLUTION — Synthesis, Not Averaging"]
+        R1["DEEP SYNTHESIS<br/>LLM: how to satisfy<br/>BOTH concerns simultaneously?"]
+        R2["Creative solution that<br/>unlocks both dimensions<br/>(e.g., parameterized motion)"]
+        R3["COLLAPSE DETECTION<br/>Did one sense just cave?<br/>Or genuine synthesis?"]
+        R4{"Collapsed?"}
+        R5["Quality = 0<br/>Loop back, don't advance"]
+        R6["Resolution quality scored:<br/>gap shrinkage + scores maintained"]
+    end
+
+    ARTIFACT --> E1 & E2 & E3 & E4
+    E1 & E2 & E3 & E4 --> E5
+    E5 --> W1 --> W3
+    W2 --> W3
+    W3 --> W4
+    E5 --> T1
+    T1 -->|no| ACCEPT["No tensions → gate decides"]
+    T1 -->|yes| T2 --> R1 --> R2 --> R3 --> R4
+    R4 -->|yes| R5
+    R4 -->|no| R6 --> REVISE["Revision prompt<br/>→ back to premotor"]
+
+    style EVALUATE fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style WEIGH fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style TENSION fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style RESOLVE fill:#1a1d27,stroke:#f472b6,color:#e2e4ea

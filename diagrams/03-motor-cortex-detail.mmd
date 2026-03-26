@@ -1,0 +1,43 @@
+---
+title: "Motor Cortex — Plan, Build, Self-Check"
+scope: global
+---
+sequenceDiagram
+    participant TH as Thalamus
+    participant EFF as Efference Copy
+    participant SENS as Senses
+    participant PRE as Premotor
+    participant PRI as Primary
+    participant MBC as Mid-Build
+    participant PROP as Proprio
+    participant EVAL as Eval
+
+    Note over EFF: BEFORE consultation — <br/>predict what's actually buildable
+
+    TH->>EFF: PNS capabilities + episodes + SOL
+    EFF->>TH: Per-sense ceiling estimates,<br/>hard constraints, tension costs
+    TH->>SENS: Efference copy in consultation briefing<br/>(senses adjust ambitions to reality)
+
+    Note over PRE: PLAN the approach
+
+    TH->>PRE: Motor briefing (task + consultation +<br/>SOL + capabilities + patterns)
+    PRE->>PRE: Choose approach, detail steps,<br/>tension strategy, confidence
+
+    Note over PRI: BUILD the artifact
+
+    PRE->>PRI: Motor plan + tools (via PNS)
+    loop Agentic building with real tools
+        PRI->>PRI: Execute intention (read/write/shell)
+        alt Hits ambiguity
+            PRI->>MBC: BuildQuestion to specific sense
+            MBC->>PRI: Targeted answer
+        end
+    end
+
+    Note over PROP: SELF-CHECK (if NE ≥ 0.3)
+
+    PRI->>PROP: Plan + built artifact
+    PROP->>PROP: Plan adherence? Drift areas?<br/>Uncertainties? Suggested focus?
+    PROP->>EVAL: Self-assessment guides<br/>where evaluators should look
+
+    Note over PRE,EVAL: On revision: premotor re-plans<br/>with evaluation feedback,<br/>distinguishing execution-error<br/>(fix details) from plan-error<br/>(different approach entirely)

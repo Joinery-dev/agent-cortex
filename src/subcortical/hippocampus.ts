@@ -15,6 +15,7 @@
  */
 
 import type { OrchestratorResult } from "../types/orchestrator.js";
+import type { TaskGraphNode } from "../types/brainstem.js";
 import type {
   Episode,
   Principle,
@@ -26,6 +27,14 @@ import type {
   PrincipleContradiction,
 } from "../types/hippocampus.js";
 import { DEFAULT_HIPPOCAMPUS_CONFIG } from "../types/hippocampus.js";
+import type {
+  SimulatedScenario,
+  SimulationTrigger,
+  SimulationAccuracyRecord,
+  SimulationConfig,
+} from "../types/hippocampal-simulation.js";
+import { DEFAULT_SIMULATION_CONFIG } from "../types/hippocampal-simulation.js";
+import type { TerritoryObservation } from "../types/territory-observation.js";
 import { buildEpisode } from "./episode-builder.js";
 import { HippocampusStore } from "./hippocampus-store.js";
 import {
@@ -41,7 +50,17 @@ import {
   potentiationRefineUser,
   potentiationSenseExtractSystem,
   potentiationSenseExtractUser,
+  hippocampalSimulationSystem,
+  hippocampalSimulationUser,
+  principleVerificationSystem,
+  principleVerificationUser,
 } from "../llm/prompts.js";
+import type { SensoryCortex } from "../senses/cortex.js";
+import {
+  verifyWithSenses,
+  resolveSenseByName,
+} from "../senses/sense-verification.js";
+import type { SenseVerificationResult } from "../senses/sense-verification.js";
 import { z } from "zod";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
@@ -54,14 +73,34 @@ export class Hippocampus {
   private principles: Principle[] = [];
   private meta: HippocampusMeta = { sequenceCounter: 0 };
   private config: HippocampusConfig;
+  private simulationConfig: SimulationConfig;
   private store: HippocampusStore;
   private loaded = false;
+  private library: SensoryCortex | null = null;
 
-  constructor(config?: Partial<HippocampusConfig>) {
+  // Simulation state (Feature: Proactive Discovery)
+  private simulations: SimulatedScenario[] = [];
+  private simulationAccuracy: SimulationAccuracyRecord[] = [];
+
+  constructor(config?: Partial<HippocampusConfig>, simulationConfig?: Partial<SimulationConfig>) {
     this.config = { ...DEFAULT_HIPPOCAMPUS_CONFIG, ...config };
+    this.simulationConfig = { ...DEFAULT_SIMULATION_CONFIG, ...simulationConfig };
     this.store = new HippocampusStore(
       this.config.storageDir || undefined,
     );
+  }
+
+  // ── Library wiring ───────────────────────────────────────────
+
+  /**
+   * Set the sense library for principle verification.
+   * Called by Brainstem after construction — the hippocampus
+   * doesn't take the library in its constructor because it's
+   * a subcortical system that shouldn't depend on the cortex
+   * at construction time.
+   */
+  setLibrary(library: SensoryCortex): void {
+    this.library = library;
   }
 
   // ── Lifecycle ─────────────────────────────────────────────────
@@ -381,6 +420,7 @@ export class Hippocampus {
         });
 
         if (principle) {
+          await this.verifyPrincipleWithSenses(principle, cluster.episodes);
           this.principles.push(principle);
           // Mark episodes as potentiated
           for (const ep of cluster.episodes) {
@@ -403,6 +443,7 @@ export class Hippocampus {
       const principle = await this.extractPrinciple([episode], trigger);
 
       if (principle) {
+        await this.verifyPrincipleWithSenses(principle, [episode]);
         this.principles.push(principle);
         episode.potentiatedBy.push(principle.id);
         principlesExtracted++;
@@ -425,6 +466,10 @@ export class Hippocampus {
       if (!principle || !episode) continue;
 
       const refined = await this.refinePrinciple(principle, episode);
+      if (refined && refined !== principle) {
+        // Verify the new/refined principle (not the maintained one)
+        await this.verifyPrincipleWithSenses(refined, [episode]);
+      }
       if (refined) {
         principlesExtracted++; // Counts refinements too
       }
@@ -577,6 +622,211 @@ export class Hippocampus {
     });
   }
 
+  // ── Constructive Episodic Simulation ────────────────────────────
+
+  /**
+   * Constructive episodic simulation — the hippocampus's 3rd capability.
+   *
+   * Recombines crystallized principles + past episodes + world model maxims
+   * + territory observations to construct hypothetical future failure scenarios.
+   *
+   * LLM-assisted. Called at phase gates, after crystallization, on
+   * high-relevance observations, and during high-NE rest cycles.
+   */
+  async simulate(
+    trigger: SimulationTrigger,
+    remainingTasks: TaskGraphNode[],
+    worldModelMaxims: string[],
+    observations: TerritoryObservation[],
+    model?: string,
+  ): Promise<SimulatedScenario[]> {
+    const activePrinciples = this.getActivePrinciples();
+    const recentEpisodes = this.getRecentEpisodes(10);
+
+    // Need at least some material to simulate from
+    if (activePrinciples.length === 0 && recentEpisodes.length === 0) {
+      log.debug("Simulation skipped — no principles or episodes");
+      return [];
+    }
+
+    if (remainingTasks.length === 0) {
+      log.debug("Simulation skipped — no remaining tasks");
+      return [];
+    }
+
+    const simulationModel = model ?? this.config.potentiationModel;
+
+    const systemPrompt = hippocampalSimulationSystem();
+    const userPrompt = hippocampalSimulationUser({
+      principles: activePrinciples.map((p) => ({
+        id: p.id,
+        statement: p.statement,
+        domain: p.domain,
+        confidence: p.confidence,
+      })),
+      episodes: recentEpisodes.map((e) => ({
+        id: e.id,
+        taskDescription: e.narrative.taskDescription,
+        outcome: e.narrative.outcome,
+        dopamineSignal: e.dopamineSignal,
+        tensionCount: e.narrative.tensionSnapshots.length,
+        cycles: e.narrative.cycles,
+      })),
+      maxims: worldModelMaxims,
+      observations: observations.map((o) => ({
+        id: o.id,
+        fact: o.fact,
+        component: o.source.component,
+        relevance: o.relevance,
+      })),
+      remainingTasks: remainingTasks.map((n) => ({
+        id: n.task.id,
+        description: n.task.description,
+        dependsOn: n.dependsOn,
+        phaseGroup: n.phaseGroup,
+      })),
+      trigger,
+    });
+
+    try {
+      const result = await callStructured(
+        "simulation",
+        simulationModel,
+        systemPrompt,
+        userPrompt,
+        SimulationSchema,
+        this.simulationConfig.maxTokens,
+      );
+
+      const scenarios: SimulatedScenario[] = result.scenarios
+        .filter((s) => s.confidence >= this.simulationConfig.minConfidence)
+        .map((s) => ({
+          id: newId(),
+          narrative: s.narrative,
+          affectedTaskIds: s.affectedTaskIds,
+          grounding: {
+            principleIds: s.groundingPrinciples,
+            episodeIds: s.groundingEpisodes,
+            maximStatements: s.groundingMaxims,
+            observationIds: resolveObservationGrounding(
+              s.groundingObservations,
+              observations,
+            ),
+          },
+          impact: s.impact,
+          confidence: s.confidence,
+          suggestedResponse: s.suggestedResponse,
+          simulatedAt: new Date(),
+          status: "new" as const,
+        }));
+
+      // Store and prune
+      this.simulations.push(...scenarios);
+      this.pruneSimulations();
+
+      emit("hippocampus:simulation", {
+        trigger: trigger.type,
+        scenariosGenerated: scenarios.length,
+        principlesUsed: activePrinciples.length,
+        episodesUsed: recentEpisodes.length,
+        observationsUsed: observations.length,
+      });
+
+      log.info("Simulation complete", {
+        trigger: trigger.type,
+        scenarios: scenarios.length,
+      });
+
+      return scenarios;
+    } catch (err) {
+      log.warn("Simulation failed", { error: String(err), trigger: trigger.type });
+      return [];
+    }
+  }
+
+  /** All simulated scenarios. */
+  getSimulations(): SimulatedScenario[] {
+    return [...this.simulations];
+  }
+
+  /** Simulated scenarios with status "new". */
+  getNewSimulations(): SimulatedScenario[] {
+    return this.simulations.filter((s) => s.status === "new");
+  }
+
+  /** Mark a simulation as consumed by deep synthesis. */
+  markSimulationSynthesized(id: string): void {
+    const sim = this.simulations.find((s) => s.id === id);
+    if (sim) sim.status = "synthesized";
+  }
+
+  /** Dismiss a simulation as irrelevant. */
+  dismissSimulation(id: string): void {
+    const sim = this.simulations.find((s) => s.id === id);
+    if (sim) sim.status = "dismissed";
+  }
+
+  /**
+   * Record whether a simulated scenario materialized.
+   * Called after the affected task completes, for calibration.
+   */
+  recordSimulationOutcome(
+    scenarioId: string,
+    materialized: boolean,
+    actualImpact: number,
+  ): void {
+    const sim = this.simulations.find((s) => s.id === scenarioId);
+    if (!sim) return;
+
+    sim.status = materialized ? "materialized" : "dismissed";
+
+    this.simulationAccuracy.push({
+      scenarioId,
+      predicted: true,
+      materialized,
+      impactError: Math.abs(sim.impact - actualImpact),
+      recordedAt: new Date(),
+    });
+
+    // Keep rolling window of 20
+    if (this.simulationAccuracy.length > 20) {
+      this.simulationAccuracy = this.simulationAccuracy.slice(-20);
+    }
+
+    emit("hippocampus:simulation-outcome", {
+      scenarioId,
+      materialized,
+      predictedImpact: sim.impact,
+      actualImpact,
+    });
+  }
+
+  /**
+   * Rolling simulation accuracy (0-1).
+   * Returns 0.5 (unknown) when fewer than 3 records exist.
+   */
+  getSimulationAccuracy(): number {
+    if (this.simulationAccuracy.length < 3) return 0.5;
+    const correct = this.simulationAccuracy.filter((r) => r.materialized).length;
+    return correct / this.simulationAccuracy.length;
+  }
+
+  /** Prune simulations to maxScenarios — oldest dismissed/synthesized first. */
+  private pruneSimulations(): void {
+    if (this.simulations.length <= this.simulationConfig.maxScenarios) return;
+
+    // Sort: dismissed/synthesized first (by date asc), then new/materialized
+    this.simulations.sort((a, b) => {
+      const aProcessed = a.status === "dismissed" || a.status === "synthesized";
+      const bProcessed = b.status === "dismissed" || b.status === "synthesized";
+      if (aProcessed && !bProcessed) return -1;
+      if (!aProcessed && bProcessed) return 1;
+      return a.simulatedAt.getTime() - b.simulatedAt.getTime();
+    });
+
+    this.simulations = this.simulations.slice(-this.simulationConfig.maxScenarios);
+  }
+
   // ── Snapshot ───────────────────────────────────────────────────
 
   getState(): HippocampusState {
@@ -699,6 +949,7 @@ export class Hippocampus {
         );
 
         if (principle) {
+          await this.verifyPrincipleWithSenses(principle, senseEpisodes);
           this.principles.push(principle);
 
           // Mark new episodes as potentiated by this principle
@@ -866,6 +1117,87 @@ export class Hippocampus {
         }
       }
     }
+  }
+
+  // ── Sense Verification ──────────────────────────────────────
+
+  /**
+   * Verify a principle with its relevant senses before storing.
+   *
+   * Resolves principle.relevantSenses to Sense objects, calls each
+   * in parallel, computes mean agreement, adjusts confidence, and
+   * stores verification results on the principle.
+   *
+   * No-op when library is not set or no senses resolve.
+   */
+  private async verifyPrincipleWithSenses(
+    principle: Principle,
+    episodes: Episode[],
+  ): Promise<void> {
+    if (!this.library) return;
+
+    const senses = principle.relevantSenses
+      .map((name) => resolveSenseByName(this.library!, name))
+      .filter((s): s is import("../types/sense.js").Sense => s !== undefined);
+
+    if (senses.length === 0) return;
+
+    const episodeSummaries = episodes.map((ep) => ({
+      taskDescription: ep.narrative.taskDescription,
+      outcome: ep.narrative.outcome,
+      cycles: ep.narrative.cycles,
+    }));
+
+    const results = await verifyWithSenses(
+      "principle-verification",
+      this.config.potentiationModel,
+      senses,
+      (sense) => ({
+        system: principleVerificationSystem(sense),
+        user: principleVerificationUser(
+          {
+            statement: principle.statement,
+            domain: principle.domain,
+            confidence: principle.confidence,
+          },
+          episodeSummaries,
+        ),
+      }),
+    );
+
+    if (results.size === 0) return;
+
+    // Compute consensus (mean agreement)
+    const verificationResults: Principle["senseVerification"] = {
+      results: [],
+      consensus: 0,
+      verifiedAt: new Date(),
+    };
+
+    let totalAgreement = 0;
+    for (const [senseId, result] of results) {
+      const sense = senses.find((s) => s.id === senseId);
+      verificationResults.results.push({
+        senseId,
+        senseName: sense?.name ?? senseId,
+        agreement: result.agreement,
+        assessment: result.assessment,
+      });
+      totalAgreement += result.agreement;
+    }
+
+    verificationResults.consensus = totalAgreement / results.size;
+
+    // Modulate confidence by consensus
+    principle.confidence *= verificationResults.consensus;
+    principle.senseVerification = verificationResults;
+
+    log.info("Principle verified with senses", {
+      principleId: principle.id,
+      sensesConsulted: results.size,
+      consensus: verificationResults.consensus.toFixed(3),
+      adjustedConfidence: principle.confidence.toFixed(3),
+    });
   }
 
   // ── Private: Potentiation internals ───────────────────────────
@@ -1219,5 +1551,42 @@ const PrincipleRefinementSchema = z.object({
   action: z.enum(["refine", "replace", "maintain"]),
   revisedStatement: z.string().optional(),
   revisedConfidence: z.number().min(0).max(1),
+  reasoning: z.string(),
+});
+
+// ─── Simulation helpers ─────────────────────────────────────────
+
+/**
+ * Resolve observation grounding from LLM-returned IDs.
+ * Uses LLM-provided IDs when available (validated against actual observations),
+ * falls back to all observation IDs when the LLM omits them.
+ */
+function resolveObservationGrounding(
+  llmIds: string[] | undefined,
+  observations: TerritoryObservation[],
+): string[] {
+  if (!llmIds || llmIds.length === 0) {
+    // Fallback: all provided observations contributed
+    return observations.map((o) => o.id);
+  }
+  // Validate returned IDs against actual observation set
+  const validIds = new Set(observations.map((o) => o.id));
+  return llmIds.filter((id) => validIds.has(id));
+}
+
+// ─── Zod schema for simulation LLM output ───────────────────────
+
+const SimulationSchema = z.object({
+  scenarios: z.array(z.object({
+    narrative: z.string(),
+    affectedTaskIds: z.array(z.string()),
+    impact: z.number().min(0).max(1),
+    confidence: z.number().min(0).max(1),
+    suggestedResponse: z.string(),
+    groundingPrinciples: z.array(z.string()),
+    groundingEpisodes: z.array(z.string()),
+    groundingMaxims: z.array(z.string()),
+    groundingObservations: z.array(z.string()).optional(),
+  })),
   reasoning: z.string(),
 });

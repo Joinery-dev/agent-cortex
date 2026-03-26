@@ -1,0 +1,49 @@
+---
+title: "Amygdala — Threat Detection & Priority Override"
+scope: global
+---
+flowchart TD
+    subgraph INTENTIONS["Motor Cortex Intentions<br/>(before PNS executes)"]
+        I1["write file"]
+        I2["call API"]
+        I3["run shell command"]
+        I4["modify config"]
+    end
+
+    subgraph DETECTORS["Detector Registry (scans every intention)"]
+        DET1["SECURITY<br/>Secrets exposed?<br/>Unsafe operations?<br/>Unvalidated input?"]
+        DET2["SYSADMIN<br/>Dangerous system ops?<br/>Permission changes?<br/>Service modifications?"]
+        DET3["FILESYSTEM<br/>Writing outside sandbox?<br/>Deleting critical files?<br/>Overwriting protected paths?"]
+        DET4["APPROACH CLASSIFIER<br/>(learned from episodes)<br/>Pattern matches known<br/>failure modes"]
+    end
+
+    subgraph ASSESS["Threat Assessment"]
+        A1{"Any detector<br/>triggered?"}
+        A2["Aggregate severity<br/>across all detectors"]
+    end
+
+    subgraph RESPONSE["Response Levels"]
+        R1["LOW<br/>Log observation,<br/>continue normally"]
+        R2["MEDIUM — Soft Interrupt<br/>Wait for current gate,<br/>surface for decision"]
+        R3["HIGH/CRITICAL — Hard Interrupt<br/>Freeze immediately,<br/>block intention,<br/>escalate to human"]
+    end
+
+    subgraph ALARM["Alarm Interface"]
+        AL1["Other components can<br/>raise alarms directly<br/>(asymmetric risk situations)"]
+        AL2["Source + severity +<br/>description"]
+    end
+
+    INTENTIONS --> DETECTORS
+    DET1 & DET2 & DET3 & DET4 --> A1
+    A1 -->|no| CLEAR["Clear — intention proceeds"]
+    A1 -->|yes| A2
+    A2 --> R1 & R2 & R3
+    ALARM --> A2
+
+    R3 -->|"+ NE floors at 0.95"| ESCALATE["Human briefed<br/>with threat context"]
+
+    style INTENTIONS fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style DETECTORS fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style ASSESS fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style RESPONSE fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
+    style ALARM fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea

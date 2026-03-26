@@ -55,6 +55,14 @@ export interface GatePause {
   action: "pause";
   reason: string;
   resumable: true;
+  /** Present when the pause is due to an escalation that needs human input. */
+  escalationContext?: {
+    source: import("./brainstem.js").EscalationSource;
+    severity: import("./brainstem.js").Escalation["severity"];
+    detail: string;
+    question?: string;
+    proposedActions?: string[];
+  };
 }
 
 export type GateDecision<TResult> =
@@ -122,6 +130,13 @@ export interface RhythmState<TContext, TResult> {
 
   /** Pending soft interrupts — checked at gate phase. */
   pendingInterrupts: SoftInterrupt[];
+
+  /**
+   * AbortSignal from the rhythm's AbortController.
+   * Rhythm definitions can thread this to cancellable operations
+   * (e.g., PNS.execute(), LLM calls) so hard interrupts propagate.
+   */
+  signal?: AbortSignal;
 
   /** Non-null if this rhythm has been paused. */
   pausedAt?: {
@@ -208,6 +223,11 @@ export interface RhythmDefinition<
     integrated: TIntegrated,
     state: RhythmState<TContext, TResult>,
   ) => Promise<GateDecision<TResult>>;
+
+  /** Called when the rhythm exits abnormally (error/abort). For resource cleanup
+   *  (stop runtimes, discard sandbox). Not called on normal completion — the
+   *  rhythm's own gate phase handles cleanup in the happy path. */
+  cleanup?: (state: RhythmState<TContext, TResult>) => Promise<void>;
 }
 
 // ─── Rhythm runner ──────────────────────────────────────────────
@@ -238,4 +258,14 @@ export interface RhythmRunner {
    * Soft interrupts queue for the next gate. Hard interrupts freeze immediately.
    */
   interrupt: (rhythmId: string, interrupt: Interrupt) => void;
+
+  /**
+   * Resume a paused rhythm with a resolution payload.
+   * The rhythm continues from where it paused (the gate phase)
+   * and enters its next cycle with the resolution available.
+   */
+  resume: (
+    rhythmId: string,
+    resolution: import("./brainstem.js").EscalationResolution,
+  ) => void;
 }

@@ -1,0 +1,59 @@
+---
+title: "Basal Ganglia — Learned Shortcuts"
+scope: global
+---
+flowchart TD
+    TASK["New task arrives"]
+
+    subgraph MATCH["ROUTINE MATCHING"]
+        M1["Extract task fingerprint<br/>(sense activation pattern)"]
+        M2["Search routine store<br/>for nearest match"]
+        M3{"Confidence ≥<br/>threshold?"}
+    end
+
+    subgraph DIRECT["DIRECT PATHWAY — Shortcut"]
+        D1["Activate learned sense set<br/>(skip full deliberation)"]
+        D2["'Marketing landing pages<br/>→ always activate Design,<br/>Intent, SEO, Performance'"]
+        D3["Fast: no LLM call needed"]
+    end
+
+    subgraph HYPER["HYPERDIRECT PATHWAY — Deliberation"]
+        H1["LLM reasons about which<br/>senses to activate"]
+        H2["Full analysis of task<br/>against all 11 senses"]
+        H3["Slower but thorough:<br/>for novel or risky tasks"]
+    end
+
+    subgraph GATE["EXPLORE / EXPLOIT GATE"]
+        G1{"Strong routine +<br/>high confidence?"}
+        G2["EXPLOIT<br/>Skip explore phase,<br/>use known approach"]
+        G3["EXPLORE<br/>Generate 3–5 divergent<br/>paths before building"]
+    end
+
+    subgraph LEARN["LEARNING FROM EVALUATION"]
+        L1["STRENGTHEN<br/>Sense shaped work or<br/>caught real issue<br/>→ boost confidence"]
+        L2["WEAKEN<br/>Sense rubber-stamped,<br/>no tensions raised<br/>→ decay confidence"]
+        L3["REVISE<br/>Missing sense would<br/>have caught something<br/>→ adjust sense set"]
+        L4["CREATE<br/>Novel sense set stabilizes<br/>over N tasks<br/>→ register new routine"]
+    end
+
+    TASK --> M1 --> M2 --> M3
+    M3 -->|yes| DIRECT
+    M3 -->|no| HYPER
+
+    DIRECT --> G1
+    HYPER --> G1
+    G1 -->|yes| G2
+    G1 -->|no| G3
+
+    G2 & G3 --> BUILD["Build cycle runs"]
+    BUILD --> EVAL["Evaluation complete"]
+    EVAL --> L1 & L2 & L3 & L4
+
+    NOTE["Over many projects:<br/>routines stabilize into<br/>the system's intuition.<br/>Immature system: all hyperdirect.<br/>Mature system: mostly direct."]
+
+    style MATCH fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style DIRECT fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style HYPER fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style GATE fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style LEARN fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
+    style NOTE fill:#2d2235,stroke:#f472b6,color:#f472b6

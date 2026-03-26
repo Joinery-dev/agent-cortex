@@ -113,12 +113,85 @@ export interface DriftArea {
   severity: "minor" | "significant";
 }
 
+// ── Mid-Build Sense Consultation ─────────────────────────────
+
+/**
+ * Mid-build question from Motor Cortex when it hits ambiguity in the specification.
+ * The builder pauses, asks a specific question, and the Thalamus routes it
+ * to the right sense — or escalates to the user if no sense can answer.
+ *
+ * Parallels AskUserQuestion but the audience is internal: a sense, not the human.
+ * The builder treats senses as domain experts it can consult mid-implementation,
+ * the same way a developer asks a subject-matter expert on the team.
+ */
+export interface BuildQuestion {
+  id: string;
+  taskId: string;
+  /** The specific, answerable question. Not open-ended — "should X or Y?" not "what should I do?" */
+  question: string;
+  /** What the builder was doing when it hit the ambiguity. */
+  buildContext: string;
+  /** Which dimension this relates to — helps Thalamus route to the right sense. */
+  targetDimension?: string;
+  /** If the builder has identified possible answers. */
+  options?: string[];
+}
+
+/**
+ * Answer to a BuildQuestion, from either a sense or the user.
+ * When the Thalamus can route to a sense, the source is that sense.
+ * When no sense can answer, the question escalates to the user.
+ */
+export interface BuildAnswer {
+  questionId: string;
+  source: { type: "sense"; senseId: string } | { type: "user" };
+  answer: string;
+  /** How confident the source is in this answer [0-1]. */
+  confidence: number;
+  /** Why this answer — the reasoning from the source's perspective. */
+  rationale: string;
+}
+
+/**
+ * Callback the Motor Cortex invokes when it needs a mid-build answer.
+ * Wired up by the build-cycle rhythm, which routes through the Thalamus.
+ * The Motor Cortex stays decoupled from routing — it just asks and gets an answer.
+ */
+export type QuestionHandler = (question: BuildQuestion) => Promise<BuildAnswer>;
+
+// ── Agentic Motor Result ─────────────────────────────────────
+
+/** Trace of a single tool call during an agentic motor session. */
+export interface ToolUseTrace {
+  toolName: string;
+  summary: string;
+  timestamp: Date;
+}
+
+/** Full result from an agentic Motor Cortex session (real tool execution). */
+export interface AgenticMotorResult {
+  /** Natural language summary of what was done. */
+  summary: string;
+  /** Complete trace of every tool call the agentic session made. */
+  toolTrace: ToolUseTrace[];
+  /** Number of agentic turns consumed. */
+  turns: number;
+  /** Token usage for the agentic session. */
+  usage: { inputTokens: number; outputTokens: number };
+  /** Dollar cost of the agentic session. */
+  costDollars?: number;
+  /** Duration of the agentic session in milliseconds. */
+  durationMs: number;
+}
+
 // ── Combined Motor Cortex Result ──────────────────────────────
 
 /** The full output of a motor cortex execution cycle. */
 export interface MotorCortexResult {
-  /** The produced artifact (code, copy, design, etc.). */
+  /** Summary of what was built. In agentic mode, this is a trace summary; artifacts are on disk. */
   work: string;
+  /** Full agentic result when Motor Cortex ran with real tools. */
+  agenticResult?: AgenticMotorResult;
   /** The premotor plan that guided the build. */
   plan: MotorPlan;
   /** Proprioception self-check (absent if skipped). */

@@ -24,7 +24,9 @@ import type {
   SchedulerEscalate,
 } from "../types/attention-scheduler.js";
 import type { TaskGraphNode } from "../types/brainstem.js";
+import type { NEWeights, NEResult, RiskFactors } from "../types/norepinephrine.js";
 import { DEFAULT_SCHEDULER_CONFIG } from "../types/attention-scheduler.js";
+import { computeNE, DEFAULT_NE_WEIGHTS, extractRiskFromSchedulerSignals } from "./norepinephrine.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
 
@@ -32,9 +34,11 @@ const log = createLogger("attention-scheduler");
 
 export class AttentionScheduler {
   private config: SchedulerConfig;
+  private neWeights: NEWeights;
 
   constructor(config?: Partial<SchedulerConfig>) {
     this.config = { ...DEFAULT_SCHEDULER_CONFIG, ...config };
+    this.neWeights = { ...DEFAULT_NE_WEIGHTS, ...config?.neWeights };
   }
 
   /**
@@ -54,7 +58,19 @@ export class AttentionScheduler {
       return escalation;
     }
 
-    // 7. Rest needed?
+    // 7. Budget exhausted?
+    if (signals.budgetExhausted) {
+      // Hard enforcement: stop immediately, deliver what's done
+      this.emitDecision("complete", signals);
+      emit("scheduler:budget-exhausted", {
+        utilization: signals.budgetUtilization,
+        completedTasks: signals.completedTaskIds.size,
+        remainingTasks: signals.taskGraph.length - signals.completedTaskIds.size - signals.escalatedTaskIds.size,
+      });
+      return { action: "complete" };
+    }
+
+    // 8. Rest needed?
     if (signals.needsRest && signals.completedTaskIds.size > 0) {
       const action: SchedulerAction = {
         action: "rest",
@@ -184,21 +200,23 @@ export class AttentionScheduler {
   private selectAndDispatch(readyTasks: TaskGraphNode[], signals: SchedulerSignals): SchedulerDispatch {
     if (readyTasks.length === 1) {
       const task = readyTasks[0];
-      const neLevel = this.computeNE(task, signals);
+      const { ne: neResult, riskSnapshot } = this.computeDispatchNE(task, signals);
       const mode = this.determineMode(task, signals);
 
       emit("scheduler:ne-computed", {
         taskId: task.task.id,
-        baselineNE: this.config.baselineNE,
-        finalNE: neLevel,
+        finalNE: neResult.ne,
+        components: neResult.components,
       });
 
       return {
         action: "dispatch-task",
         taskId: task.task.id,
-        neLevel,
+        neLevel: neResult.ne,
         mode,
         reasoning: "Only ready task",
+        taskBudget: signals.taskBudgets?.get(task.task.id)?.allocated,
+        riskSnapshot,
       };
     }
 
@@ -212,7 +230,7 @@ export class AttentionScheduler {
     scored.sort((a, b) => b.score.total - a.score.total);
 
     const best = scored[0];
-    const neLevel = this.computeNE(best.node, signals);
+    const { ne: neResult, riskSnapshot } = this.computeDispatchNE(best.node, signals);
     const mode = this.determineMode(best.node, signals);
 
     // Emit scoring for all candidates
@@ -222,6 +240,7 @@ export class AttentionScheduler {
         phaseGroupScore: score.phaseGroup,
         dependencyScore: score.dependency,
         trendResponseScore: score.trendResponse,
+        prospectiveScore: score.prospective,
         totalScore: score.total,
         selected: node === best.node,
       });
@@ -229,31 +248,49 @@ export class AttentionScheduler {
 
     emit("scheduler:ne-computed", {
       taskId: best.node.task.id,
-      baselineNE: this.config.baselineNE,
-      finalNE: neLevel,
+      finalNE: neResult.ne,
+      components: neResult.components,
     });
 
     return {
       action: "dispatch-task",
       taskId: best.node.task.id,
-      neLevel,
+      neLevel: neResult.ne,
       mode,
-      reasoning: `Selected from ${readyTasks.length} ready tasks (score: ${best.score.total.toFixed(2)}). Factors: phase-group=${best.score.phaseGroup.toFixed(2)}, deps=${best.score.dependency.toFixed(2)}, trends=${best.score.trendResponse.toFixed(2)}`,
+      reasoning: `Selected from ${readyTasks.length} ready tasks (score: ${best.score.total.toFixed(2)}). Factors: phase-group=${best.score.phaseGroup.toFixed(2)}, deps=${best.score.dependency.toFixed(2)}, trends=${best.score.trendResponse.toFixed(2)}${best.score.prospective > 0 ? `, pm=${best.score.prospective.toFixed(2)}` : ""}`,
+      taskBudget: signals.taskBudgets?.get(best.node.task.id)?.allocated,
+      riskSnapshot,
     };
   }
 
   private scoreTask(
     node: TaskGraphNode,
     signals: SchedulerSignals,
-  ): { phaseGroup: number; dependency: number; trendResponse: number; total: number } {
+  ): { phaseGroup: number; dependency: number; trendResponse: number; prospective: number; total: number } {
     const phaseGroup = this.scorePhaseGroupCoherence(node, signals);
     const dependency = this.scoreDependencyUnblocking(node, signals);
     const trendResponse = this.scoreTrendResponse(node, signals);
+    const prospective = this.scoreProspectiveTriggers(node, signals);
 
-    // Equal weights for now. Phase 3 (Plasticity) makes these plastic.
-    const total = phaseGroup * 0.3 + dependency * 0.4 + trendResponse * 0.3;
+    // Base weights unchanged. Phase 3 (Plasticity) makes these plastic.
+    // PM bonus is additive — nudges priority without rebalancing existing weights.
+    const base = phaseGroup * 0.3 + dependency * 0.4 + trendResponse * 0.3;
+    const total = base + prospective * 0.15;
 
-    return { phaseGroup, dependency, trendResponse, total };
+    return { phaseGroup, dependency, trendResponse, prospective, total };
+  }
+
+  /**
+   * Bonus for tasks with matching Prospective Memory triggers.
+   * Fast-path triggers (matchAll, matchTaskIds) are checked in
+   * assembleSignals() and populated on SchedulerSignals.
+   */
+  private scoreProspectiveTriggers(node: TaskGraphNode, signals: SchedulerSignals): number {
+    if (!signals.prospectiveTriggers) return 0;
+    const triggers = signals.prospectiveTriggers.get(node.task.id);
+    if (!triggers || triggers.length === 0) return 0;
+    // Any match gives a boost. Multiple triggers give more, capped at 1.0.
+    return Math.min(1.0, triggers.length * 0.5);
   }
 
   /**
@@ -320,47 +357,46 @@ export class AttentionScheduler {
   // ─── Private: NE computation ────────────────────────────────────
 
   /**
-   * Compute norepinephrine level for a task. Starts at baseline,
-   * boosted by risk factors, capped at 1.0.
+   * Compute dispatch-time NE for a task.
+   * Uses the standalone computeNE() with maturity + risk only.
+   * Novelty (from Cerebellum prediction) and conviction are not
+   * available at dispatch time — they're added later by
+   * sensory-cortex and build-cycle respectively.
    */
-  private computeNE(node: TaskGraphNode, signals: SchedulerSignals): number {
-    let ne = this.config.baselineNE;
-    const boost = this.config.neBoostPerRisk;
+  private computeDispatchNE(node: TaskGraphNode, signals: SchedulerSignals): { ne: NEResult; riskSnapshot: RiskFactors } {
+    // Count tasks that depend on this one (for fan-out risk)
+    const done = new Set([...signals.completedTaskIds, ...signals.escalatedTaskIds]);
+    const dependsOnThisTask = signals.taskGraph.filter(
+      (n) => !done.has(n.task.id) && n.dependsOn.includes(node.task.id),
+    ).length;
 
-    // New phase group (context switch = higher risk)
-    if (node.phaseGroup) {
-      const completedIds = [...signals.completedTaskIds];
-      if (completedIds.length > 0) {
-        const lastId = completedIds[completedIds.length - 1];
-        const lastNode = signals.taskGraph.find((n) => n.task.id === lastId);
-        if (lastNode?.phaseGroup && lastNode.phaseGroup !== node.phaseGroup) {
-          ne += boost;
-        }
-      }
+    const risk = extractRiskFromSchedulerSignals(
+      node.task.id,
+      node.phaseGroup,
+      dependsOnThisTask,
+      signals,
+    );
+
+    // Budget pressure: utilization^2 (quadratic — gentle at 50%, sharp at 80%+)
+    if (signals.budgetUtilization !== undefined) {
+      risk.budgetPressure = signals.budgetUtilization * signals.budgetUtilization;
     }
 
-    // Sense trends declining
-    const downCount = signals.wmSnapshot.senseTrends.filter((t) => t.direction === "down").length;
-    if (downCount > 0) {
-      ne += boost;
-    }
+    // Wave 13 activation point: when Amygdala (#17) is wired, pass
+    // amygdalaOverride here to short-circuit NE to near-ceiling on urgency.
+    const ne = computeNE(
+      {
+        cerebellumAccuracy: signals.cerebellumAccuracy,
+        // bestSimilarity: not available at dispatch time
+        // convictionLevel: not available at dispatch time
+        risk,
+      },
+      this.neWeights,
+    );
 
-    // High WM load
-    if (signals.wmSnapshot.load > 0.6) {
-      ne += boost;
-    }
-
-    // Low prediction accuracy
-    if (signals.vitals.predictionAccuracy < 0.5) {
-      ne += boost;
-    }
-
-    // High weight volatility
-    if (signals.vitals.weightVolatility > 0.5) {
-      ne += boost;
-    }
-
-    return Math.min(1.0, ne);
+    // Freeze risk factors — enrichment sites (sensory-cortex, build-cycle)
+    // reuse this snapshot instead of re-deriving from potentially shifted sources.
+    return { ne, riskSnapshot: { ...risk } };
   }
 
   // ─── Private: Explore / exploit ─────────────────────────────────

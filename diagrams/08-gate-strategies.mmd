@@ -1,0 +1,54 @@
+---
+title: "Gate Strategies — How the Build Cycle Decides"
+scope: global
+---
+flowchart TD
+    GATE["BUILD CYCLE GATE<br/>Accept or reject?"]
+
+    subgraph SELECT["NE + Budget → Strategy Selection"]
+        SEL1{"NE high + budget OK?"}
+        SEL2{"NE mid + budget OK?"}
+        SEL3{"Budget pressured?"}
+    end
+
+    subgraph DELIBERATIVE["DELIBERATIVE — Careful"]
+        D1["Cycles as long as needed<br/>(no hardcoded limit)"]
+        D2["Build, evaluate, resolve,<br/>revise, repeat"]
+        D3["Stops when gate accepts<br/>or SOL says ceiling reached"]
+        D4["Used when: high NE,<br/>high conviction, unfamiliar territory"]
+    end
+
+    subgraph DEMOCRATIC["DEMOCRATIC — Balanced"]
+        DM1["Weighted majority acceptance<br/>(≥70% stake-weighted)"]
+        DM2["Each sense votes:<br/>acceptable or not"]
+        DM3["Balances competing<br/>perspectives by influence"]
+        DM4["Used when: moderate NE,<br/>multiple senses with high stakes"]
+    end
+
+    subgraph EXPEDIENT["EXPEDIENT — Fast"]
+        EX1["Fewer senses activated"]
+        EX2["Higher individual<br/>acceptance thresholds"]
+        EX3["One revision cycle max"]
+        EX4["Used when: low NE,<br/>routine match, low stakes"]
+    end
+
+    subgraph ECONOMIC["ECONOMIC — Budget-Driven"]
+        EC1["Compress briefings"]
+        EC2["Downgrade model<br/>(if available)"]
+        EC3["Stop early if ceiling<br/>too low vs remaining budget"]
+        EC4["Used when: budget ≥85%<br/>utilized, breathing active"]
+    end
+
+    GATE --> SEL1
+    SEL1 -->|yes| DELIBERATIVE
+    SEL1 -->|no| SEL2
+    SEL2 -->|yes| DEMOCRATIC
+    SEL2 -->|no| SEL3
+    SEL3 -->|yes| ECONOMIC
+    SEL3 -->|no| EXPEDIENT
+
+    style DELIBERATIVE fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style DEMOCRATIC fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style EXPEDIENT fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style ECONOMIC fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style SELECT fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea

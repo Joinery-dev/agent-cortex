@@ -1,0 +1,75 @@
+---
+title: "Full System Flow — What Fires When"
+scope: global
+---
+flowchart TD
+    subgraph PROJECT["Project Rhythm"]
+        P1["INTAKE<br/>Intent + Taste + Capabilities"]
+        P2["WORLD MODEL<br/>Initial synthesis"]
+        P3["PLANNER Phase A<br/>Senses manifest the future<br/>(runs through sensory cortex)"]
+        P4["PLANNER Phase B<br/>Backward path reasoning<br/>→ task graph"]
+        P5["PROJECT INHIBITION<br/>Suppress irrelevant senses"]
+        P6["TASK DISPATCH<br/>(inner rhythm)"]
+        P7["COMPLETION<br/>Retrospective potentiation"]
+
+        P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+    end
+
+    subgraph DISPATCH["Task Dispatch Rhythm (repeats per task)"]
+        D1["WORLD MODEL REBUILD<br/>Integrate new info from last task"]
+        D2["SCHEDULER DECIDE<br/>Read: WM + vitals + drift + cogflex<br/>+ PM triggers + BG routines<br/>Output: dispatch / escalate / rest / replan"]
+        D3["ASSEMBLE GESTALT<br/>World model + task features"]
+        D4["BG FIRES<br/>Read gestalt → sense activation"]
+        D5["TASK INHIBITION<br/>Suppress for this task"]
+        D6["PM CHECK<br/>Fire matching triggers"]
+        D7["SENSORY CORTEX<br/>(inner rhythm)"]
+        D8["BETWEEN TASKS<br/>Dopamine → 4 consumers<br/>Episode recorded<br/>Potentiation check<br/>Drift quick check<br/>Forward briefing prepared"]
+        D9{Phase gate?}
+        D10["PHASE GATE<br/>Integration check<br/>Deep drift analysis<br/>Re-suppress at phase level<br/>Conviction test manifested future"]
+
+        D1 --> D2 --> D3 --> D4 --> D5 --> D6 --> D7 --> D8 --> D9
+        D9 -->|no| D1
+        D9 -->|yes| D10 --> D1
+    end
+
+    subgraph SENSORY["Sensory Cortex Rhythm (per task)"]
+        S1["CEREBELLUM PREDICT<br/>Score forecast + SOL ceiling"]
+        S2["EFFERENCE COPY<br/>Motor feasibility assessment<br/>(what's actually buildable)"]
+        S3["NE ENRICHMENT<br/>+ novelty from Cerebellum"]
+        S4["THALAMUS BRIEFING<br/>Gestalt → consultation briefing<br/>(includes SOL + efference + forward<br/>+ patterns + principles + predictions)"]
+        S5["CONSULTATION<br/>All active senses weigh in<br/>→ perspectives + stakes + eval plan"]
+        S6["BUILD CYCLE<br/>(inner rhythm)"]
+        S7["COMPLETE TASK<br/>WM.completeTask()"]
+
+        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+    end
+
+    subgraph BUILD["Build Cycle Rhythm (loops until gate accepts)"]
+        B1["MOTOR BRIEFING<br/>Thalamus: gestalt → builder context<br/>(SOL + patterns + capabilities)"]
+        B2["PREMOTOR<br/>Plan approach<br/>(or re-plan on cycle 2+)"]
+        B3["PRIMARY MOTOR<br/>Produce artifact"]
+        B4["PROPRIOCEPTION<br/>Self-check plan adherence<br/>(if NE ≥ threshold)"]
+        B5["EVALUATE<br/>All receptors score<br/>(with per-receptor trend context)"]
+        B6["WEIGH<br/>Join with consultation stakes"]
+        B7["COMPOSITE + TENSIONS<br/>Stake-aware detection"]
+        B8["CONVICTION LOOP<br/>Necessity → conviction<br/>→ SOL test → shape"]
+        B9["COGNITIVE FLEXIBILITY<br/>If reshape: strategy-limited<br/>or execution-limited?"]
+        B10["COLLAPSE DETECTION<br/>Genuine synthesis<br/>or capitulation?"]
+        B11["NE RECOMPUTE<br/>+ conviction level"]
+        B12["GATE STRATEGY<br/>Accept / reject<br/>(deliberative / democratic / expedient)"]
+        B13{Accept?}
+        B14["RESOLVE TENSIONS<br/>→ revision prompt"]
+
+        B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8 --> B9 --> B10 --> B11 --> B12 --> B13
+        B13 -->|yes| DONE["Complete"]
+        B13 -->|no| B14 --> B1
+    end
+
+    P6 -.-> DISPATCH
+    D7 -.-> SENSORY
+    S6 -.-> BUILD
+
+    style PROJECT fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style DISPATCH fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style SENSORY fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style BUILD fill:#1a1d27,stroke:#fb923c,color:#e2e4ea

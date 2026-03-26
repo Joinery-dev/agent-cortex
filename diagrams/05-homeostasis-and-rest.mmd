@@ -1,0 +1,42 @@
+---
+title: "Homeostasis & Rest — Vital Signs and Consolidation"
+scope: global
+---
+flowchart TD
+    subgraph VITALS["7 VITAL SIGNS — Continuously Monitored"]
+        V1["Working Memory Load<br/>How full is the scratchpad?<br/>Reflex: rest + prune"]
+        V2["Prediction Accuracy<br/>Is the Cerebellum calibrated?<br/>Reflex: rest + recalibrate"]
+        V3["Context Capacity<br/>Is the context window pressured?<br/>Reflex: breathing (compress briefings)"]
+        V4["Budget Utilization<br/>How much budget is spent?<br/>Reflex: economic gate + model downgrade"]
+        V5["Learning Signal Health<br/>Is dopamine flowing?<br/>No reflex — flags PFC"]
+        V6["Weight Volatility<br/>Are plastic weights oscillating?<br/>Reflex: rest + settle"]
+        V7["Tonic Dopamine<br/>Is the project rewarding overall?<br/>No reflex — flags PFC"]
+    end
+
+    subgraph LOAD["CONSOLIDATION LOAD — Triggers Rest"]
+        L1["Episode density<br/>Uncrystallized episodes<br/>accumulating"]
+        L2["Memory pressure<br/>WM overflow without<br/>hippocampal promotion"]
+        L3["Prediction drift<br/>Systematic Cerebellum<br/>miscalibration"]
+        L4["Weight instability<br/>Plastic weights<br/>oscillating"]
+        L5["Deferred processing<br/>Phase gate checks +<br/>deep drift pending"]
+    end
+
+    subgraph REST["REST CYCLE — NE Drops to 0"]
+        R1["POTENTIATE<br/>Cluster episodes,<br/>extract principles"]
+        R2["PRUNE MEMORY<br/>Promote to hippocampus<br/>or drop from WM"]
+        R3["DECAY CONNECTIONS<br/>Weaken unused or<br/>unstable plastic weights"]
+        R4["RECALIBRATE<br/>Holistic Cerebellum<br/>model update"]
+        R5["SETTLE WEIGHTS<br/>Let volatile weights<br/>converge"]
+        R6["DECAY ROUTINES<br/>Forget unused BG<br/>sense activation patterns"]
+        R7["DEFERRED CHECKS<br/>Phase gate integration,<br/>deep drift analysis"]
+    end
+
+    VITALS -->|"out of range"| REFLEX["Automatic reflex response<br/>(brainstem level, no PFC needed)"]
+    LOAD -->|"load high enough"| REST
+    REST --> RESUME["Resume task dispatch<br/>with refreshed state"]
+
+    R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
+
+    style VITALS fill:#1a1d27,stroke:#f87171,color:#e2e4ea
+    style LOAD fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style REST fill:#1a1d27,stroke:#22d3ee,color:#e2e4ea

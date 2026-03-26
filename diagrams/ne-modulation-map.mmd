@@ -1,0 +1,50 @@
+---
+title: "Norepinephrine — What It Touches"
+scope: global
+---
+flowchart TD
+    subgraph INPUTS["What Determines NE"]
+        I1["Cerebellum Accuracy<br/>Low accuracy = immature system<br/>= high baseline NE<br/>(training wheels)"]
+        I2["Task Novelty<br/>Low similarity to known episodes<br/>= high NE"]
+        I3["Risk Factors<br/>Phase gate proximity<br/>constraint tightness<br/>high stakes"]
+        I4["Conviction Level<br/>Low conviction = uncertain<br/>= higher NE"]
+        I5["Amygdala Override<br/>Urgency → NE floors at 0.95<br/>(Wave 13)"]
+    end
+
+    NE["NOREPINEPHRINE<br/>0.0 — 1.0<br/>Arousal / Thoroughness"]
+
+    I1 --> NE
+    I2 --> NE
+    I3 --> NE
+    I4 --> NE
+    I5 -.->|"not yet wired"| NE
+
+    subgraph EFFECTS["What NE Modulates"]
+        E1["INHIBITOR<br/>High NE → suppress fewer senses<br/>Low NE → aggressive suppression"]
+        E2["THALAMUS BRIEFING DEPTH<br/>High NE → rich context, all sources<br/>Low NE → lean, essentials only"]
+        E3["THALAMUS BRIEFING TONE<br/>High NE + high conviction → prescriptive<br/>Low NE + low conviction → invitational<br/>(specification artistry)"]
+        E4["GATE STRATEGY SELECTION<br/>High NE → deliberative (careful)<br/>Mid NE → democratic (balanced)<br/>Low NE → expedient (fast)"]
+        E5["PROPRIOCEPTION<br/>NE ≥ 0.3 → enabled<br/>NE < 0.3 → skipped"]
+        E6["PNS CHECKPOINT<br/>High NE → more checkpoints<br/>between operations"]
+        E7["BG SUPPRESSION SCALING<br/>High NE → more senses kept<br/>Low NE → routine dominates"]
+    end
+
+    NE --> E1
+    NE --> E2
+    NE --> E3
+    NE --> E4
+    NE --> E5
+    NE --> E6
+    NE --> E7
+
+    subgraph LIFECYCLE["NE Enrichment Through Task"]
+        LC1["DISPATCH TIME<br/>Maturity + risk only<br/>(no task-specific signals yet)"]
+        LC2["SENSORY CORTEX<br/>+ novelty from Cerebellum<br/>similarity score"]
+        LC3["BUILD CYCLE GATE<br/>+ conviction level<br/>from PFC reasoning loop"]
+
+        LC1 -->|"baseline"| LC2 -->|"enriched"| LC3
+    end
+
+    style INPUTS fill:#1a1d27,stroke:#22d3ee,color:#e2e4ea
+    style EFFECTS fill:#1a1d27,stroke:#f472b6,color:#e2e4ea
+    style LIFECYCLE fill:#1a1d27,stroke:#4ade80,color:#e2e4ea

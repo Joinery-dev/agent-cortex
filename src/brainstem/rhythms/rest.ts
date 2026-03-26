@@ -24,6 +24,7 @@ const log = createLogger("rest-cycle");
 
 interface PreparedRest {
   priorities: ConsolidationPriority[];
+  vitalsBefore: VitalSigns;
 }
 
 interface ExecutedRest {
@@ -35,16 +36,49 @@ interface ExecutedRest {
   predictionsRecalibrated: boolean;
 }
 
+/** Compare pre- and post-rest vitals. Returns "recovered" if the most stressed vital improved, "insufficient" otherwise. */
+function assessRecovery(before: VitalSigns, after: VitalSigns): "recovered" | "insufficient" {
+  // Identify the vital that was most stressed before rest
+  const vitals: (keyof VitalSigns)[] = [
+    "workingMemoryLoad", "contextCapacity", "budgetUtilization", "weightVolatility",
+  ];
+  // For these vitals, high = stressed. For predictionAccuracy and learningSignalHealth, low = stressed.
+  const invertedVitals: (keyof VitalSigns)[] = ["predictionAccuracy", "learningSignalHealth"];
+
+  let worstStress = 0;
+  let improved = false;
+
+  for (const v of vitals) {
+    if (before[v] > worstStress) worstStress = before[v];
+    if (before[v] - after[v] > 0.1) improved = true;
+  }
+  for (const v of invertedVitals) {
+    const stress = 1 - before[v];
+    if (stress > worstStress) worstStress = stress;
+    if (after[v] - before[v] > 0.1) improved = true;
+  }
+
+  return improved ? "recovered" : "insufficient";
+}
+
 export function createRestCycleDefinition(
   hooks: SubcorticalHooks,
+  getVitals: () => VitalSigns,
+  getConsolidationLoad: () => ConsolidationLoad,
+  maxRestCycles: number = 3,
 ): RhythmDefinition<RestCycleContext, RestCycleResult, PreparedRest, ExecutedRest, RestCycleResult> {
   return {
     name: "rest-cycle",
-    maxCycles: 3, // Don't rest forever
+    maxCycles: maxRestCycles,
 
-    async prepare(context, _state) {
+    async prepare(context, state) {
+      const vitalsBefore = getVitals();
+      // Store in accumulator so the gate can compare pre/post vitals
+      state.accumulator.__vitalsBefore = vitalsBefore;
+
       log.info("Entering rest cycle", {
         priorities: context.priorities,
+        vitalsBefore,
       });
 
       emit("rest:start", {
@@ -52,7 +86,7 @@ export function createRestCycleDefinition(
         priorities: context.priorities,
       });
 
-      return { priorities: context.priorities };
+      return { priorities: context.priorities, vitalsBefore };
     },
 
     async execute(prepared, _state, _runner) {
@@ -95,6 +129,11 @@ export function createRestCycleDefinition(
             completed.push(priority);
             break;
           }
+          case "decay-routines": {
+            await hooks.decayRoutines();
+            completed.push(priority);
+            break;
+          }
           case "deferred-checks":
             // No-op until phase gate integration exists
             completed.push(priority);
@@ -112,26 +151,9 @@ export function createRestCycleDefinition(
       };
     },
 
-    async integrate(executed, state) {
-      // In the real system, this would re-read vitals from the
-      // homeostasis monitor to see if rest helped. For now, return
-      // healthy defaults.
-      const vitalsAfter: VitalSigns = {
-        workingMemoryLoad: 0.2,
-        predictionAccuracy: 0.8,
-        contextCapacity: 0.2,
-        learningSignalHealth: 0.9,
-        weightVolatility: 0.1,
-        tonicDopamine: 0.5,
-      };
-
-      const loadAfter: ConsolidationLoad = {
-        episodeDensity: 0,
-        memoryPressure: 0.2,
-        predictionDrift: 0.2,
-        weightInstability: 0.1,
-        deferredProcessing: 0,
-      };
+    async integrate(executed, _state) {
+      const vitalsAfter = getVitals();
+      const loadAfter = getConsolidationLoad();
 
       return {
         completed: executed.completed,
@@ -145,21 +167,45 @@ export function createRestCycleDefinition(
       };
     },
 
-    async gate(integrated, _state) {
+    async gate(integrated, state) {
+      const vitalsBefore = state.accumulator.__vitalsBefore as VitalSigns | undefined;
+      const cycle = state.completedCycles + 1;
+      const recovery = vitalsBefore
+        ? assessRecovery(vitalsBefore, integrated.vitalsAfter)
+        : "recovered"; // No baseline to compare — accept
+
+      if (recovery === "insufficient" && cycle < 3) {
+        emit("rest:continuing", {
+          cycle,
+          recovery,
+          vitalsAfter: integrated.vitalsAfter,
+        });
+        log.info("Rest recovery insufficient, continuing", { cycle });
+        return { action: "continue", reason: `Recovery insufficient after cycle ${cycle}` };
+      }
+
+      if (recovery === "insufficient") {
+        emit("rest:incomplete", {
+          vitalsAfter: integrated.vitalsAfter,
+          loadAfter: integrated.loadAfter,
+        });
+        log.warn("Rest cycles exhausted without full recovery", {
+          vitalsAfter: integrated.vitalsAfter,
+        });
+      }
+
       emit("rest:complete", {
         completed: integrated.completed,
         principlesExtracted: integrated.principlesExtracted,
+        recovery,
       });
 
       log.info("Rest cycle complete", {
         completed: integrated.completed,
+        recovery,
       });
 
-      // For now, one rest cycle is always enough (stubs resolve everything)
-      return {
-        action: "complete",
-        result: integrated,
-      };
+      return { action: "complete", result: integrated };
     },
   };
 }

@@ -3,7 +3,9 @@
  *
  * Three sub-components:
  *   Premotor        — plans the approach before building (callStructured → MotorPlan)
- *   Primary Motor   — produces the artifact (call → string)
+ *   Primary Motor   — produces the artifact
+ *     • Agentic mode: multi-turn LLM with real tools (read/write/shell), curated by PNS
+ *     • Legacy mode:  single-turn LLM producing a text artifact (fallback when PNS absent)
  *   Proprioception  — self-checks plan adherence after building (callStructured → SelfAssessment)
  *
  * Single entry point: execute(briefing, opts?) → MotorCortexResult
@@ -21,20 +23,30 @@ import type {
   MotorCortexResult,
   RevisionContext,
   RevisionPlan,
+  AgenticMotorResult,
+  BuildQuestion,
+  BuildAnswer,
+  QuestionHandler,
 } from "../types/motor-cortex.js";
+import type { EfferenceCopy, EfferenceCopyContext } from "../types/efference-copy.js";
 import type { Intention } from "../types/pns.js";
 import { createIntention } from "../types/pns.js";
-import { call } from "../llm/client.js";
+import { call, agenticCall } from "../llm/client.js";
 import { callStructured } from "../llm/structured.js";
+import type { PeripheralNervousSystem } from "./pns.js";
 import {
   premotorSystem,
   premotorUser,
   premotorRevisionUser,
   motorCortexSystem,
   motorCortexUser,
+  motorCortexAgenticSystem,
+  motorCortexAgenticUser,
   assembleMotorPrompt,
   proprioceptionSystem,
   proprioceptionUser,
+  efferenceCopySystem,
+  efferenceCopyUser,
 } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
@@ -107,6 +119,31 @@ const SelfAssessmentSchema: z.ZodType<SelfAssessment> = z.object({
   suggestedFocus: z.array(z.string()),
 });
 
+// ── Efference Copy schemas ───────────────────────────────────
+
+const EfferenceSenseFeasibilitySchema = z.object({
+  senseName: z.string(),
+  achievableCeiling: z.number().min(1).max(10),
+  ceilingRationale: z.string(),
+  constrainingFactors: z.array(z.string()),
+});
+
+const TensionCostSchema = z.object({
+  senseA: z.string(),
+  senseB: z.string(),
+  costDescription: z.string(),
+  severity: z.number().min(0).max(1),
+});
+
+const EfferenceCopyOutputSchema = z.object({
+  perSense: z.array(EfferenceSenseFeasibilitySchema),
+  tensionCosts: z.array(TensionCostSchema),
+  hardConstraints: z.array(z.string()),
+  convergenceEstimate: z.number().min(1),
+  convergenceRationale: z.string(),
+  overallFeasibility: z.number().min(0).max(1),
+});
+
 // ── Options ─────────────────────────────────────────────────
 
 export interface MotorCortexOpts {
@@ -116,15 +153,30 @@ export interface MotorCortexOpts {
   revision?: RevisionContext;
   /** Previous work artifact for primary motor revision context. */
   previousWork?: string;
+  /** Cognitive Flexibility: re-plan from scratch with these constraints. */
+  resetDirective?: import("../types/cognitive-flexibility.js").ResetDirective;
+  /** Norepinephrine level — passed to PNS for tool activation curation. */
+  neLevel?: number;
+  /** Abort signal for cancellation. */
+  signal?: AbortSignal;
+  /**
+   * Mid-build sense consultation callback. When the builder hits ambiguity,
+   * it calls this to ask a specific sense (or the user) a clarifying question.
+   * Wired up by the build-cycle rhythm, which routes through the Thalamus.
+   * The Motor Cortex stays decoupled from routing — it just asks and gets an answer.
+   */
+  questionHandler?: QuestionHandler;
 }
 
 // ── Class ───────────────────────────────────────────────────
 
 export class MotorCortex {
   private config: CortexConfig;
+  private pns?: PeripheralNervousSystem;
 
-  constructor(config: CortexConfig) {
+  constructor(config: CortexConfig, pns?: PeripheralNervousSystem) {
     this.config = config;
+    this.pns = pns;
   }
 
   /**
@@ -143,7 +195,7 @@ export class MotorCortex {
     // ── Phase 1: Premotor ──────────────────────────────
     const plan = isRevision
       ? await this.premotorRevise(briefing, opts!.revision!)
-      : await this.premotorPlan(briefing);
+      : await this.premotorPlan(briefing, opts?.resetDirective);
 
     emit("motor:plan-complete", {
       taskId,
@@ -154,11 +206,26 @@ export class MotorCortex {
     });
 
     // ── Phase 2: Primary Motor ─────────────────────────
-    const work = await this.primaryProduce(briefing, plan, opts?.previousWork);
+    let work: string;
+    let agenticResult: AgenticMotorResult | undefined;
+
+    if (this.pns) {
+      // Agentic mode: real tools, multi-turn. The builder acts in the world.
+      agenticResult = await this.primaryProduceAgentic(
+        briefing, plan, opts?.previousWork, opts?.neLevel, opts?.signal,
+      );
+      work = agenticResult.summary;
+    } else {
+      // Legacy mode: single-turn text artifact.
+      work = await this.primaryProduce(briefing, plan, opts?.previousWork);
+    }
 
     emit("motor:build-complete", {
       taskId,
       outputLength: work.length,
+      agentic: !!agenticResult,
+      toolCalls: agenticResult?.toolTrace.length,
+      turns: agenticResult?.turns,
     });
 
     // ── Phase 3: Proprioception (optional) ─────────────
@@ -180,6 +247,7 @@ export class MotorCortex {
     emit("motor:complete", {
       taskId,
       outputLength: work.length,
+      agentic: !!agenticResult,
       planConfidence: plan.confidence,
       proprioceptionConfidence: selfAssessment?.confidence,
       intentionCount: intentions.length,
@@ -188,27 +256,175 @@ export class MotorCortex {
     log.info("Motor cortex complete", {
       taskId,
       isRevision,
+      agentic: !!agenticResult,
       planConfidence: plan.confidence,
       proprioceptionConfidence: selfAssessment?.confidence,
       outputLength: work.length,
       intentionCount: intentions.length,
     });
 
-    return { work, plan, selfAssessment, intentions };
+    return { work, agenticResult, plan, selfAssessment, intentions };
+  }
+
+  /**
+   * Ask a sense (or user) a clarifying question mid-build.
+   *
+   * The Motor Cortex doesn't know who answers — it formulates the question
+   * and calls the questionHandler, which routes through the Thalamus.
+   * The Thalamus decides: route to a sense (internal) or escalate to the
+   * user (external, through PNS).
+   *
+   * NE modulates the threshold for asking. High NE (unfamiliar territory)
+   * = lower bar, more questions allowed. Low NE (well-trodden ground)
+   * = the builder should be making most calls autonomously.
+   *
+   * Returns null if no questionHandler is wired up (graceful degradation).
+   */
+  async askSenseQuestion(
+    question: BuildQuestion,
+    questionHandler?: QuestionHandler,
+  ): Promise<BuildAnswer | null> {
+    if (!questionHandler) {
+      log.warn("Build question asked but no questionHandler wired — skipping", {
+        questionId: question.id,
+        taskId: question.taskId,
+      });
+      return null;
+    }
+
+    emit("motor:question-asked", {
+      questionId: question.id,
+      taskId: question.taskId,
+      targetDimension: question.targetDimension,
+      hasOptions: !!question.options?.length,
+    });
+
+    log.info("Asking mid-build question", {
+      questionId: question.id,
+      taskId: question.taskId,
+      targetDimension: question.targetDimension,
+    });
+
+    const answer = await questionHandler(question);
+
+    emit("motor:question-answered", {
+      questionId: question.id,
+      taskId: question.taskId,
+      sourceType: answer.source.type,
+      sourceSenseId: answer.source.type === "sense" ? answer.source.senseId : undefined,
+      confidence: answer.confidence,
+    });
+
+    log.info("Mid-build question answered", {
+      questionId: question.id,
+      sourceType: answer.source.type,
+      confidence: answer.confidence,
+    });
+
+    return answer;
+  }
+
+  /**
+   * Efference copy: predict what the builder can achieve BEFORE senses deliberate.
+   * One lightweight structured LLM call that assesses per-sense buildability,
+   * tension costs, hard constraints, and convergence estimates.
+   *
+   * Counterpart to proprioception:
+   *   proprioception = feedback AFTER building
+   *   efference copy = feedforward BEFORE building
+   */
+  async predictFeasibility(
+    context: EfferenceCopyContext,
+  ): Promise<EfferenceCopy> {
+    const model =
+      this.config.models.efferenceCopy ??
+      this.config.models.premotor ??
+      this.config.models.motorCortex;
+
+    log.info("Efference copy: assessing feasibility", {
+      taskId: context.task.id,
+      activeSenses: context.activeSenses.length,
+      similarEpisodes: context.similarEpisodes.length,
+    });
+
+    const raw = await callStructured(
+      "efference-copy",
+      model,
+      efferenceCopySystem(),
+      efferenceCopyUser(context),
+      EfferenceCopyOutputSchema,
+      2048,
+    );
+
+    const efferenceCopy: EfferenceCopy = {
+      taskId: context.task.id,
+      perSense: raw.perSense,
+      tensionCosts: raw.tensionCosts,
+      hardConstraints: raw.hardConstraints,
+      convergenceEstimate: raw.convergenceEstimate,
+      convergenceRationale: raw.convergenceRationale,
+      overallFeasibility: raw.overallFeasibility,
+      computedAt: new Date(),
+    };
+
+    emit("motor:efference-copy", {
+      taskId: context.task.id,
+      senseCount: efferenceCopy.perSense.length,
+      tensionCostCount: efferenceCopy.tensionCosts.length,
+      hardConstraintCount: efferenceCopy.hardConstraints.length,
+      convergenceEstimate: efferenceCopy.convergenceEstimate,
+      overallFeasibility: efferenceCopy.overallFeasibility,
+    });
+
+    log.info("Efference copy complete", {
+      taskId: context.task.id,
+      overallFeasibility: efferenceCopy.overallFeasibility,
+      convergenceEstimate: efferenceCopy.convergenceEstimate,
+      senseCount: efferenceCopy.perSense.length,
+    });
+
+    return efferenceCopy;
   }
 
   // ── Private: Premotor (first cycle) ─────────────────────
 
-  private async premotorPlan(briefing: MotorBriefing): Promise<MotorPlan> {
+  private async premotorPlan(
+    briefing: MotorBriefing,
+    resetDirective?: import("../types/cognitive-flexibility.js").ResetDirective,
+  ): Promise<MotorPlan> {
     const model = this.config.models.premotor ?? this.config.models.motorCortex;
 
-    log.info("Premotor planning", { taskId: briefing.task.id });
+    log.info("Premotor planning", {
+      taskId: briefing.task.id,
+      isStrategyReset: !!resetDirective,
+    });
+
+    let userPrompt = premotorUser(briefing);
+
+    // Cognitive Flexibility: strategy reset — re-plan with constraints
+    if (resetDirective) {
+      const resetSection = [
+        "\nSTRATEGY RESET — the previous approach failed. Here's what to do differently:",
+        "",
+        resetDirective.avoidApproaches.length > 0
+          ? `AVOID these approach types: ${resetDirective.avoidApproaches.join(", ")}`
+          : "",
+        resetDirective.retainFromCurrent.length > 0
+          ? `RETAIN from current approach: ${resetDirective.retainFromCurrent.join(", ")}`
+          : "",
+        `NEW DIRECTION: ${resetDirective.suggestedDirection}`,
+        "",
+        "Re-plan from scratch. Do not revise the previous approach — design a fundamentally new one.",
+      ].filter(Boolean).join("\n");
+
+      userPrompt = resetSection + "\n\n" + userPrompt;
+    }
 
     return callStructured<MotorPlan>(
       "premotor",
       model,
       premotorSystem(),
-      premotorUser(briefing),
+      userPrompt,
       MotorPlanSchema,
       4096,
     );
@@ -259,6 +475,50 @@ export class MotorCortex {
     );
 
     return result.text;
+  }
+
+  // ── Private: Primary Motor (Agentic) ──────────────────────
+
+  private async primaryProduceAgentic(
+    briefing: MotorBriefing,
+    plan: MotorPlan,
+    previousWork?: string,
+    neLevel?: number,
+    signal?: AbortSignal,
+  ): Promise<AgenticMotorResult> {
+    const ne = neLevel ?? 0.5;
+    const toolSet = this.pns!.activateToolsForTask(
+      briefing.task.description,
+      ne,
+    );
+
+    log.info("Primary motor producing (agentic)", {
+      taskId: briefing.task.id,
+      neLevel: ne,
+      tools: toolSet.tools,
+      isRevision: !!previousWork,
+    });
+
+    const result = await agenticCall(
+      "agenticMotor",
+      this.config.models.motorCortex,
+      motorCortexAgenticSystem(),
+      motorCortexAgenticUser(briefing, plan, previousWork),
+      toolSet,
+      {
+        maxTurns: ne > 0.7 ? 20 : ne > 0.3 ? 15 : 10,
+        signal,
+      },
+    );
+
+    log.info("Primary motor complete (agentic)", {
+      taskId: briefing.task.id,
+      turns: result.turns,
+      toolCalls: result.toolTrace.length,
+      durationMs: result.durationMs,
+    });
+
+    return result;
   }
 
   // ── Private: Proprioception ─────────────────────────────

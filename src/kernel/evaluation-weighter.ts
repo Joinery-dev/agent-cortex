@@ -10,7 +10,7 @@
  * stake accuracy based on dopamine signal.
  */
 
-import type { SenseEvaluation, TensionFlag } from "../types/sense.js";
+import type { SenseEvaluation, TensionFlag, ImprovementPotential, EvaluatorObservation } from "../types/sense.js";
 import type { Consultation } from "../types/consultation.js";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -24,6 +24,10 @@ export interface WeightedEvaluation {
   assessment: string;
   tensions: TensionFlag[];
   suggestions: string[];
+  /** Would re-engaging the parent sense's consultation meaningfully improve the work? */
+  improvementPotential: ImprovementPotential;
+  /** Structured observations from agentic evaluation — what the evaluator actually saw/measured. */
+  observations?: EvaluatorObservation[];
   /** Stake inherited from the parent sense's consultation. */
   stake: number;
   /** Stake after adjustment by Plasticity (identity for now). */
@@ -96,6 +100,41 @@ export function weighEvaluations(
       assessment: evaluation.assessment,
       tensions: evaluation.tensions,
       suggestions: evaluation.suggestions,
+      improvementPotential: evaluation.improvementPotential,
+      observations: evaluation.observations,
+      stake: rawStake,
+      adjustedStake,
+      weightedScore: evaluation.score * adjustedStake,
+    };
+  });
+}
+
+/**
+ * Join evaluations with externally-provided stakes (no consultation required).
+ *
+ * Used by integration checks where stakes are derived from WM score history
+ * rather than a consultation's stake distribution. Root sense name is read
+ * from activationPath[0], same as weighEvaluations().
+ */
+export function weighEvaluationsWithStakes(
+  evaluations: SenseEvaluation[],
+  stakeMap: Map<string, number>,
+  adjuster: StakeAdjuster = identityAdjuster,
+): WeightedEvaluation[] {
+  return evaluations.map((evaluation): WeightedEvaluation => {
+    const rootSenseName = evaluation.activationPath[0];
+    const rawStake = stakeMap.get(rootSenseName) ?? 0;
+    const adjustedStake = adjuster(evaluation.senseId, rawStake);
+
+    return {
+      senseId: evaluation.senseId,
+      activationPath: evaluation.activationPath,
+      score: evaluation.score,
+      acceptable: evaluation.acceptable,
+      assessment: evaluation.assessment,
+      tensions: evaluation.tensions,
+      suggestions: evaluation.suggestions,
+      improvementPotential: evaluation.improvementPotential,
       stake: rawStake,
       adjustedStake,
       weightedScore: evaluation.score * adjustedStake,

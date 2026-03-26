@@ -31,6 +31,7 @@
 export type DeltaSource =
   | "dopamine"
   | "satisfaction"
+  | "resolution"
   | "decay"
   | "settle"
   | "registration";
@@ -271,6 +272,11 @@ export const FIXED_CONNECTIONS = [
   { source: "VitalSigns", target: "Homeostasis", dataFlowing: "WM load, prediction accuracy, context capacity, weight volatility" },
   // Human partnership
   { source: "Escalation", target: "Human", dataFlowing: "Questions, proposals, drift alerts, urgent issues" },
+  { source: "DriftMonitor", target: "TasteFeedbackLoop", dataFlowing: "Taste divergence items from deep analysis" },
+  { source: "TasteFeedbackLoop", target: "Escalation", dataFlowing: "Taste divergence proposals for human" },
+  { source: "Human", target: "SatisfactionSignal", dataFlowing: "Approval, correction, override responses" },
+  { source: "SatisfactionSignal", target: "PlasticityStore", dataFlowing: "Satisfaction-driven weight deltas" },
+  { source: "SatisfactionSignal", target: "TasteProfile", dataFlowing: "Taste profile mutations when approved" },
   // Drift → scheduling
   { source: "DriftMonitor", target: "AttentionScheduler", dataFlowing: "Drift level and trajectory summary" },
 ] as const satisfies readonly FixedConnection[];

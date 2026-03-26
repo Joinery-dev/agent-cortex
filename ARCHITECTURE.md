@@ -129,6 +129,15 @@ This is how the system avoids starting from scratch on each task. Not through me
 ### 8. Thalamus
 Central relay. Routes the right context to the right consumer. Draws from working memory, intent, taste, inhibition signals, prospective triggers, episodes, crystallized principles, predictions, arousal level. Contextual extraction, not concatenation — each consumer gets exactly what it needs.
 
+**The artistry of specification.** The Thalamus doesn't just decide *what* context to include — it decides *how much freedom to leave.* Modulated by NE and the PFC's conviction level:
+
+- **High NE / exploit / high conviction:** Prescriptive briefings. Rich context, established patterns emphasized, constraints explicit, approach guidance tight. "The visual language is dark/bold. The component pattern is card-based. The phase gate checks consistency." The builder knows exactly what's expected and executes against it.
+- **Low NE / explore / low conviction:** Invitational briefings. Intent clear, constraints non-negotiable, but the approach deliberately under-specified. "Here's what the senses care about. Here are the hard constraints. The rest is yours — surprise us." The builder has room to exceed the specification.
+
+This isn't about more context vs less context. A prescriptive briefing and an invitational briefing can contain the same information, framed differently. One constrains. The other invites. The PFC decides which framing serves the outcome — and sometimes the best outcome comes from under-specifying on purpose, to enable the builder to produce something better than what was imagined.
+
+> *"I under specify it on purpose to enable 43,000 people to make it even better than what I imagined."* — Jensen Huang
+
 ---
 
 ## 👁️ Sensory Cortex — per-task loop
@@ -141,6 +150,36 @@ Generates 3-5 divergent *paths* from the current state to the manifested future.
 
 ### 11. Motor Cortex
 The builder. Premotor plans the implementation approach. Primary motor produces the artifact. Proprioception provides real-time feedback mid-build for self-correction. Connected to Cerebellum for prediction/correction (cerebellum is primarily a motor coordination organ in the brain).
+
+**Efference copy.** Before building, the Motor Cortex sends a prediction of what it *can* produce — its limits, capabilities, and difficulty estimates — so the senses can calibrate their expectations against reality. This runs during sensory-cortex prepare, before consultation. One lightweight LLM call that receives:
+- PNS capabilities (what tools/APIs/frameworks are available)
+- Cerebellum's similar episodes (what happened with comparable tasks)
+- Speed-of-light ceiling (historical best-case per dimension)
+- Current codebase context (what exists, what patterns are established)
+
+And produces per-sense ceiling estimates, tension cost assessments, hard constraints, and convergence estimates. The Thalamus includes the efference copy in every sense's consultation briefing, so the senses deliberate with awareness of what's actually buildable — not just what's desirable.
+
+This is the counterpart to proprioception: proprioception is feedback *after* building (did the artifact follow the plan?). The efference copy is feedforward *before* building (what can the builder actually achieve?). In the brain, efference copies let other regions prepare for and adjust expectations around a planned movement. Here, they let senses adjust their ambitions around what's achievable.
+
+Without the efference copy, the senses might consult and conclude "we need a highly interactive, beautifully animated, fully accessible, blazing fast component." With it, the senses hear "combining Design + Performance above 7/7 requires animation trade-offs that double build complexity" and adjust their ambitions accordingly. The consultation produces a more realistic plan because it was informed by the builder's ground truth — the same way Jensen's hardware engineers brief the room on what the silicon can do before the architects design the system.
+
+**Mid-build sense consultation (AskSenseQuestion).** During building, the Motor Cortex may hit ambiguity that the specification didn't resolve. Rather than guessing (risky) or building it wrong and waiting for evaluation (wasteful), the builder can pause and ask a targeted question to a specific sense — treating it as a domain expert on the team.
+
+The builder formulates a `BuildQuestion` with the specific question, build context, and optionally the target dimension. The Thalamus routes it:
+1. If `targetDimension` matches a sense with sufficient stake → route to that sense
+2. If no dimension match → route to the highest-stake sense
+3. If no sense has sufficient stake → escalate to the user (same mechanism, different audience — unified escalation path)
+
+The sense receives a lightweight `SenseQuestionBriefing` (not a full consultation) containing the question, its original perspective, and task context. It answers from its dimension's perspective — a targeted response, not a mini-evaluation.
+
+Norepinephrine modulates the threshold for asking. High NE (unfamiliar territory, immature system) = lower bar, more questions allowed. Low NE (well-trodden ground, high prediction accuracy) = the builder should be making most calls autonomously. This mirrors how a junior engineer asks more questions and a senior one asks fewer — not because seniors don't have ambiguities, but because they've built calibration.
+
+The question must be specific and answerable: "should this error surface as a Result type or propagate as an exception?" — not "what should this function do?" The sense gives a targeted answer, not an open-ended opinion.
+
+This completes the Motor Cortex's feedback triangle:
+- **Efference copy** — feedforward *before* building (what can I achieve?)
+- **Mid-build consultation** — targeted questions *during* building (what did you mean?)
+- **Proprioception** — self-assessment *after* building (did I follow the plan?)
 
 ### 12. Evaluation
 Score on activated receptors from competing perspectives. Per-sense weights (from plasticity) shape how much influence each evaluation has. Competing perspectives create creative tension — Goodhart's law protection through orthogonal evaluation axes.
@@ -228,10 +267,18 @@ Without this signal, the learning systems are recording but not learning.
 ### 22. Norepinephrine
 Arousal/thoroughness dial. Continuous, not binary (that's the Amygdala). Modulates how much attention the entire system gives to everything it does:
 
-- **High** → more senses activated, lower acceptance thresholds, more revision cycles allowed
+- **High** → more senses activated, lower acceptance thresholds, more revision cycles allowed, more checkpoints mid-build
 - **Low** → fewer senses, higher thresholds, fast-tracked
 
-Set by Planner based on task characteristics (risk, novelty, complexity). Spiked by Amygdala for urgent situations. This is the difference between careful evaluation of an auth system and quick approval of a copy change.
+Computed from multiple signals:
+- **Task novelty** — how different this task is from anything the system has seen (Cerebellum episode similarity)
+- **Task risk** — stakes, constraint tightness, phase gate proximity
+- **Prediction accuracy** — the Cerebellum's overall calibration. This is the developmental signal: a poorly-calibrated system (few episodes, low accuracy) has high baseline NE because everything is uncertain. As the system matures and predictions improve, baseline NE drops. The training wheels come off automatically as the system learns.
+- **Conviction level** — low conviction from the PFC reasoning loop raises NE. The system pays more attention when its own reasoning isn't convincing itself.
+
+Spiked by Amygdala for urgent situations. This is both the difference between careful evaluation of an auth system and quick approval of a copy change, AND the difference between a system on its first project and a system that has built fifty.
+
+NE also modulates the Thalamus's specification artistry. High NE → prescriptive briefings (constrain the builder). Low NE → invitational briefings (leave room for the builder to exceed the specification). The PFC's conviction level determines which framing serves the outcome — high conviction prescribes, low conviction invites exploration.
 
 ---
 

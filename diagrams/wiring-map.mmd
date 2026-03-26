@@ -1,0 +1,44 @@
+---
+title: "Wiring Map — Three Loops That Make It Alive"
+scope: global
+---
+flowchart TD
+    %% === THE MAIN SPINE ===
+
+    SOURCES["**DATA SOURCES**<br/>Working Memory · Hippocampus · Cerebellum<br/>PNS · Project Context · World Model<br/>Task Graph · Homeostasis"]
+
+    SOURCES ==>|"all 8 sources"| THAL
+
+    THAL{{"**THALAMUS**<br/>central relay<br/>assembles per-consumer briefings"}}
+
+    THAL ==>|"consultation · motor<br/>evaluation · inhibition<br/>scheduling"| CONSUMERS
+
+    CONSUMERS["**CONSUMERS**<br/>Senses · Motor Cortex · Evaluators<br/>Inhibitor · Scheduler"]
+
+    CONSUMERS ==>|"consult → build → evaluate"| RESULTS(("**Results**"))
+
+    %% === LOOP 1 FEEDBACK: back to top ===
+    RESULTS -.->|"① scores → WM<br/>accuracy → Cerebellum<br/>efference copy → Thalamus<br/>suppressed senses → WM"| SOURCES
+
+    %% === LOOP 2: EXECUTIVE ===
+    SOURCES -->|"direct reads<br/>(bypass Thalamus)"| PFC
+
+    PFC["**PFC — executive**<br/>Conviction · Drift Monitor · Planner<br/>Prospective Prep · NE · Cog Flexibility"]
+
+    PFC -.->|"② manifested future<br/>forward briefing<br/>NE modulation"| THAL
+    PFC -.->|"NE modulates<br/>Inhibitor + Eval strategy"| CONSUMERS
+
+    %% === LOOP 3: LEARNING ===
+    RESULTS ==>|"Cerebellum compares<br/>predicted vs actual"| SUBCORT
+
+    SUBCORT["**SUBCORTICAL — learning**<br/>Dopamine → BG · Plasticity · Tonic<br/>encoding strength → Hippocampus"]
+
+    SUBCORT -.->|"③ updated episodes<br/>routine weights<br/>sense weights"| SOURCES
+
+    %% === STYLES ===
+    style SOURCES fill:#e8e0f0,stroke:#7c6af0,color:#1a1a2e
+    style THAL fill:#bfdbfe,stroke:#2563eb,color:#1a1a2e
+    style CONSUMERS fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style RESULTS fill:#f0fdf4,stroke:#16a34a,color:#1a1a2e
+    style PFC fill:#fce7f3,stroke:#db2777,color:#1a1a2e
+    style SUBCORT fill:#ffedd5,stroke:#ea580c,color:#1a1a2e

@@ -158,6 +158,39 @@ export interface Capability {
   category: CapabilityCategory;
   available: boolean; // can change per-project or per-task
   constraints?: string[];
+  /** Links this capability to a concrete tool implementation. */
+  toolBinding?: ToolBinding;
+}
+
+// ── Tool Binding ─────────────────────────────────────────────────
+// Maps a Capability to its concrete implementation. The PNS uses
+// these bindings to translate capability activations into Agent SDK
+// tool configurations.
+
+export interface ToolBinding {
+  /** How this tool is provided. */
+  kind: "agent-sdk" | "mcp" | "shell";
+  /** Agent SDK tool name (e.g., "Read", "Bash") or MCP tool name. */
+  toolName: string;
+  /** MCP server name, when kind === "mcp". */
+  serverName?: string;
+  /** Innate capabilities are always available; acquired ones enter through tasks. */
+  innate: boolean;
+}
+
+// ── Activated Tool Set ───────────────────────────────────────────
+// The PNS curates which tools the Motor Cortex gets per-task,
+// modulated by Norepinephrine level and Amygdala constraints.
+
+export interface ActivatedToolSet {
+  /** SDK tool names to pass to query().options.tools. */
+  tools: string[];
+  /** SDK tool names to auto-allow without permission prompt. */
+  allowedTools: string[];
+  /** Natural language summary for the motor cortex prompt. */
+  systemContext: string;
+  /** Capability IDs that were activated (for tracing). */
+  activatedCapabilityIds: string[];
 }
 
 export type AfferentCategory =

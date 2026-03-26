@@ -25,7 +25,15 @@ import type {
   InhibitedSense,
   TaskSummary,
   OscillationSignal,
+  ConvictionEntry,
+  ConvictionTrajectory,
 } from "../types/working-memory.js";
+import type {
+  TerritoryObservation,
+  ObservationStatus,
+} from "../types/territory-observation.js";
+import { observationPressure } from "../types/territory-observation.js";
+import type { ConvictionResult } from "../types/conviction.js";
 import type { SenseEvaluation } from "../types/sense.js";
 import type { DecisionRecord } from "../types/intent.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
@@ -39,8 +47,18 @@ const log = createLogger("working-memory");
 /** Threshold on the 10-point scale for trending up/down. */
 const DIRECTION_THRESHOLD = 0.5;
 
+/** Conviction direction threshold — 5% of 0-1 range (proportional to score threshold). */
+const CONVICTION_DIRECTION_THRESHOLD = 0.05;
+
 export class WorkingMemory {
   private state: WorkingMemoryState;
+
+  /**
+   * Single-writer guard. Detects if two mutation contexts overlap.
+   * All mutations are synchronous today — this assertion ensures that
+   * invariant is never silently violated if parallelism is added later.
+   */
+  private activeWriter: string | null = null;
 
   constructor(projectId: string) {
     this.state = {
@@ -52,6 +70,8 @@ export class WorkingMemory {
       patterns: [],
       inhibitedSenses: [],
       openQuestions: [],
+      convictionLedger: [],
+      observations: [],
       lastUpdated: new Date(),
     };
   }
@@ -167,6 +187,27 @@ export class WorkingMemory {
       confidence: result.confidence,
       weightedMean: weightedMean.toFixed(2),
     });
+  }
+
+  /**
+   * Reopen a completed task for rework. Resets status to "pending"
+   * and clears the summary so it can re-execute through the normal
+   * lifecycle. Called by graph surgery rework operations.
+   */
+  reopenTask(taskId: string, reason: string): void {
+    const task = this.findTask(taskId);
+    if (task.status !== "complete") {
+      throw new Error(
+        `Cannot reopen task ${taskId}: status is "${task.status}", expected "complete"`,
+      );
+    }
+
+    task.status = "pending";
+    task.summary = undefined;
+    this.touch();
+
+    emit("wm:task-reopened", { taskId, reason });
+    log.info("Task reopened for rework", { taskId, reason });
   }
 
   failTask(taskId: string, reason?: string): void {
@@ -538,6 +579,213 @@ export class WorkingMemory {
     return this.state.openQuestions.filter((q) => q.resolvedAt === undefined);
   }
 
+  // ── Conviction Ledger ──────────────────────────────────────────
+
+  /**
+   * Record a conviction result from a task-dispatch gate.
+   * Builds the trajectory that triage and diagnostics read.
+   */
+  recordConviction(
+    result: ConvictionResult,
+    taskId: string | null,
+    replanGeneration: number,
+  ): void {
+    const entry: ConvictionEntry = {
+      verdict: result.verdict,
+      level: result.level,
+      delta: result.delta,
+      decidingStep: result.decidingStep,
+      taskId,
+      replanGeneration,
+      recordedAt: new Date(),
+    };
+
+    this.state.convictionLedger.push(entry);
+    this.touch();
+
+    emit("wm:conviction-recorded", {
+      verdict: entry.verdict,
+      level: entry.level,
+      delta: entry.delta,
+      taskId,
+      replanGeneration,
+    });
+    log.info("Conviction recorded", {
+      verdict: entry.verdict,
+      level: entry.level.toFixed(2),
+      delta: entry.delta.toFixed(2),
+      taskId,
+      replanGeneration,
+    });
+  }
+
+  /** All conviction entries in chronological order. */
+  getConvictionHistory(): ConvictionEntry[] {
+    return [...this.state.convictionLedger];
+  }
+
+  /**
+   * Computed trajectory over the conviction ledger.
+   * Direction uses a conviction-scale threshold (0.05 on 0-1),
+   * not the score-scale threshold (0.5 on 1-10).
+   */
+  getConvictionTrajectory(): ConvictionTrajectory {
+    const entries = this.state.convictionLedger;
+
+    if (entries.length === 0) {
+      return {
+        levels: [],
+        direction: "stable",
+        currentLevel: 0.5,
+        generationCount: 0,
+        generationMeans: [],
+      };
+    }
+
+    const levels = entries.map((e) => e.level);
+
+    // Group by generation
+    const byGeneration = new Map<number, number[]>();
+    for (const entry of entries) {
+      let group = byGeneration.get(entry.replanGeneration);
+      if (!group) {
+        group = [];
+        byGeneration.set(entry.replanGeneration, group);
+      }
+      group.push(entry.level);
+    }
+
+    const generationMeans = [...byGeneration.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([generation, genLevels]) => ({
+        generation,
+        meanLevel: mean(genLevels),
+        entryCount: genLevels.length,
+      }));
+
+    return {
+      levels,
+      direction: computeConvictionDirection(levels),
+      currentLevel: levels[levels.length - 1],
+      generationCount: byGeneration.size,
+      generationMeans,
+    };
+  }
+
+  // ── Territory Observations ─────────────────────────────────────
+
+  /**
+   * Store a territory observation. Does NOT affect WM load / homeostasis.
+   * Observations have their own pressure metric via getObservationPressure().
+   */
+  addObservation(obs: TerritoryObservation): void {
+    this.state.observations.push(obs);
+    this.touch();
+
+    emit("wm:observation-added", {
+      id: obs.id,
+      fact: obs.fact,
+      source: obs.source,
+      relevance: obs.relevance,
+    });
+    log.info("Observation added", {
+      id: obs.id,
+      component: obs.source.component,
+      relevance: obs.relevance.toFixed(2),
+    });
+  }
+
+  /** Get observations, optionally filtered by status. */
+  getObservations(status?: ObservationStatus): TerritoryObservation[] {
+    if (status) {
+      return this.state.observations.filter((o) => o.status === status);
+    }
+    return [...this.state.observations];
+  }
+
+  /** Shorthand for observations with status "new". */
+  getNewObservations(): TerritoryObservation[] {
+    return this.getObservations("new");
+  }
+
+  /** Mark an observation as triaged by quick triage. */
+  markObservationTriaged(id: string): void {
+    const obs = this.state.observations.find((o) => o.id === id);
+    if (obs) {
+      obs.status = "triaged";
+      this.touch();
+    }
+  }
+
+  /** Restore an observation to "new" status. Used when a quick-triage proposal
+   *  that consumed this observation is later dropped (validation failure). The
+   *  observation should re-enter the pool so deep synthesis can pick it up. */
+  unmarkObservationTriaged(id: string): void {
+    const obs = this.state.observations.find((o) => o.id === id);
+    if (obs && obs.status === "triaged") {
+      obs.status = "new";
+      this.touch();
+    }
+  }
+
+  /** Mark an observation as consumed by deep synthesis. */
+  markObservationSynthesized(id: string, consumedBy: string): void {
+    const obs = this.state.observations.find((o) => o.id === id);
+    if (obs) {
+      obs.status = "synthesized";
+      obs.consumedBy = consumedBy;
+      this.touch();
+    }
+  }
+
+  /** Dismiss an observation as irrelevant. Tracks dismissal rate per source. */
+  dismissObservation(id: string): void {
+    const obs = this.state.observations.find((o) => o.id === id);
+    if (obs) {
+      obs.status = "dismissed";
+      this.touch();
+
+      emit("wm:observation-dismissed", {
+        id,
+        source: obs.source,
+      });
+    }
+  }
+
+  /**
+   * Dismissal rate per source component (0-1).
+   * High rates indicate a source is producing irrelevant observations
+   * and its relevance estimates should be discounted.
+   */
+  getDismissalRates(): Map<string, { total: number; dismissed: number; rate: number }> {
+    const bySource = new Map<string, { total: number; dismissed: number }>();
+
+    for (const obs of this.state.observations) {
+      const key = obs.source.component;
+      let entry = bySource.get(key);
+      if (!entry) {
+        entry = { total: 0, dismissed: 0 };
+        bySource.set(key, entry);
+      }
+      entry.total++;
+      if (obs.status === "dismissed") entry.dismissed++;
+    }
+
+    const rates = new Map<string, { total: number; dismissed: number; rate: number }>();
+    for (const [key, { total, dismissed }] of bySource) {
+      rates.set(key, { total, dismissed, rate: total > 0 ? dismissed / total : 0 });
+    }
+    return rates;
+  }
+
+  /**
+   * Observation pressure (0-1). Separate from WM load.
+   * High pressure signals that synthesis should run sooner.
+   */
+  getObservationPressure(): number {
+    return observationPressure(this.state.observations);
+  }
+
   // ── Reading ─────────────────────────────────────────────────────
 
   getTasks(): WMTask[] {
@@ -572,8 +820,13 @@ export class WorkingMemory {
     const decisionLoad = this.state.decisions.length / 100;
     const questionLoad =
       this.state.openQuestions.filter((q) => !q.resolvedAt).length / 20;
+    const convictionLoad = this.state.convictionLedger.length / 50;
 
-    const load = patternLoad * 0.4 + decisionLoad * 0.4 + questionLoad * 0.2;
+    const load =
+      patternLoad * 0.35 +
+      decisionLoad * 0.35 +
+      questionLoad * 0.2 +
+      convictionLoad * 0.1;
     return Math.min(1, load);
   }
 
@@ -606,6 +859,24 @@ export class WorkingMemory {
       throw new Error(`Task ${taskId} not found in working memory`);
     }
     return task;
+  }
+
+  /**
+   * Begin a named mutation. Throws if another mutation is in progress.
+   * Call endMutation() when done. Use try/finally to guarantee cleanup.
+   */
+  beginMutation(writerId: string): void {
+    if (this.activeWriter) {
+      throw new Error(
+        `WorkingMemory concurrent mutation: "${writerId}" attempted while "${this.activeWriter}" holds write access`,
+      );
+    }
+    this.activeWriter = writerId;
+  }
+
+  /** Release the mutation guard. */
+  endMutation(): void {
+    this.activeWriter = null;
   }
 
   private touch(): void {
@@ -657,4 +928,22 @@ function splitMeans(scores: number[]): {
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/**
+ * Conviction-scale direction. Same split-halves algorithm as score trends,
+ * but with a threshold proportional to the 0-1 range (5%) rather than
+ * the 10-point score range (0.5).
+ */
+function computeConvictionDirection(levels: number[]): TrendDirection {
+  if (levels.length < 2) return "stable";
+
+  const mid = Math.ceil(levels.length / 2);
+  const firstMean = mean(levels.slice(0, mid));
+  const secondMean = mean(levels.slice(mid));
+  const delta = secondMean - firstMean;
+
+  if (delta > CONVICTION_DIRECTION_THRESHOLD) return "up";
+  if (delta < -CONVICTION_DIRECTION_THRESHOLD) return "down";
+  return "stable";
 }

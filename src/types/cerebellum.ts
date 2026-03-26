@@ -38,9 +38,23 @@ export interface CerebellumEpisode {
   senseScores: Map<string, number>;
   /** Predicted scores per receptor, if a prediction was made. receptorId → score. */
   predictedScores: Map<string, number> | null;
+  /** Approach archetype tags from V2 classification (absent for pre-V2 episodes). */
+  approachTags?: string[];
   /** Monotonically increasing, for recency weighting. */
   sequenceNumber: number;
   recordedAt: Date;
+
+  // ── Cost metadata (for cost prediction learning) ────────────
+  /** Total dollar cost of this task execution. */
+  cost?: number;
+  /** Number of LLM calls made during this task. */
+  callCount?: number;
+  /** Cost breakdown by purpose (consultation, motor, evaluation, etc). */
+  costByPurpose?: Partial<Record<import("../llm/client.js").Purpose, number>>;
+  /** Which model tier was used for each purpose. */
+  modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
+  /** Thalamus briefing depth used during this task. */
+  briefingDepth?: import("./cost.js").BriefingDepth;
 }
 
 // ─── Predictions ────────────────────────────────────────────────
@@ -152,6 +166,71 @@ export interface AccuracyRecord {
   /** How many receptors were compared. */
   receptorCount: number;
   recordedAt: Date;
+}
+
+// ─── Speed of light ─────────────────────────────────────────────
+
+/** Per-sense component of the speed of light. */
+export interface SenseCeiling {
+  senseName: string;
+  senseId: string;
+  stake: number;
+  /** Theoretical max from the sense's domain expertise (1–10). */
+  ceiling: number;
+  /** Why — the physics. The inherent constraints. */
+  ceilingRationale: string;
+  /** Best score achieved on similar tasks (null if no history). */
+  bestAchieved: number | null;
+  /** ceiling - bestAchieved (null if no history). */
+  gap: number | null;
+}
+
+/**
+ * The speed of light — theoretical performance ceiling for a task.
+ *
+ * Computed from per-sense ceiling estimates (what physics allows)
+ * enriched with historical best-achieved data (what we've actually done).
+ * Flows into Thalamus briefings to calibrate planning and evaluation.
+ */
+export interface SpeedOfLight {
+  taskId: string;
+  /** Per-sense ceiling breakdown. */
+  perSense: SenseCeiling[];
+  /** Stake-weighted mean of per-sense ceilings. */
+  compositeCeiling: number;
+  /** Stake-weighted mean of per-sense best-achieved (null if insufficient history). */
+  compositeBestAchieved: number | null;
+  /** compositeCeiling - compositeBestAchieved (null if insufficient history). */
+  compositeGap: number | null;
+  /** Whether historical data exists for enrichment. */
+  hasHistory: boolean;
+  /** V2: approach-specific ceiling (present after approach classification). */
+  approachSpecific?: ApproachCeiling;
+  computedAt: Date;
+}
+
+/**
+ * V2: approach-specific performance ceiling.
+ *
+ * After the premotor plans an approach, one LLM call classifies it
+ * into archetype tags. Historical episodes with matching tags are
+ * filtered to compute approach-specific best-achieved.
+ *
+ * If the approach class consistently underperforms the overall ceiling,
+ * the approach is the bottleneck — rethink, don't optimize.
+ */
+export interface ApproachCeiling {
+  approachTags: string[];
+  /** Best scores achieved by this approach class on similar tasks. */
+  perSense: Array<{ senseName: string; bestAchieved: number | null }>;
+  /** Stake-weighted composite of approach-specific best-achieved. */
+  compositeBestAchieved: number | null;
+  /** How many approach-matched episodes contributed. */
+  episodesConsidered: number;
+  /** True when approach ceiling << overall ceiling. */
+  approachIsBottleneck: boolean;
+  /** Overall best-achieved - approach best-achieved. Positive = approach underperforms. */
+  bottleneckGap: number | null;
 }
 
 // ─── Similarity match (internal but exported for testing) ───────

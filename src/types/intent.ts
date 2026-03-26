@@ -7,6 +7,14 @@ export interface ProjectIntent {
   vision: string;
   keyDecisions: DecisionRecord[];
   driftLog: DriftEntry[];
+  /**
+   * Dollar budget for this project. Optional — unconstrained when absent.
+   * The budget is the metabolic constraint that forces the system to
+   * prioritize cognitive spending across tasks.
+   */
+  budget?: import("./cost.js").CostBudget;
+  /** Runtime configuration — how to start the project for observation (dev server, API, etc.). */
+  runtime?: import("./runtime.js").RuntimeConfig[];
 }
 
 export interface TasteProfile {
@@ -35,4 +43,10 @@ export interface DriftEntry {
   currentScope: string;
   delta: string;
   acknowledged: boolean;
+  /** Which drift monitor mode produced this entry. */
+  source: "quick-check" | "deep-analysis";
+  /** Drift level at the time this entry was logged (0–1). */
+  driftLevel: number;
+  /** Phase group that triggered this entry (deep analysis entries only). */
+  phaseGroup?: string;
 }

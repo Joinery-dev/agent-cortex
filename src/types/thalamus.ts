@@ -27,6 +27,9 @@ import type {
 import type { Capability } from "./pns.js";
 import type { InhibitionBriefing, InhibitionEnrichment } from "./basal-ganglia.js";
 import type { Episode, Principle } from "./hippocampus.js";
+import type { Maxim, Weltanschauung } from "./world-model.js";
+import type { CerebellumPrediction, ReceptorPrediction, SpeedOfLight, SenseCeiling } from "./cerebellum.js";
+import type { PredictedTension } from "./forward-briefing.js";
 
 // ─── Briefing Meta ───────────────────────────────────────────
 
@@ -39,6 +42,19 @@ export interface BriefingMeta {
   sources: string[];
   /** Count of enrichment items per category. */
   enrichmentCounts: Record<string, number>;
+  /**
+   * Specification artistry: how prescriptive vs invitational the briefing should be.
+   * 0 = fully invitational (low NE/conviction — under-specify, let the builder exceed).
+   * 1 = fully prescriptive (high NE/conviction — specify exactly, minimize variance).
+   * Consumers can use this to modulate prompt tone when ready.
+   */
+  toneDirectiveness?: number;
+  /** Estimated token count for this briefing. From token estimation utility. */
+  estimatedTokens?: number;
+  /** Which breathing depth was applied during assembly. */
+  depth?: import("./cost.js").BriefingDepth;
+  /** Sections dropped due to breathing depth constraints. */
+  droppedSections?: string[];
 }
 
 // ─── Consultation Briefing ───────────────────────────────────
@@ -57,6 +73,8 @@ export interface ConsultationBriefing {
 }
 
 export interface ConsultationEnrichment {
+  /** Taste dissolved into consumer-specific natural language guidance. */
+  dissolvedTaste?: string;
   /** What the system has established across prior tasks. */
   patterns: EstablishedPattern[];
   /** Key decisions made so far. */
@@ -69,8 +87,26 @@ export interface ConsultationEnrichment {
   openQuestions: OpenQuestion[];
   /** How many tasks have completed so far. */
   completedTaskCount: number;
+  /** What the system can physically do — grounding for sense recommendations. */
+  capabilitySummary?: string;
   /** Relevant principles from hippocampus (cross-project learning). */
   principles?: PrincipleSummary[];
+  /** Weltanschauung maxims — the system's integrated understanding. The frame. */
+  worldModelMaxims?: string[];
+  /** Sense pairs predicted to conflict — from prospective preparation. */
+  predictedTensions?: PredictedTension[];
+  /** Tactical notes from the completed task's conviction loop. */
+  convictionNotes?: string[];
+  /** Explore/exploit mode from Attention Scheduler. Shapes consultation framing. */
+  mode?: "explore" | "exploit";
+  /** Directives from Prospective Memory triggers fired for this task. */
+  prospectiveDirectives?: string[];
+  /** Motor Cortex's per-sense feasibility assessment — calibrate ambitions against buildability. */
+  efferenceCopy?: import("./efference-copy.js").EfferenceSenseFeasibility[];
+  /** Trade-off costs between sense dimensions identified by the Motor Cortex. */
+  efferenceTensionCosts?: import("./efference-copy.js").TensionCost[];
+  /** Hard constraints the builder cannot overcome regardless of approach. */
+  efferenceHardConstraints?: string[];
 }
 
 /** Simplified principle for inclusion in briefings. */
@@ -96,6 +132,8 @@ export interface MotorBriefing {
 }
 
 export interface MotorEnrichment {
+  /** Taste dissolved into builder-specific natural language guidance. */
+  dissolvedTaste?: string;
   /** Established patterns — builder MUST maintain these. */
   patterns: EstablishedPattern[];
   /** All decisions made so far. */
@@ -108,6 +146,24 @@ export interface MotorEnrichment {
   capabilities: string;
   /** Principles relevant to this task's active senses. */
   principles?: PrincipleSummary[];
+  /** Cerebellum's predicted scores before building. Present after cold start. */
+  prediction?: CerebellumPrediction;
+  /** Speed of light — theoretical performance ceiling. Always present when senses provide ceilings. */
+  speedOfLight?: SpeedOfLight;
+  /** Weltanschauung maxims — the system's integrated understanding. The frame. */
+  worldModelMaxims?: string[];
+  /** Predicted build cycles based on similar past tasks. */
+  predictedCycles?: number;
+  /** Tactical approach notes from conviction shaping. */
+  approachNotes?: string[];
+  /** Senses identified as bottlenecks (below ceiling, trending poorly). */
+  bottleneckSenses?: string[];
+  /** Explore/exploit mode from Attention Scheduler. Shapes motor framing. */
+  mode?: "explore" | "exploit";
+  /** Directives from Prospective Memory triggers fired for this task. */
+  prospectiveDirectives?: string[];
+  /** Selected explore path — strong guidance for the premotor's approach. */
+  selectedPath?: import("./explore.js").ExplorePath;
 }
 
 // ─── Evaluation Briefing ─────────────────────────────────────
@@ -124,6 +180,12 @@ export interface EvaluationBriefing {
   relevantPatterns: EstablishedPattern[];
   /** Principles relevant to this evaluator's sense. */
   relevantPrinciples?: PrincipleSummary[];
+  /** Cerebellum's predicted score for this specific receptor. */
+  prediction?: ReceptorPrediction;
+  /** Theoretical ceiling for this evaluator's sense dimension. */
+  senseCeiling?: SenseCeiling;
+  /** True if this evaluator's sense has been identified as a bottleneck. */
+  isBottleneck?: boolean;
   meta: BriefingMeta;
 }
 
@@ -146,6 +208,115 @@ export interface SchedulingBriefing {
   /** Unresolved questions. */
   openQuestions: OpenQuestion[];
   meta: BriefingMeta;
+}
+
+// ─── Escalation Briefing ─────────────────────────────────────
+
+/**
+ * What the human receives when the system escalates.
+ * Assembled by the Thalamus so escalation messages have full context,
+ * not just a raw error string. Non-task-scoped (like forScheduling).
+ */
+export interface EscalationBriefing {
+  /** The escalation record being surfaced. */
+  escalation: import("./brainstem.js").Escalation;
+  /** What the system was doing when it escalated. */
+  rhythmContext: EscalationRhythmContext;
+  /** Current project state relevant to the escalation. */
+  projectSnapshot: EscalationProjectSnapshot;
+  meta: BriefingMeta;
+}
+
+/** Rhythm state at the moment of escalation. */
+export interface EscalationRhythmContext {
+  rhythmId: string;
+  rhythmType: string;
+  phase: import("./rhythm.js").RhythmPhase;
+  cycle: number;
+  parentRhythmType?: string;
+}
+
+/** Project-level snapshot for escalation context. */
+export interface EscalationProjectSnapshot {
+  /** Intent summary — what the project is trying to achieve. */
+  intentSummary: string;
+  /** How many tasks completed vs total. */
+  completedTasks: number;
+  totalTasks: number;
+  /** Unresolved open questions (the ones that may need answering). */
+  openQuestions: OpenQuestion[];
+  /** Current sense trends — which dimensions are improving/declining. */
+  senseTrends: ScoreTrend[];
+  /** Drift level if available. */
+  driftLevel?: number;
+  /** World model maxims if available — the system's current understanding. */
+  worldModelMaxims?: string[];
+  /** Per-sense assessments of the escalation — domain expert perspectives. */
+  senseAssessments?: Array<{
+    senseId: string;
+    senseName: string;
+    assessment: string;
+    recentTrend: ScoreTrend | null;
+  }>;
+}
+
+// ─── Integration Check Briefing ─────────────────────────────
+
+/**
+ * What the integration checker's per-sense evaluators receive.
+ * Assembled by Thalamus from phase task results + accumulated context.
+ * The phaseWork array is the "collective artifact" being evaluated.
+ */
+export interface IntegrationCheckBriefing {
+  phaseGroup: string;
+  gateCondition: string;
+  manifestedFuture: string | null;
+  /** Work produced by each task in the phase. */
+  phaseWork: Array<{ taskId: string; description: string; work: string; confidence: number }>;
+  enrichment: IntegrationCheckEnrichment;
+  meta: BriefingMeta;
+}
+
+export interface IntegrationCheckEnrichment {
+  /** Patterns established during/before this phase. */
+  patterns: EstablishedPattern[];
+  /** Sense trends across the phase. */
+  senseTrends: ScoreTrend[];
+  /** Relevant principles from hippocampus. */
+  principles: PrincipleSummary[];
+}
+
+// ─── Sense Question Briefing ─────────────────────────────────
+
+/**
+ * What a sense receives when the Motor Cortex asks it a mid-build question.
+ * Lighter than a full consultation — targeted context for a specific question.
+ * The sense answers from its dimension's perspective, not as a general Q&A.
+ */
+export interface SenseQuestionBriefing {
+  /** The question from the builder. */
+  question: import("./motor-cortex.js").BuildQuestion;
+  /** The sense's original perspective from consultation — what it already said. */
+  originalPerspective: string;
+  /** The task being worked on. */
+  task: Task;
+  /** Build progress so far — what's been done, what remains. */
+  buildProgress?: string;
+  meta: BriefingMeta;
+}
+
+/**
+ * Thalamus routing decision for a mid-build question.
+ * Deterministic routing based on dimension matching and stake analysis.
+ * Falls back to user when no sense has sufficient expertise.
+ */
+export interface QuestionRouting {
+  questionId: string;
+  route: "sense" | "user";
+  /** Target sense when routed internally. */
+  targetSenseId?: string;
+  /** Why the Thalamus chose this route. */
+  rationale: string;
 }
 
 // ─── Categorical getter return types ─────────────────────────
@@ -196,11 +367,26 @@ export interface ThalamusSources {
 
   // Phase 3
   hippocampus?: HippocampusSource;
+  worldModel?: WorldModelSource;
   // cerebellum?: { ... }
   // basalGanglia?: { ... }
 
   // Phase 4
   // getArousal?: () => number;
+}
+
+/**
+ * What the Thalamus reads from the World Model.
+ * The maxims are the system's Weltanschauung — compressed wisdom
+ * that frames all briefings.
+ */
+export interface WorldModelSource {
+  /** Just the statement strings, for inclusion in briefings. */
+  getMaximsForBriefing(): string[];
+  /** Full maxims from both scopes. */
+  getAllMaxims(): Maxim[];
+  /** Full Weltanschauung snapshot — needed by gestalt assembly for metadata. */
+  getWeltanschauung(): Weltanschauung | null;
 }
 
 /**

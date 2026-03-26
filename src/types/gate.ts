@@ -30,6 +30,17 @@ export interface SignalLandscape {
   recentDopamine?: number;
   /** Working memory load. 0–1. From brainstem homeostasis. */
   wmLoad?: number;
+  /** Conviction level from PFC conviction loop. 0–1. Phase 3. */
+  conviction?: number;
+
+  // ── Cost budget signals ─────────────────────────────────────
+  /** Remaining task budget in dollars. Absent when no budget set. */
+  taskBudgetRemaining?: number;
+  /** Estimated dollar cost of another build cycle. */
+  estimatedCycleCost?: number;
+  /** Project-level budget utilization 0–1. */
+  projectBudgetUtilization?: number;
+
   /** Allow arbitrary future signals without interface changes. */
   [key: string]: unknown;
 }

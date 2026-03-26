@@ -1,0 +1,57 @@
+---
+title: "Brain Regions Overview — The Five Systems"
+scope: global
+---
+flowchart TD
+    TITLE["<b>THE FIVE BRAIN REGIONS</b><br/>What the system is made of"]
+    style TITLE fill:#f8fafc,stroke:#94a3b8,color:#1a1a2e
+
+    TITLE --> BS
+
+    subgraph BS["BRAINSTEM — vital rhythm"]
+        BS1["Rhythms · 4 nested loops:<br/>project → dispatch → sensory → build"]
+        BS2["Homeostasis · 7 vital signs, reflexes when out of range"]
+        BS3["Rest · load-triggered consolidation, NE drops to 0"]
+    end
+
+    BS ==>|"drives rhythm"| PFC
+    BS ==>|"vital signs"| THAL
+
+    subgraph PFC["PREFRONTAL CORTEX — executive"]
+        PFC1["Planner · manifest future, reason backward"]
+        PFC2["Working Memory · tasks, scores, patterns"]
+        PFC3["Attention Scheduler · what happens next?"]
+        PFC4["Conviction · Drift · NE · Cog Flex · World Model"]
+    end
+
+    subgraph THAL["THALAMUS — central relay"]
+        T1["Reads all sources · assembles 5 per-consumer briefings"]
+        T2["NE modulates: high → prescriptive · low → invitational"]
+    end
+
+    PFC ==>|"decides what<br/>happens next"| SM
+    THAL ==>|"routes context<br/>to every consumer"| SM
+    THAL -.->|"routes context"| PFC
+
+    subgraph SM["SENSORY + MOTOR — perceive & build"]
+        SM1["11 Senses · competing perspectives create tension"]
+        SM2["Motor Cortex · premotor plans, primary builds, proprioception"]
+        SM3["PNS · I/O boundary, intentions → tool calls"]
+    end
+
+    SM ==>|"scores + episodes<br/>→ dopamine"| SUB
+
+    subgraph SUB["SUBCORTICAL — learning & memory"]
+        S1["Hippocampus · episodes → principles"]
+        S2["Cerebellum · predictions + speed of light"]
+        S3["Basal Ganglia · task patterns → sense shortcuts"]
+        S4["Amygdala · threat → interrupt"]
+    end
+
+    SUB -.->|"predictions + memory<br/>+ routines"| THAL
+
+    style BS fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style PFC fill:#fce7f3,stroke:#db2777,color:#1a1a2e
+    style THAL fill:#bfdbfe,stroke:#2563eb,color:#1a1a2e
+    style SM fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style SUB fill:#ffedd5,stroke:#ea580c,color:#1a1a2e

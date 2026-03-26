@@ -1,0 +1,52 @@
+---
+title: "Learning Loop — How Experience Becomes Understanding"
+scope: global
+---
+flowchart TD
+    EVAL["Task evaluation complete<br/>Actual scores known"]
+    PRED["Cerebellum predicted<br/>scores before building"]
+
+    subgraph DOPAMINE["DOPAMINE — Pure Prediction Error"]
+        DA1["delta = actual - predicted<br/><br/>Positive: pleasant surprise<br/>Negative: disappointment<br/>Zero: as expected, no learning"]
+        DA2["Computed per-receptor<br/>weighted by stake + confidence"]
+    end
+
+    EVAL --> DA1
+    PRED --> DA1
+    DA1 --> DA2
+
+    subgraph C1["→ HIPPOCAMPUS"]
+        H1["Records full episode<br/>(task story, not just scores)"]
+        H2["Large dopamine →<br/>potentiation trigger"]
+        H3["Cluster similar episodes<br/>→ extract PRINCIPLES"]
+        H4["Principles replace episodes<br/>in memory hierarchy<br/>'fragmented layouts underperform<br/>for scope-heavy content'"]
+    end
+
+    subgraph C2["→ BASAL GANGLIA"]
+        BG1["Positive dopamine →<br/>strengthen the routine<br/>(this sense set worked)"]
+        BG2["Negative dopamine →<br/>weaken the routine<br/>(sense set missed something)"]
+        BG3["Over many tasks:<br/>stable shortcuts emerge<br/>from repeated success"]
+    end
+
+    subgraph C3["→ PLASTICITY"]
+        PL1["Per-sense evaluation weights<br/>shift toward what works"]
+        PL2["'For us, Design matters<br/>more than Performance'"]
+        PL3["This is how the system's<br/>IDENTITY forms over time"]
+    end
+
+    subgraph C4["→ CEREBELLUM"]
+        CE1["Accuracy updated<br/>(rolling window)"]
+        CE2["Better predictions<br/>→ lower NE baseline<br/>(training wheels come off)"]
+        CE3["Worse predictions<br/>→ higher NE<br/>(system slows down, pays<br/>more attention)"]
+    end
+
+    DA2 --> C1
+    DA2 --> C2
+    DA2 --> C3
+    DA2 --> C4
+
+    style DOPAMINE fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
+    style C1 fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    style C2 fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style C3 fill:#1a1d27,stroke:#f472b6,color:#e2e4ea
+    style C4 fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea

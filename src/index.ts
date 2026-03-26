@@ -37,6 +37,11 @@ export class Cortex {
     this.wm = new WorkingMemory(options.intent.id);
     this.brainstem = new Brainstem(this.config, this.library, undefined, this.wm);
 
+    // Initialize cost tracking if the intent has a budget
+    if (this.intent.budget) {
+      this.brainstem.initCostTracking(this.intent.budget);
+    }
+
     if (options.logLevel) {
       setLogLevel(options.logLevel);
     }
@@ -100,6 +105,11 @@ export class Cortex {
 
   getConfig(): CortexConfig {
     return { ...this.config };
+  }
+
+  /** Get project cost summary. Returns null when no budget is set. */
+  getCostSummary(): import("./types/cost.js").ProjectCostSummary | null {
+    return this.brainstem.getCostSummary();
   }
 
   getTokenUsage() {

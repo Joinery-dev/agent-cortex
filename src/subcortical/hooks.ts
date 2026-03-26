@@ -17,17 +17,25 @@ import type { SubcorticalHooks } from "../brainstem/stubs.js";
 import type { Cerebellum } from "./cerebellum.js";
 import type { Hippocampus } from "./hippocampus.js";
 import type { PlasticityStoreImpl } from "./plasticity-store.js";
+import type { BasalGanglia } from "../kernel/basal-ganglia.js";
+import type { Amygdala } from "./amygdala.js";
 import type { HomeostasisMonitor } from "../brainstem/homeostasis.js";
 import type { BuildCycleContext, BuildCycleResult } from "../types/brainstem.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
 import type { Consultation } from "../types/consultation.js";
 import type { SenseEvaluation } from "../types/sense.js";
-import type { CerebellumPrediction } from "../types/cerebellum.js";
+import type { CerebellumPrediction, SpeedOfLight, ScoredEpisode } from "../types/cerebellum.js";
+import type { Sense } from "../types/sense.js";
+import type { SensoryCortex } from "../senses/cortex.js";
 import type { DopamineProjections } from "../types/dopamine.js";
+import type { ResolutionOutcome } from "../types/tension.js";
+import type { TaskGraphNode } from "../types/brainstem.js";
+import type { SimulatedScenario, SimulationTrigger } from "../types/hippocampal-simulation.js";
+import type { TerritoryObservation } from "../types/territory-observation.js";
 import { TonicTracker } from "./tonic.js";
 import { computeProjections } from "./projections.js";
 import { createLogger } from "../util/logger.js";
-import { emit } from "../events.js";
+import { emit, emitInfo } from "../events.js";
 
 const log = createLogger("subcortical-hooks");
 
@@ -39,8 +47,8 @@ export interface CompositeHooksSources {
   projectId: string;
   plasticity?: PlasticityStoreImpl;
   tonic?: TonicTracker;
-  // Future:
-  // basalGanglia?: BasalGanglia;
+  basalGanglia?: BasalGanglia;
+  amygdala?: Amygdala;
 }
 
 export class CompositeSubcorticalHooks implements SubcorticalHooks {
@@ -49,6 +57,8 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   private homeostasis: HomeostasisMonitor;
   private projectId: string;
   private plasticity?: PlasticityStoreImpl;
+  private basalGanglia?: BasalGanglia;
+  private amygdala?: Amygdala;
   private tonic: TonicTracker;
 
   /**
@@ -63,6 +73,8 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     this.homeostasis = sources.homeostasis;
     this.projectId = sources.projectId;
     this.plasticity = sources.plasticity;
+    this.basalGanglia = sources.basalGanglia;
+    this.amygdala = sources.amygdala;
     this.tonic = sources.tonic ?? new TonicTracker();
   }
 
@@ -74,6 +86,11 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   /** Get the tonic tracker (for persistence/dashboard). */
   getTonicTracker(): TonicTracker {
     return this.tonic;
+  }
+
+  /** Get the amygdala (for pre-action gate wiring in build-cycle). */
+  getAmygdala(): Amygdala | undefined {
+    return this.amygdala;
   }
 
   /** Get the most recent dopamine projections (for consumers outside the hook chain). */
@@ -90,6 +107,25 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     return this.cerebellum.predict(taskId, consultation);
   }
 
+  async getSpeedOfLight(taskId: string): Promise<SpeedOfLight | null> {
+    return this.cerebellum.getSpeedOfLight(taskId);
+  }
+
+  async classifyApproach(
+    taskId: string,
+    taskDescription: string,
+    approach: string,
+    model: string,
+  ): Promise<string[] | null> {
+    const result = await this.cerebellum.classifyAndEstimate(
+      taskId,
+      taskDescription,
+      approach,
+      model,
+    );
+    return result ? result.approachTags : null;
+  }
+
   /**
    * Compute dopamine signal, update tonic, compute projections,
    * apply plasticity updates, feed vitals to homeostasis.
@@ -103,7 +139,9 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   ): Promise<number> {
     const signal = this.cerebellum.recordOutcome(taskId, evaluations);
 
-    // Feed prediction accuracy to homeostasis
+    // Feed prediction efficiency (ceiling-relative) to homeostasis.
+    // Recalibration triggers when efficiency is low — meaning room to
+    // improve — not when raw accuracy is low due to inherently noisy data.
     this.homeostasis.update(
       "predictionAccuracy",
       this.cerebellum.getAccuracy(),
@@ -191,13 +229,29 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     );
 
     // Feed episode density to homeostasis
-    this.homeostasis.setEpisodeDensity(
-      this.hippocampus.getEpisodeDensity(),
-    );
+    const episodeDensity = this.hippocampus.getEpisodeDensity();
+    this.homeostasis.setEpisodeDensity(episodeDensity);
+
+    emitInfo("learning:episode-recorded", {
+      taskId,
+      projectId: this.projectId,
+      dopamineSignal,
+      encodingStrength: significance,
+      episodeDensity,
+      confidence: result.confidence,
+      cycles: result.cycles,
+    });
   }
 
   async potentiate(): Promise<{ principlesExtracted: number }> {
-    return this.hippocampus.potentiate();
+    const result = await this.hippocampus.potentiate();
+
+    emitInfo("learning:potentiation", {
+      principlesExtracted: result.principlesExtracted,
+      projectId: this.projectId,
+    });
+
+    return result;
   }
 
   async pruneMemory(): Promise<{ pruned: number; promoted: number }> {
@@ -242,10 +296,126 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     // No-op until build-level tracking is needed
   }
 
-  async updateRoutines(_taskId: string, _dopamine: number): Promise<void> {
-    // No-op until basal ganglia is built.
-    // When it is, it will read this.lastProjections.striatal
-    // for reinforcement + explorationBias.
+  async updateRoutines(taskId: string, _dopamine: number): Promise<void> {
+    if (!this.basalGanglia) return;
+
+    const striatal = this.lastProjections?.striatal;
+    if (striatal) {
+      this.basalGanglia.reinforceRoutine(taskId, striatal);
+
+      emitInfo("learning:routine-update", {
+        taskId,
+        reinforcement: striatal.reinforcement,
+        explorationBias: striatal.explorationBias,
+        routineCount: this.basalGanglia.getRoutineCount(),
+      });
+    }
+  }
+
+  // ── Resolution Rework (#13): resolution quality → plasticity ──
+
+  async applyResolutionLearning(
+    taskId: string,
+    outcomes: ResolutionOutcome[],
+  ): Promise<void> {
+    if (!this.plasticity || outcomes.length === 0) return;
+
+    let applied = 0;
+
+    for (const outcome of outcomes) {
+      if (outcome.collapsed) {
+        // Collapsed = capitulation. Boost the capitulated (lower-scored) sense
+        // so it gets listened to more next time.
+        const lowerSenseId =
+          outcome.preScores.senseA <= outcome.preScores.senseB
+            ? outcome.senseAId
+            : outcome.senseBId;
+
+        const weightId = `evaluator.sense-weight.${lowerSenseId}`;
+        const weight = this.plasticity.get(weightId);
+        if (weight) {
+          this.plasticity.update(weightId, 0.03, "resolution", taskId);
+          applied++;
+        }
+      } else if (outcome.quality > 0.5) {
+        // Resolution worked — the lower-scored sense had legitimate concerns.
+        // Modestly boost its weight so future tensions from it are taken seriously.
+        const lowerSenseId =
+          outcome.preScores.senseA <= outcome.preScores.senseB
+            ? outcome.senseAId
+            : outcome.senseBId;
+
+        const weightId = `evaluator.sense-weight.${lowerSenseId}`;
+        const weight = this.plasticity.get(weightId);
+        if (weight) {
+          const delta = 0.02 * outcome.quality;
+          this.plasticity.update(weightId, delta, "resolution", taskId);
+          applied++;
+        }
+      }
+      // quality <= 0.5 and not collapsed: no weight change.
+      // The resolution didn't work, but we can't attribute that to
+      // the sense — it might be the resolver's strategy that failed.
+    }
+
+    if (applied > 0) {
+      this.homeostasis.update("weightVolatility", this.plasticity.getVolatility());
+
+      emit("resolution:learning-applied", {
+        taskId,
+        outcomesTotal: outcomes.length,
+        weightsAdjusted: applied,
+        meanQuality: outcomes.reduce((s, o) => s + o.quality, 0) / outcomes.length,
+      });
+
+      log.info("Resolution learning applied", {
+        taskId,
+        outcomes: outcomes.length,
+        adjusted: applied,
+      });
+    }
+  }
+
+  // ── Cerebellum: preliminary matching (efference copy) ────────
+
+  findPreliminaryMatches(
+    activeSenses: Sense[],
+    library: SensoryCortex,
+  ): ScoredEpisode[] {
+    return this.cerebellum.findPreliminaryMatches(activeSenses, library);
+  }
+
+  // ── Cerebellum: accuracy ─────────────────────────────────────
+
+  getCerebellumAccuracy(): number {
+    return this.cerebellum.getAccuracy();
+  }
+
+  // ── Basal Ganglia ────────────────────────────────────────────
+
+  async decayRoutines(): Promise<{ decayed: number; pruned: number }> {
+    if (!this.basalGanglia) return { decayed: 0, pruned: 0 };
+    return this.basalGanglia.decayRoutines();
+  }
+
+  // ── Hippocampus: simulation ──────────────────────────────────
+
+  async simulate(
+    trigger: SimulationTrigger,
+    remainingTasks: TaskGraphNode[],
+    worldModelMaxims: string[],
+    observations: TerritoryObservation[],
+  ): Promise<SimulatedScenario[]> {
+    return this.hippocampus.simulate(
+      trigger,
+      remainingTasks,
+      worldModelMaxims,
+      observations,
+    );
+  }
+
+  dismissSimulation(scenarioId: string, materialized: boolean): void {
+    this.hippocampus.recordSimulationOutcome(scenarioId, materialized, 0);
   }
 
   // ── Private: plasticity projection application ──────────────
@@ -277,10 +447,15 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     }
 
     // Feed updated volatility to homeostasis
-    this.homeostasis.update(
-      "weightVolatility",
-      this.plasticity.getVolatility(),
-    );
+    const volatility = this.plasticity.getVolatility();
+    this.homeostasis.update("weightVolatility", volatility);
+
+    emitInfo("learning:plasticity-applied", {
+      taskId: projections.taskId,
+      learningRate,
+      receptorsUpdated: perReceptor.length,
+      weightVolatility: volatility,
+    });
 
     log.debug("Plasticity projection applied", {
       taskId: projections.taskId,

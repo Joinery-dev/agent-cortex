@@ -206,6 +206,8 @@ export interface InhibitionEnrichment {
   mode?: "explore" | "exploit";
   /** Total number of senses in the library (before any filtering). */
   totalSenseCount: number;
+  /** Taste dissolved for inhibition — how preferences shape sense relevance. */
+  dissolvedTaste?: string;
 }
 
 /** Minimal sense info for the BG's deliberative LLM prompt. */
@@ -261,6 +263,8 @@ export interface RoutineFingerprint {
   mode?: "explore" | "exploit";
   /** Number of senses available at briefing time. */
   senseCount: number;
+  /** Keywords from taste profile (patterns + decisionStyle). Taste changes invalidate old routines. */
+  tasteKeywords: string[];
 }
 
 /** Result of matching a task against the routine store. */
@@ -271,13 +275,3 @@ export interface RoutineMatch {
   /** routine.confidence × similarity — must exceed threshold to fire. */
   effectiveConfidence: number;
 }
-
-/**
- * The BG's pathway decision.
- *
- * Direct: a learned routine fires, shortcutting LLM deliberation.
- * Hyperdirect: no confident match, fall back to LLM.
- */
-export type PathwayDecision =
-  | { pathway: "direct"; match: RoutineMatch }
-  | { pathway: "hyperdirect"; reason: string };

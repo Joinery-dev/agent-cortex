@@ -147,6 +147,13 @@ export interface TensionSnapshot {
     strategy: string;
     satisfiesBoth: boolean;
   };
+  /** Measured outcome: did the resolution actually work? Added by Resolution Rework (#13). */
+  outcome?: {
+    quality: number;
+    gapShrinkage: number;
+    scoresMaintained: boolean;
+    collapsed: boolean;
+  };
 }
 
 /**
@@ -234,6 +241,16 @@ export interface Principle {
 
   /** Context of the potentiation cycle that produced this. */
   extractionContext: ExtractionContext;
+
+  /**
+   * Sense verification results — populated when relevant senses
+   * review a principle before storage. Consensus modulates confidence.
+   */
+  senseVerification?: {
+    results: Array<{ senseId: string; senseName: string; agreement: number; assessment: string }>;
+    consensus: number;
+    verifiedAt: Date;
+  };
 }
 
 /** Reference to an episode that serves as evidence for a principle. */

@@ -6,6 +6,8 @@ export interface Task {
   status:
     | "pending"
     | "consulting"
+    | "re-consulting"
+    | "exploring"
     | "producing"
     | "evaluating"
     | "resolving"
@@ -25,7 +27,9 @@ export interface TaskEvent {
     | "tension_detected"
     | "resolution"
     | "cycle_back"
-    | "cerebellum_prediction";
+    | "cerebellum_prediction"
+    | "explore_result"
+    | "efference_copy";
   data: unknown;
 }
 

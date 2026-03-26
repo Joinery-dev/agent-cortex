@@ -1,0 +1,44 @@
+---
+title: "Planning — Manifest Then Reason Backward"
+scope: global
+---
+flowchart TD
+    INTENT["PROJECT INTENT<br/>Brief + taste profile + capabilities"]
+
+    subgraph PHASE_A["Phase A: MANIFESTATION — runs through sensory cortex"]
+        A1["Each active sense manifests<br/>what must be true about<br/>the finished artifact"]
+        A2["Design: 'dark/bold visual<br/>language, card-based layout'"]
+        A3["Performance: 'sub-2s load,<br/>lazy images, CDN-ready'"]
+        A4["Security: 'CSP headers,<br/>input sanitized, no exposed keys'"]
+        A5["Motor Cortex synthesizes<br/>all perspectives into a<br/>MANIFESTED FUTURE"]
+        A6["Senses evaluate:<br/>does this future satisfy intent?<br/>Tensions resolved HERE,<br/>before any task planning"]
+        A7["MANIFESTED FUTURE<br/>Concrete, reason-backward-from-able<br/>shared vision for the project"]
+    end
+
+    subgraph PHASE_B["Phase B: BACKWARD PATH REASONING"]
+        B1["LLM reasons backward:<br/>'To get THERE, what must<br/>exist just before? And before that?'"]
+        B2["Jensen's THREE NECESSITY GATES<br/>applied to every proposed task"]
+        B3{"Does this task<br/>need to exist?"}
+        B4{"Does it need to be<br/>exactly this?"}
+        B5{"Does it need to<br/>take this long?"}
+        B6["TASK GRAPH<br/>Minimum viable path<br/>with dependencies +<br/>phase groups"]
+    end
+
+    INTENT --> A1
+    A1 --> A2 & A3 & A4
+    A2 & A3 & A4 --> A5 --> A6 --> A7
+    A7 --> B1 --> B2 --> B3
+    B3 -->|no| CUT["Cut task"]
+    B3 -->|yes| B4
+    B4 -->|no| SIMPLIFY["Simplify task"]
+    B4 -->|yes| B5
+    B5 -->|no| COMPRESS["Compress task"]
+    B5 -->|yes| B6
+
+    style PHASE_A fill:#e8e0f0,stroke:#7c6af0,color:#1a1a2e
+    style PHASE_B fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style A7 fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+    style CUT fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style SIMPLIFY fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style COMPRESS fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style B6 fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e

@@ -346,50 +346,48 @@ console.log("\nPriority cascade:");
 
 // ── 12. NE computation ───────────────────────────────────────────
 
-console.log("\nNE computation:");
+console.log("\nNE computation (dynamic signal):");
 {
-  // No risk factors → baseline NE
+  // No risk factors, no cerebellum accuracy → conservative defaults.
+  // Dispatch-time NE has maturity + risk only (no novelty, no conviction).
   const graph = [node("a")];
   const signals = baseSignals(graph);
   const action = scheduler.decide(signals);
   if (action.action === "dispatch-task") {
-    assert(action.neLevel === 0.5, `Baseline NE = 0.5 (got ${action.neLevel})`);
+    assert(action.neLevel > 0 && action.neLevel < 1, `NE is in valid range (got ${action.neLevel.toFixed(3)})`);
   }
 }
 {
-  // Down trends → boosted NE
+  // Down trends → risk factor raises NE
   const graph = [node("a")];
-  const signals = baseSignals(graph);
-  signals.wmSnapshot.senseTrends = [downTrend("Design")]; // 1/1 = 1.0 but below cratering because only 1 trend
-  // Wait, 1/1 = 1.0 which IS >= 0.5 cratering threshold. Need to not trigger cratering.
-  // Use 1 down + 2 stable = 1/3 = 0.33 < 0.5
-  signals.wmSnapshot.senseTrends = [
+  const baseAction = scheduler.decide(baseSignals(graph));
+  const baseNE = baseAction.action === "dispatch-task" ? baseAction.neLevel : 0;
+
+  const riskySignals = baseSignals(graph);
+  riskySignals.wmSnapshot.senseTrends = [
     downTrend("Design"),
     stableTrend("Performance"),
     stableTrend("Accessibility"),
   ];
-  const action = scheduler.decide(signals);
-  if (action.action === "dispatch-task") {
-    assert(action.neLevel === 0.65, `Down trend boosts NE by 0.15 → 0.65 (got ${action.neLevel})`);
+  const riskyAction = scheduler.decide(riskySignals);
+  if (riskyAction.action === "dispatch-task") {
+    assert(riskyAction.neLevel > baseNE, `Down trend raises NE: ${riskyAction.neLevel.toFixed(3)} > ${baseNE.toFixed(3)}`);
   }
 }
 {
-  // Stack enough risk factors to exceed 1.0 — should cap
-  const graph = [node("a", [], "content"), node("b", [], "design")];
-  const signals = baseSignals(graph, ["a"]); // completed "a" (group "content")
-  // "b" is in group "design" → phase group switch → +0.15
+  // Stack risk factors — NE should cap at 1.0
+  const graph = [node("a")];
+  const signals = baseSignals(graph);
   signals.wmSnapshot.senseTrends = [
     downTrend("Design"),
     stableTrend("Perf"),
     stableTrend("A11y"),
-  ]; // down trend → +0.15
-  signals.wmSnapshot.load = 0.8; // high load → +0.15
-  signals.vitals.predictionAccuracy = 0.3; // low → +0.15
-  signals.vitals.weightVolatility = 0.8; // high → +0.15
-  // 0.5 + 5 * 0.15 = 1.25 → capped at 1.0
+  ];
+  signals.wmSnapshot.load = 0.95;
+  signals.vitals.weightVolatility = 0.95;
   const action = scheduler.decide(signals);
   if (action.action === "dispatch-task") {
-    assert(action.neLevel === 1.0, `NE caps at 1.0 (got ${action.neLevel})`);
+    assert(action.neLevel <= 1.0, `NE caps at 1.0 (got ${action.neLevel.toFixed(3)})`);
   }
 }
 
