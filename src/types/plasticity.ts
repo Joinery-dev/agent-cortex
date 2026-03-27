@@ -422,10 +422,10 @@ export const PLASTIC_CONNECTIONS = [
     category: "threshold" as const,
   },
   {
-    id: "basal-ganglia.threshold.exploit",
+    id: "basal-ganglia.threshold.leverage",
     region: "BasalGanglia",
     description:
-      "Routine confidence needed to skip explore and go straight to exploit. " +
+      "Routine confidence needed to skip explore and go straight to leverage. " +
       "High default = requires strong routine match before skipping exploration.",
     defaultValue: 0.7,
     range: [0, 1] as [number, number],

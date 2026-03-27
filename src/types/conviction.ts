@@ -66,6 +66,16 @@ export interface ConvictionContext {
   /** Project intent. */
   intent?: ProjectIntent;
 
+  // ── Scheduler escalation signal (for conviction gating) ────
+
+  /** When present, the scheduler wants to escalate. Fed as undermining evidence. */
+  schedulerEscalation?: {
+    type: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
+    reason: string;
+    /** How severe the scheduler considers this (0–1). Scales the conviction penalty. */
+    severity: number;
+  };
+
   // ── Phase 4 stubs ────────────────────────────────────────────
 
   /**
@@ -121,7 +131,8 @@ export interface ConvictionEvidence {
     | "previous-conviction"
     | "escalation-rate"
     | "degraded-evaluation"
-    | "approach-classification-missing";
+    | "approach-classification-missing"
+    | "scheduler-escalation";
   /** Human-readable explanation. */
   description: string;
   /** Numeric magnitude (meaning depends on source). */

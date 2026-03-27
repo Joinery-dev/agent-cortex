@@ -38,8 +38,8 @@ export interface SchedulerDispatch {
   taskId: string;
   /** Norepinephrine level for this task: 0–1. Higher = more thorough. */
   neLevel: number;
-  /** Whether to exploit a known routine or explore divergent approaches. */
-  mode: "explore" | "exploit";
+  /** Whether to leverage a known routine or explore divergent approaches. */
+  mode: "explore" | "leverage";
   /** Why this task was selected over other ready tasks. */
   reasoning: string;
   /** Budget allocated for this task (dollars). Absent when no budget set. */
@@ -54,6 +54,8 @@ export interface SchedulerEscalate {
   source: "attention-scheduler";
   /** Specific questions for the human, if any. */
   questions: string[];
+  /** What condition triggered this escalation. */
+  escalationType: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
 }
 
 export interface SchedulerRest {
@@ -136,6 +138,13 @@ export interface SchedulerSignals {
   // ── Proactive Discovery signals ───────────────────────────────
   /** Territory observation pressure (0–1). From WM.getObservationPressure(). */
   observationPressure?: number;
+
+  // ── Homeostasis PFC flags ───────────────────────────────────
+  /** PFC intervention flags from homeostasis (learning signal degraded, tonic dopamine crashed). */
+  pfcFlags?: Array<{
+    type: "learning-signal-degraded" | "tonic-dopamine-crashed";
+    reason: string;
+  }>;
 }
 
 // ─── Scheduler Config ───────────────────────────────────────────

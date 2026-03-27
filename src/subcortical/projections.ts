@@ -64,10 +64,10 @@ export function projectToHippocampus(
  *   Uses tanh for smooth saturation.
  *
  * explorationBias: from tonic level. Low/negative tonic = explore more.
- *   Positive tonic = exploit what's working.
+ *   Positive tonic = leverage what's working.
  *   - tonic <= -1 → bias 0.9 (heavy exploration)
  *   - tonic == 0 → bias 0.5 (balanced)
- *   - tonic >= +1 → bias 0.1 (heavy exploitation)
+ *   - tonic >= +1 → bias 0.1 (heavy leveraging)
  */
 export function projectToStriatum(
   signal: DopamineSignal,

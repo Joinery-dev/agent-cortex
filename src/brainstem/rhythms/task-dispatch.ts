@@ -43,6 +43,7 @@ import type { ConvictionResult } from "../../types/conviction.js";
 import { runConvictionLoop } from "../../kernel/conviction.js";
 import { prepareForward } from "../../kernel/prospective-preparation.js";
 import type { DriftMonitor } from "../../kernel/drift-monitor.js";
+import type { TasteFeedbackLoop } from "../../kernel/taste-feedback.js";
 import type { ProspectiveMemory } from "../../kernel/prospective-memory.js";
 import type { IntegrationChecker } from "../../kernel/integration-check.js";
 import type { PhaseGateResult } from "../../types/integration-check.js";
@@ -67,10 +68,10 @@ interface PreparedDispatch {
   neLevel?: number;
   /** Frozen risk factors from dispatch — carried through to enrichment sites. */
   riskSnapshot?: RiskFactors;
-  /** Explore/exploit mode from Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Scheduler. */
+  mode?: "explore" | "leverage";
   /** Escalation details when action is "escalate". */
-  escalation?: { reason: string; questions: string[] };
+  escalation?: { reason: string; questions: string[]; escalationType?: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift" };
   /** Replan details when action is "replan". */
   replanReason?: string;
   /** Task budget from Scheduler dispatch (dollars). */
@@ -86,6 +87,7 @@ interface ExecutedDispatch {
   restResult?: RestCycleResult;
   escalationReason?: string;
   escalationQuestions?: string[];
+  escalationType?: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
   replanReason?: string;
 }
 
@@ -95,9 +97,11 @@ interface IntegratedDispatch {
   completedTasks: string[];
   escalatedTasks: string[];
   /** Non-null when the Scheduler wants to escalate to the human. */
-  schedulerEscalation?: { reason: string; questions: string[] };
+  schedulerEscalation?: { reason: string; questions: string[]; escalationType: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift" };
   /** Non-null when the Scheduler wants to replan. */
   replanRequest?: string;
+  /** PFC intervention flags from homeostasis, for gate-level processing. */
+  pfcFlags?: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }>;
   /** Present when a phase gate fired during this integration. */
   phaseGateResult?: PhaseGateResult;
   /** Quick triage flagged deep synthesis should run early. */
@@ -114,6 +118,8 @@ interface DispatchAccumulator {
   completedTasks: Set<string>;
   escalatedTasks: Set<string>;
   taskResults: Map<string, OrchestratorResult>;
+  /** When PFC flags request a rest cycle with learning signal recovery priorities. */
+  __pfcRestRequested: boolean;
   /** Previous conviction result — for delta tracking across tasks. */
   previousConviction: ConvictionResult | null;
   /** Most recent NE level from dispatch — used by integration check. */
@@ -135,6 +141,7 @@ function getAcc(
     lastNELevel: 0.5,
     liveGraph: [], // Populated on first cycle from context.graph
     discoveryCounter: 0,
+    __pfcRestRequested: false,
   };
 }
 
@@ -227,7 +234,7 @@ function assembleSignals(
       }
       return triggerMap.size > 0 ? triggerMap : undefined;
     })() : undefined,
-    // Basal ganglia routine matches for explore/exploit gating
+    // Basal ganglia routine matches for explore/leverage gating
     routineMatches: basalGanglia?.getRoutineCount()
       ? basalGanglia.getRoutineMatches(
           new Map(
@@ -253,6 +260,11 @@ function assembleSignals(
       : undefined,
     // Proactive Discovery: territory observation pressure
     observationPressure: wm.getObservationPressure() > 0 ? wm.getObservationPressure() : undefined,
+    // Homeostasis PFC flags — cognitive-level problems that rest can't fix
+    pfcFlags: (() => {
+      const flags = homeostasis.needsPfcIntervention();
+      return flags.length > 0 ? flags : undefined;
+    })(),
     // Cost budget signals — from CostTracker when a budget is set
     budgetUtilization: costTracker?.getUtilization(),
     budgetExhausted: costTracker?.isExhausted() || undefined,
@@ -291,6 +303,7 @@ export function createTaskDispatchDefinition(
   worldModel?: WorldModel,
   pns?: PeripheralNervousSystem,
   driftMonitor?: DriftMonitor,
+  tasteFeedbackLoop?: TasteFeedbackLoop,
   prospectiveMemory?: ProspectiveMemory,
   integrationChecker?: IntegrationChecker,
   costTracker?: CostTracker,
@@ -332,6 +345,21 @@ export function createTaskDispatchDefinition(
             }
           }
         }
+      }
+
+      // PFC rest override: gate flagged learning-signal-degraded → inject rest
+      if (acc.__pfcRestRequested) {
+        acc.__pfcRestRequested = false;
+        log.info("PFC rest override: injecting rest for learning signal recovery");
+        const load = homeostasis.getConsolidationLoad();
+        return {
+          action: "run-rest" as const,
+          restContext: {
+            load,
+            vitals: homeostasis.getVitals(),
+            priorities: ["recalibrate", "settle-weights"] as ConsolidationPriority[],
+          },
+        };
       }
 
       // Attention Scheduler makes the decision
@@ -455,12 +483,13 @@ export function createTaskDispatchDefinition(
         }
 
         case "escalate":
-          log.info("Scheduler escalating", { reason: decision.reason });
+          log.info("Scheduler escalating", { reason: decision.reason, escalationType: decision.escalationType });
           return {
             action: "escalate",
             escalation: {
               reason: decision.reason,
               questions: decision.questions,
+              escalationType: decision.escalationType,
             },
           };
 
@@ -483,6 +512,7 @@ export function createTaskDispatchDefinition(
           action: "scheduler-escalated",
           escalationReason: prepared.escalation?.reason,
           escalationQuestions: prepared.escalation?.questions,
+          escalationType: prepared.escalation?.escalationType,
         };
       }
 
@@ -580,6 +610,7 @@ export function createTaskDispatchDefinition(
       }
 
       if (executed.action === "scheduler-escalated") {
+        const pfcFlags = homeostasis.needsPfcIntervention();
         return {
           allComplete: false,
           completedTasks: [...acc.completedTasks],
@@ -587,7 +618,9 @@ export function createTaskDispatchDefinition(
           schedulerEscalation: {
             reason: executed.escalationReason ?? "Unknown reason",
             questions: executed.escalationQuestions ?? [],
+            escalationType: executed.escalationType ?? "drift",
           },
+          pfcFlags: pfcFlags.length > 0 ? pfcFlags : undefined,
         };
       }
 
@@ -811,6 +844,45 @@ export function createTaskDispatchDefinition(
               durationMs: phaseGateResult.durationMs,
             });
 
+            // ── Drift deep analysis + taste feedback (every phase gate) ──
+            if (driftMonitor) {
+              await driftMonitor.deepAnalysis(
+                {
+                  wm,
+                  intent: state.initialContext.intent,
+                  taste: state.initialContext.taste,
+                  worldModel,
+                  manifestedFuture: thalamus.getManifestedFuture() ?? undefined,
+                },
+                phaseGroup,
+              );
+
+              // Taste feedback reads deep analysis results from drift monitor
+              if (tasteFeedbackLoop) {
+                const proposals = await tasteFeedbackLoop.evaluate(
+                  {
+                    driftMonitor,
+                    taste: state.initialContext.taste,
+                    intent: state.initialContext.intent,
+                    neLevel: acc.lastNELevel,
+                    cerebellumAccuracy: hooks.getCerebellumAccuracy(),
+                  },
+                  phaseGroup,
+                );
+
+                for (const proposal of proposals) {
+                  emit("dispatch:taste-proposal", {
+                    proposalId: proposal.id,
+                    dimensions: proposal.dimensions,
+                    interpretation: proposal.interpretation,
+                    proposalStrength: proposal.proposalStrength,
+                    persistence: proposal.persistence,
+                    phaseGroup,
+                  });
+                }
+              }
+            }
+
             // ── Proactive: simulation + deep synthesis (on pass) ──
             if (phaseGateResult.passed) {
               // 1. Feed discovered problems as territory observations
@@ -1011,7 +1083,43 @@ export function createTaskDispatchDefinition(
     async gate(integrated, state) {
       const acc = getAcc(state);
 
-      // ── Conviction loop (runs before dispatch decisions) ──────
+      // ── Map scheduler/PFC signals for conviction ──────────────
+      // Scheduler escalation and PFC flags are fed as undermining evidence
+      // into the conviction loop. Conviction gates all escalation decisions.
+      const severityMap: Record<string, number> = {
+        deadlock: 1.0,
+        cratering: 0.9,
+        perseveration: 0.8,
+        drift: 0.7,
+        "open-questions": 0.6,
+      };
+
+      let schedulerEscalationSignal: {
+        type: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
+        reason: string;
+        severity: number;
+      } | undefined;
+
+      if (integrated.schedulerEscalation) {
+        const escType = integrated.schedulerEscalation.escalationType;
+        schedulerEscalationSignal = {
+          type: escType,
+          reason: integrated.schedulerEscalation.reason,
+          severity: severityMap[escType] ?? 0.7,
+        };
+      }
+
+      // PFC flags also feed as scheduler escalation signals (lower severity — background)
+      const pfcFlags = integrated.pfcFlags ?? (homeostasis.needsPfcIntervention().length > 0 ? homeostasis.needsPfcIntervention() : undefined);
+      if (!schedulerEscalationSignal && pfcFlags?.length) {
+        schedulerEscalationSignal = {
+          type: pfcFlags[0].type === "tonic-dopamine-crashed" ? "cratering" : "drift",
+          reason: pfcFlags.map((f) => f.reason).join("; "),
+          severity: 0.5,
+        };
+      }
+
+      // ── Conviction loop (now includes scheduler pressure) ─────
       const convictionCtx = {
         level: "task-dispatch" as const,
         cycle: state.completedCycles + 1,
@@ -1024,6 +1132,7 @@ export function createTaskDispatchDefinition(
         worldModelMaxims: worldModel?.getMaximsForBriefing(),
         previousConviction: acc.previousConviction ?? undefined,
         manifestedFuture: thalamus.getManifestedFuture() ?? undefined,
+        schedulerEscalation: schedulerEscalationSignal,
       };
 
       const conviction = runConvictionLoop(convictionCtx);
@@ -1044,39 +1153,115 @@ export function createTaskDispatchDefinition(
         delta: conviction.delta,
         decidingStep: conviction.decidingStep,
         evidenceCount: conviction.evidence.length,
+        schedulerOverridden: schedulerEscalationSignal != null && conviction.verdict !== "escalate",
       });
 
-      // Conviction escalate → bubble up immediately
+      // Conviction escalate → bubble up (system agrees with scheduler, or conviction independently low)
       if (conviction.verdict === "escalate") {
         return {
           action: "escalate",
           severity: "high" as const,
           reason: conviction.shaping.escalationReason ?? "Project conviction too low to continue",
           context: {
-            type: "conviction-escalation",
+            type: schedulerEscalationSignal ? "scheduler-escalation" : "conviction-escalation",
             conviction,
+            schedulerEscalation: integrated.schedulerEscalation,
+            schedulerEscalationType: schedulerEscalationSignal?.type,
             completedTasks: [...acc.completedTasks],
             escalatedTasks: [...acc.escalatedTasks],
+            taskResults: acc.taskResults,
+            driftAssessment: driftMonitor?.getAssessment() ?? null,
+            previousConviction: acc.previousConviction,
           },
         };
       }
 
-      // Scheduler escalation → bubble up to parent
-      if (integrated.schedulerEscalation) {
-        return {
-          action: "escalate",
-          severity: "medium" as const,
-          reason: integrated.schedulerEscalation.reason,
-          context: {
-            type: "scheduler-escalation",
-            questions: integrated.schedulerEscalation.questions,
-            completedTasks: [...acc.completedTasks],
-            escalatedTasks: [...acc.escalatedTasks],
-          },
-        };
+      // ── Cognitive Flexibility at dispatch level (runs on reshape) ──
+      if (conviction.verdict === "reshape") {
+        const flexAssessment = cognitiveFlexibility.assessDispatch({
+          conviction,
+          taskGraph: acc.liveGraph,
+          completedTaskIds: acc.completedTasks,
+          escalatedTaskIds: acc.escalatedTasks,
+          taskResults: acc.taskResults,
+          senseTrends: wm.getSenseTrends(),
+          schedulerEscalation: schedulerEscalationSignal
+            ? { type: schedulerEscalationSignal.type, reason: schedulerEscalationSignal.reason }
+            : undefined,
+          vitals: homeostasis.getVitals(),
+          intent: state.initialContext.intent,
+        });
+
+        emit("flexibility:dispatch-assessment", {
+          cycle: state.completedCycles + 1,
+          diagnosis: flexAssessment.diagnosis,
+          shouldReset: flexAssessment.shouldReset,
+          shouldEscalate: flexAssessment.shouldEscalate,
+          schedulerEscalationType: schedulerEscalationSignal?.type,
+        });
+
+        if (flexAssessment.shouldEscalate) {
+          return {
+            action: "escalate",
+            severity: "high" as const,
+            reason: flexAssessment.escalationContext ?? flexAssessment.reasoning,
+            context: {
+              type: "scheduler-escalation",
+              conviction,
+              flexibility: flexAssessment,
+              schedulerEscalationType: schedulerEscalationSignal?.type,
+              questions: integrated.schedulerEscalation?.questions ?? [],
+              completedTasks: [...acc.completedTasks],
+              escalatedTasks: [...acc.escalatedTasks],
+              taskResults: acc.taskResults,
+              driftAssessment: driftMonitor?.getAssessment() ?? null,
+              previousConviction: acc.previousConviction,
+            },
+          };
+        }
+
+        if (flexAssessment.shouldReset) {
+          // Strategy reset at dispatch level = request replan with directive
+          return {
+            action: "escalate",
+            severity: "high" as const,
+            reason: flexAssessment.reasoning,
+            context: {
+              type: "replan-request",
+              completedTasks: [...acc.completedTasks],
+              escalatedTasks: [...acc.escalatedTasks],
+              taskResults: acc.taskResults,
+              driftAssessment: driftMonitor?.getAssessment() ?? null,
+              previousConviction: acc.previousConviction,
+              resetDirective: flexAssessment.resetDirective,
+            },
+          };
+        }
+
+        // execution-problem or tension-evasion without reset → continue
+        // Conviction shaping notes will seed the next task's consultation
+        log.info("Dispatch CogFlex: continuing after reshape", {
+          diagnosis: flexAssessment.diagnosis,
+          schedulerOverridden: !!schedulerEscalationSignal,
+        });
+      } else if (schedulerEscalationSignal) {
+        // Conviction said "proceed" despite scheduler wanting to escalate.
+        // The system overrode the scheduler — log for observability.
+        log.info("Conviction overrode scheduler escalation", {
+          schedulerType: schedulerEscalationSignal.type,
+          convictionLevel: conviction.level.toFixed(3),
+        });
       }
 
-      // Replan request → bubble up as high-severity escalation with full context
+      // ── PFC learning-signal-degraded + conviction proceed → request rest ──
+      if (pfcFlags?.some((f) => f.type === "learning-signal-degraded") && conviction.verdict === "proceed") {
+        log.info("PFC flag: requesting rest for learning signal recovery");
+        // Don't escalate — override next cycle's scheduler to produce a rest
+        // by marking the accumulator. The prepare phase will check this.
+        acc.__pfcRestRequested = true;
+      }
+
+      // Replan request (from graph surgery / deep synthesis) → bubble up
       if (integrated.replanRequest) {
         return {
           action: "escalate",

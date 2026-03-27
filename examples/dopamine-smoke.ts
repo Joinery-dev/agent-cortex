@@ -222,10 +222,10 @@ console.log("\n=== 5. Striatal projection ===");
   const exploreProj = projectToStriatum(posSignal, tonicNeg);
   assert(exploreProj.explorationBias === 0.9, `Negative tonic → exploration bias ${exploreProj.explorationBias.toFixed(3)}`);
 
-  // explorationBias: positive tonic → more exploitation
+  // explorationBias: positive tonic → more leveraging
   const tonicPos = makeTonic({ level: 1.0 });
-  const exploitProj = projectToStriatum(posSignal, tonicPos);
-  assert(exploitProj.explorationBias === 0.1, `Positive tonic → exploitation bias ${exploitProj.explorationBias.toFixed(3)}`);
+  const leverageProj = projectToStriatum(posSignal, tonicPos);
+  assert(leverageProj.explorationBias === 0.1, `Positive tonic → leveraging bias ${leverageProj.explorationBias.toFixed(3)}`);
 
   // explorationBias: neutral tonic → balanced
   assert(approx(posProj.explorationBias, 0.5), `Neutral tonic → balanced: ${posProj.explorationBias.toFixed(3)}`);

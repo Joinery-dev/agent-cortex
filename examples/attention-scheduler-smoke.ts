@@ -4,7 +4,7 @@
  * 2. Priority cascade ordering
  * 3. Task selection scoring (phase group, dependency unblocking)
  * 4. NE computation and capping
- * 5. Explore/exploit mode selection
+ * 5. Explore/leverage mode selection
  * 6. Edge cases (deadlock, rest-before-first-task, single task)
  */
 
@@ -391,9 +391,9 @@ console.log("\nNE computation (dynamic signal):");
   }
 }
 
-// ── 13. Explore / exploit ────────────────────────────────────────
+// ── 13. Explore / leverage ───────────────────────────────────────
 
-console.log("\nExplore / exploit:");
+console.log("\nExplore / leverage:");
 {
   const graph = [node("a")];
   const signals = baseSignals(graph);
@@ -408,7 +408,7 @@ console.log("\nExplore / exploit:");
   signals.routineMatches = new Map([["a", { confidence: 0.9, routineId: "r1" }]]);
   const action = scheduler.decide(signals);
   if (action.action === "dispatch-task") {
-    assert(action.mode === "exploit", "High-confidence routine match → exploit");
+    assert(action.mode === "leverage", "High-confidence routine match → leverage");
   }
 }
 {

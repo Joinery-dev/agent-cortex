@@ -96,6 +96,92 @@ export class ProjectDiagnostics {
       };
     }
 
+    // ── RS-*: Scheduler-specific routing (non-replan escalation sources) ──
+    // These fire when the escalation came from a scheduler condition or PFC flag,
+    // not from a drift-triggered replan. When escalationSource is absent, fall
+    // through to the existing R1-R6 rules (backward compatible).
+
+    if (ctx.escalationSource) {
+      const src = ctx.escalationSource;
+
+      // RS-deadlock: graph structure is broken → always replan
+      if (src.schedulerType === "deadlock") {
+        return {
+          route: "replan",
+          reasoning: `Deadlock detected: ${src.reason}. Task graph needs restructuring.`,
+          firedRule: "scheduler-deadlock",
+        };
+      }
+
+      // RS-perseveration: depends on conviction trajectory
+      if (src.schedulerType === "perseveration") {
+        if (traj.direction === "down") {
+          return {
+            route: "full-diagnostic",
+            reasoning: "Perseveration + declining conviction. Something structural is wrong.",
+            firedRule: "scheduler-perseveration-declining",
+          };
+        }
+        return {
+          route: "replan",
+          reasoning: "Perseveration detected but conviction stable. Try different task decomposition.",
+          firedRule: "scheduler-perseveration-stable",
+        };
+      }
+
+      // RS-cratering: escalate severity with replan count
+      if (src.schedulerType === "cratering") {
+        if (replanCount < 2) {
+          return {
+            route: "re-manifest",
+            reasoning: `Scores cratering: ${src.reason}. Re-manifesting to reset vision.`,
+            firedRule: "scheduler-cratering",
+          };
+        }
+        return {
+          route: "full-diagnostic",
+          reasoning: `Scores cratering after ${replanCount} replans. Need root cause diagnosis.`,
+          firedRule: "scheduler-cratering-persistent",
+        };
+      }
+
+      // RS-open-questions: try replan first, then escalate
+      if (src.schedulerType === "open-questions") {
+        if (replanCount === 0) {
+          return {
+            route: "replan",
+            reasoning: "Too many open questions. Replanning may resolve ambiguity through better task decomposition.",
+            firedRule: "scheduler-open-questions",
+            senseDirective: "Decompose tasks to reduce ambiguity. Break unclear tasks into smaller, more concrete steps.",
+          };
+        }
+        return {
+          route: "escalate",
+          reasoning: "Too many open questions persist after replan. Human input needed.",
+          firedRule: "scheduler-open-questions-persistent",
+        };
+      }
+
+      // RS-pfc-flag: homeostasis flagged a cognitive problem
+      if (src.type === "pfc-flag") {
+        if (replanCount < 1) {
+          return {
+            route: "replan",
+            reasoning: `PFC intervention flag: ${src.reason}. Attempting replan first.`,
+            firedRule: "pfc-flag",
+          };
+        }
+        return {
+          route: "full-diagnostic",
+          reasoning: `PFC intervention flag persists after replan: ${src.reason}. Need root cause diagnosis.`,
+          firedRule: "pfc-flag-persistent",
+        };
+      }
+
+      // RS-drift: fall through to existing drift-based rules (R1-R5)
+      // RS-conviction-escalation: fall through to existing rules
+    }
+
     // R1: Cross-generation decline — replanning isn't helping
     if (traj.generationCount >= 2) {
       const first = traj.generationMeans[0];

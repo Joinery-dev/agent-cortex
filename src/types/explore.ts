@@ -5,7 +5,7 @@
  * manifested future. Selection criterion: surprise × quality —
  * the most creative path that still clears the quality floor.
  *
- * Skipped in exploit mode (BG routine confidence ≥ 0.7) or when
+ * Skipped in leverage mode (BG routine confidence ≥ 0.7) or when
  * no path clears the quality floor. Degrades gracefully on LLM failure.
  */
 
@@ -49,7 +49,7 @@ export interface ExploreSelected {
 
 export interface ExploreSkipped {
   kind: "skipped";
-  reason: "exploit-mode" | "no-path-clears-floor" | "llm-failure";
+  reason: "leverage-mode" | "no-path-clears-floor" | "llm-failure";
   detail?: string;
 }
 

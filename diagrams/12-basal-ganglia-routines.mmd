@@ -3,57 +3,61 @@ title: "Basal Ganglia — Learned Shortcuts"
 scope: global
 ---
 flowchart TD
-    TASK["New task arrives"]
+    TITLE["<b>BASAL GANGLIA — LEARNED SHORTCUTS</b><br/>How the system develops intuition from experience"]
+    style TITLE fill:#f8fafc,stroke:#94a3b8,color:#1a1a2e
+
+    TITLE --> TASK["New task arrives"]
 
     subgraph MATCH["ROUTINE MATCHING"]
-        M1["Extract task fingerprint<br/>(sense activation pattern)"]
-        M2["Search routine store<br/>for nearest match"]
+        M1["Extract task fingerprint<br/>(keywords + sense activation pattern)"]
+        M2["Search routine store<br/>for nearest match by similarity"]
         M3{"Confidence ≥<br/>threshold?"}
     end
 
-    subgraph DIRECT["DIRECT PATHWAY — Shortcut"]
+    TASK --> M1 --> M2 --> M3
+
+    subgraph DIRECT["DIRECT PATHWAY — shortcut"]
         D1["Activate learned sense set<br/>(skip full deliberation)"]
         D2["'Marketing landing pages<br/>→ always activate Design,<br/>Intent, SEO, Performance'"]
         D3["Fast: no LLM call needed"]
     end
 
-    subgraph HYPER["HYPERDIRECT PATHWAY — Deliberation"]
-        H1["LLM reasons about which<br/>senses to activate"]
-        H2["Full analysis of task<br/>against all 11 senses"]
+    subgraph HYPER["HYPERDIRECT PATHWAY — deliberation"]
+        H1["LLM reasons about which<br/>senses to activate/suppress"]
+        H2["Full analysis of task<br/>against all 14 senses"]
         H3["Slower but thorough:<br/>for novel or risky tasks"]
     end
 
+    M3 -->|"yes"| DIRECT
+    M3 -->|"no"| HYPER
+
     subgraph GATE["EXPLORE / EXPLOIT GATE"]
         G1{"Strong routine +<br/>high confidence?"}
-        G2["EXPLOIT<br/>Skip explore phase,<br/>use known approach"]
-        G3["EXPLORE<br/>Generate 3–5 divergent<br/>paths before building"]
+        G2["EXPLOIT<br/>Skip explore phase,<br/>use known approach<br/>Thalamus reinforces patterns"]
+        G3["EXPLORE<br/>Generate divergent paths<br/>before building<br/>Thalamus de-emphasizes patterns"]
     end
-
-    subgraph LEARN["LEARNING FROM EVALUATION"]
-        L1["STRENGTHEN<br/>Sense shaped work or<br/>caught real issue<br/>→ boost confidence"]
-        L2["WEAKEN<br/>Sense rubber-stamped,<br/>no tensions raised<br/>→ decay confidence"]
-        L3["REVISE<br/>Missing sense would<br/>have caught something<br/>→ adjust sense set"]
-        L4["CREATE<br/>Novel sense set stabilizes<br/>over N tasks<br/>→ register new routine"]
-    end
-
-    TASK --> M1 --> M2 --> M3
-    M3 -->|yes| DIRECT
-    M3 -->|no| HYPER
 
     DIRECT --> G1
     HYPER --> G1
-    G1 -->|yes| G2
-    G1 -->|no| G3
+    G1 -->|"yes"| G2
+    G1 -->|"no"| G3
 
     G2 & G3 --> BUILD["Build cycle runs"]
-    BUILD --> EVAL["Evaluation complete"]
-    EVAL --> L1 & L2 & L3 & L4
+    BUILD --> EVAL["Evaluation + dopamine"]
 
-    NOTE["Over many projects:<br/>routines stabilize into<br/>the system's intuition.<br/>Immature system: all hyperdirect.<br/>Mature system: mostly direct."]
+    subgraph LEARN["LEARNING VIA STRIATAL DOPAMINE"]
+        L1["POSITIVE dopamine<br/>→ strengthen routine<br/>(this sense set worked)"]
+        L2["NEGATIVE dopamine<br/>→ weaken routine<br/>(sense set missed something)"]
+        L3["NOVEL pattern stabilizes<br/>→ create new routine<br/>(starts at 0.5 confidence)"]
+    end
 
-    style MATCH fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
-    style DIRECT fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
-    style HYPER fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
-    style GATE fill:#1a1d27,stroke:#facc15,color:#e2e4ea
-    style LEARN fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
-    style NOTE fill:#2d2235,stroke:#f472b6,color:#f472b6
+    EVAL --> LEARN
+
+    NOTE["Over many projects:<br/>routines stabilize into<br/>the system's intuition.<br/>Immature: all hyperdirect.<br/>Mature: mostly direct."]
+
+    style MATCH fill:#bfdbfe,stroke:#2563eb,color:#1a1a2e
+    style DIRECT fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style HYPER fill:#e8e0f0,stroke:#7c6af0,color:#1a1a2e
+    style GATE fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+    style LEARN fill:#ffedd5,stroke:#ea580c,color:#1a1a2e
+    style NOTE fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e

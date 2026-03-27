@@ -1,0 +1,85 @@
+---
+title: "Territory Observation Pipeline — 12 Sources, NE Split, Triage Routing"
+scope: global
+---
+flowchart TD
+    TITLE["<b>OBSERVATION PIPELINE</b><br/>How the system notices things about itself and its territory"]
+    style TITLE fill:#f8fafc,stroke:#94a3b8,color:#1a1a2e
+
+    TITLE --> SOURCES
+
+    subgraph SOURCES["12 OBSERVATION SOURCES — grouped by rhythm phase"]
+        direction LR
+        subgraph EXEC["During Task"]
+            direction TB
+            E1["cerebellum<br/><i>approach bottleneck,<br/>cold start warning</i>"]
+            E2["builder · evaluator<br/>proprioception<br/><i>(existing)</i>"]
+            E3["efference-copy<br/><i>ceiling surprises,<br/>plan feasibility</i>"]
+        end
+        subgraph BETWEEN["Between Tasks"]
+            direction TB
+            B1["dopamine<br/><i>prediction errors,<br/>tonic trend reversal</i>"]
+            B2["hippocampus<br/><i>contradictions,<br/>potentiation triggers</i>"]
+            B3["basal-ganglia<br/><i>collapse dominance,<br/>override friction</i>"]
+            B4["drift-monitor<br/><i>threshold crossings,<br/>signal spikes</i>"]
+            B5["world-model<br/><i>maxim supersedure</i>"]
+            B6["working-memory<br/><i>oscillation,<br/>stale questions</i>"]
+        end
+        subgraph GATE["Phase Gate"]
+            direction TB
+            G1["integration-check<br/><i>(existing)</i>"]
+            G2["drift-monitor<br/><i>intent alignment,<br/>taste divergence,<br/>convention erosion</i>"]
+            G3["cognitive-flexibility<br/><i>perseveration<br/>diagnosis</i>"]
+        end
+    end
+
+    SOURCES --> PROPOSAL["<b>ObservationProposal</b><br/>fact · relevance · systemHealth?"]
+
+    PROPOSAL --> SPLIT{"System<br/>health?"}
+
+    SPLIT -->|"Yes — always store"| BYPASS["Bypass NE threshold"]
+    SPLIT -->|"No — NE gate"| NE["relevance ≥ 0.6 − 0.4 × NE"]
+    NE -->|"Pass"| STORE
+    NE -->|"Fail"| DROP["Filtered out"]
+    BYPASS --> STORE
+
+    STORE["Working Memory<br/><b>observations[]</b>"]
+
+    STORE --> TRIAGE{"<b>Quick Triage</b><br/>(between tasks, no LLM)"}
+
+    TRIAGE -->|"systemHealth obs"| FLAG["Flag for deep synthesis<br/><i>project-level — never<br/>keyword-matched to tasks</i>"]
+    TRIAGE -->|"regular + keyword match"| AMEND["Amend proposals<br/><i>patch specific tasks</i>"]
+    TRIAGE -->|"regular, no match"| HELD["Held until phase gate"]
+    TRIAGE -->|"pressure > 0.7"| FLAG
+
+    FLAG --> SYNTH
+    HELD --> SYNTH
+    SYNTH["<b>Deep Synthesis</b><br/>(LLM-powered, at phase gates)<br/>observations + simulations<br/>→ graph surgery proposals"]
+
+    AMEND --> APPLY
+    SYNTH --> CONVICTION["Conviction check<br/>per proposal"]
+    CONVICTION --> APPLY["Apply to<br/>task graph"]
+
+    subgraph HEALTH["SYSTEM HEALTH — bypass NE, always noticed"]
+        direction LR
+        H1["Prediction accuracy<br/>degraded"]
+        H2["Tonic dopamine<br/>trend reversed"]
+        H3["Collapse dominance<br/>detected"]
+        H4["Cognitive flexibility<br/>diagnosis fired"]
+        H5["Intent alignment<br/>category changed"]
+        H6["WM oscillation<br/>detected"]
+    end
+
+    style SOURCES fill:#f0fdf4,stroke:#16a34a,color:#1a1a2e
+    style EXEC fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style BETWEEN fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style GATE fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style STORE fill:#dbeafe,stroke:#2563eb,color:#1a1a2e
+    style HEALTH fill:#fef2f2,stroke:#dc2626,color:#1a1a2e
+    style SPLIT fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+    style TRIAGE fill:#ede9fe,stroke:#7c3aed,color:#1a1a2e
+    style SYNTH fill:#ede9fe,stroke:#7c3aed,color:#1a1a2e
+    style DROP fill:#fecaca,stroke:#ef4444,color:#1a1a2e
+    style APPLY fill:#ffedd5,stroke:#ea580c,color:#1a1a2e
+    style FLAG fill:#fce7f3,stroke:#db2777,color:#1a1a2e
+    style BYPASS fill:#fef2f2,stroke:#dc2626,color:#1a1a2e

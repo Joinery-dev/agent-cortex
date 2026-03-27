@@ -97,8 +97,8 @@ export interface ConsultationEnrichment {
   predictedTensions?: PredictedTension[];
   /** Tactical notes from the completed task's conviction loop. */
   convictionNotes?: string[];
-  /** Explore/exploit mode from Attention Scheduler. Shapes consultation framing. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Attention Scheduler. Shapes consultation framing. */
+  mode?: "explore" | "leverage";
   /** Directives from Prospective Memory triggers fired for this task. */
   prospectiveDirectives?: string[];
   /** Motor Cortex's per-sense feasibility assessment — calibrate ambitions against buildability. */
@@ -158,8 +158,8 @@ export interface MotorEnrichment {
   approachNotes?: string[];
   /** Senses identified as bottlenecks (below ceiling, trending poorly). */
   bottleneckSenses?: string[];
-  /** Explore/exploit mode from Attention Scheduler. Shapes motor framing. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Attention Scheduler. Shapes motor framing. */
+  mode?: "explore" | "leverage";
   /** Directives from Prospective Memory triggers fired for this task. */
   prospectiveDirectives?: string[];
   /** Selected explore path — strong guidance for the premotor's approach. */

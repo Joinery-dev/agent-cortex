@@ -25,7 +25,7 @@ const PerspectiveResult = z.object({
 /** Conditions context passed by sensory-cortex to record in the consultation. */
 export interface ConsultConditions {
   neLevel?: number;
-  mode?: "explore" | "exploit";
+  mode?: "explore" | "leverage";
   activeSenses: Sense[];
   inhibitedSenses: { senseId: string; reason: string }[];
 }

@@ -444,9 +444,23 @@ function testTaskDispatchConviction(ctx: ConvictionContext, t: ConvictionThresho
     }
   }
 
-  // Weighted sum
+  // Signal 4: Scheduler escalation pressure (applied as penalty)
+  // A severity-1.0 escalation pulls conviction down by 0.25.
+  // High conviction can absorb it (reshape zone); low conviction compounds it (escalate).
+  let schedulerPenalty = 0;
+  if (ctx.schedulerEscalation) {
+    schedulerPenalty = ctx.schedulerEscalation.severity * 0.25;
+    evidence.push({
+      source: "scheduler-escalation",
+      description: `Scheduler flagged ${ctx.schedulerEscalation.type}: ${ctx.schedulerEscalation.reason}`,
+      magnitude: ctx.schedulerEscalation.severity,
+      valence: "undermines",
+    });
+  }
+
+  // Weighted sum (minus scheduler penalty)
   const level = clamp(
-    0.4 * progressSignal + 0.3 * tonicSignal + 0.3 * escalationSignal,
+    0.4 * progressSignal + 0.3 * tonicSignal + 0.3 * escalationSignal - schedulerPenalty,
     0,
     1,
   );

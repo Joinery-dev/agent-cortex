@@ -54,6 +54,7 @@ import type { PeripheralNervousSystem } from "../../kernel/pns.js";
 import type { ProjectProfile } from "../../types/runtime.js";
 import { discoverProject } from "../../kernel/project-discovery.js";
 import type { DriftMonitor } from "../../kernel/drift-monitor.js";
+import type { TasteFeedbackLoop } from "../../kernel/taste-feedback.js";
 import type { Planner } from "../../kernel/planner.js";
 import type { ProjectDiagnostics } from "../../kernel/project-diagnostics.js";
 import type { ProspectiveMemory } from "../../kernel/prospective-memory.js";
@@ -129,13 +130,14 @@ export function createProjectDefinition(
   worldModel?: WorldModel,
   pns?: PeripheralNervousSystem,
   driftMonitor?: DriftMonitor,
+  tasteFeedbackLoop?: TasteFeedbackLoop,
   planner?: Planner,
   projectDiagnostics?: ProjectDiagnostics,
   prospectiveMemory?: ProspectiveMemory,
   costTracker?: CostTracker,
 ): RhythmDefinition<ProjectContext, ProjectResult, PreparedProject, TaskDispatchResult, ProjectResult> {
   const integrationChecker = new IntegrationChecker(undefined, library, wm, thalamus, config);
-  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, prospectiveMemory, integrationChecker, costTracker);
+  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker);
 
   // Sensory cortex definition for planning tasks — same machinery used for
   // regular tasks, now plugged into the project rhythm for Phase A manifestation.
@@ -460,46 +462,29 @@ export function createProjectDefinition(
           if (!(err instanceof EscalationError)) throw err;
           const ctx = err.decision.context;
 
-          // Non-replan escalations → store on accumulator, let gate pause
-          if (ctx.type !== "replan-request") {
-            const sourceMap: Record<string, "drift-monitor" | "attention-scheduler" | "cognitive-flexibility" | "amygdala"> = {
-              "triage-escalation": "attention-scheduler",
-              "diagnostic-escalation": "attention-scheduler",
-              "conviction-escalation": "attention-scheduler",
-              "scheduler-escalation": "attention-scheduler",
-            };
-            state.accumulator.__pendingEscalation = {
-              source: sourceMap[ctx.type as string] ?? "attention-scheduler",
-              severity: err.decision.severity === "critical" ? "urgent" : "blocking",
-              reason: err.decision.reason,
-              detail: ctx.reasoning as string ?? err.decision.reason,
-              question: (ctx.questions as string[] | undefined)?.[0],
-              proposedActions: ctx.questions as string[] | undefined,
-            };
-            return {
-              completedTasks: (ctx.completedTasks as string[]) ?? [],
-              escalatedTasks: (ctx.escalatedTasks as string[]) ?? [],
-              taskResults: (ctx.taskResults as Map<string, OrchestratorResult>) ?? new Map(),
-            };
-          }
+          // All escalation types enter the self-healing cascade.
+          // The amygdala path (RhythmAbortedError) is handled above and
+          // never reaches here — hard interrupts bypass self-healing.
 
           // Extract carry-over from escalation context
-          const completedIds = new Set(ctx.completedTasks as string[]);
-          const escalatedIds = new Set(ctx.escalatedTasks as string[]);
+          const completedIds = new Set((ctx.completedTasks as string[]) ?? []);
+          const escalatedIds = new Set((ctx.escalatedTasks as string[]) ?? []);
           const taskResults = (ctx.taskResults as Map<string, OrchestratorResult>) ?? new Map();
           const driftAssessment = (ctx.driftAssessment as DriftAssessment | null) ?? null;
 
           replanCount++;
 
-          emit("project:replan-triggered", {
+          emit("project:self-heal-triggered", {
             replanCount,
+            escalationType: ctx.type,
             completedCount: completedIds.size,
             escalatedCount: escalatedIds.size,
             driftLevel: driftAssessment?.driftLevel,
           });
 
-          log.info("Replan triggered", {
+          log.info("Self-heal cascade triggered", {
             replanCount,
+            escalationType: ctx.type,
             completedTasks: completedIds.size,
             escalatedTasks: escalatedIds.size,
             driftLevel: driftAssessment?.driftLevel,
@@ -508,6 +493,16 @@ export function createProjectDefinition(
 
           // ── Triage: route to the right intervention ──────────
           let diagnosticDirective: string | undefined;
+
+          // Build escalation source for triage — scheduler-specific rules
+          // fire when the escalation came from a non-replan source.
+          const escalationSource = ctx.type !== "replan-request"
+            ? {
+                type: ctx.type as "conviction-escalation" | "scheduler-escalation" | "pfc-flag",
+                schedulerType: ctx.schedulerEscalationType as "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift" | undefined,
+                reason: err.decision.reason,
+              }
+            : undefined;
 
           // Triage reads WM conviction trajectory + signals to decide route
           const triageResult = projectDiagnostics?.triage({
@@ -518,6 +513,7 @@ export function createProjectDefinition(
             cerebellumAccuracy: hooks.getCerebellumAccuracy(),
             replanCount,
             maxReplans: MAX_REPLAN_CASCADES,
+            escalationSource,
           });
 
           const route = triageResult?.route ?? "replan";

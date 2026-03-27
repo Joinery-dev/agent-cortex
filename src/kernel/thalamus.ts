@@ -85,7 +85,7 @@ export class Thalamus {
   private intent?: ProjectIntent;
   private taste?: TasteProfile;
   private gestalts = new Map<string, TaskGestalt>();
-  private taskModes = new Map<string, "explore" | "exploit">();
+  private taskModes = new Map<string, "explore" | "leverage">();
   private forwardBriefing: ForwardBriefing | null = null;
   private manifestedFuture: string | null = null;
 
@@ -113,14 +113,34 @@ export class Thalamus {
     });
   }
 
+  /** Current taste profile, or undefined if no project is bound. */
+  getTaste(): TasteProfile | undefined {
+    return this.taste;
+  }
+
+  /**
+   * Update the taste profile without changing the intent.
+   * Used by satisfaction-signal when a human response mutates
+   * a taste dimension. Propagates to all future briefings.
+   */
+  updateTaste(taste: TasteProfile): void {
+    this.taste = taste;
+
+    emit("thalamus:taste-updated", {
+      tasteId: taste.id,
+    });
+
+    log.info("Taste profile updated", { tasteId: taste.id });
+  }
+
   // ── Mode Binding ──────────────────────────────────────────────────
 
   /**
-   * Store explore/exploit mode for a task.
+   * Store explore/leverage mode for a task.
    * Called by sensory-cortex.prepare with the scheduler's mode decision.
-   * Shapes briefing framing: explore de-emphasizes patterns, exploit reinforces them.
+   * Shapes briefing framing: explore de-emphasizes patterns, leverage reinforces them.
    */
-  setTaskMode(taskId: string, mode: "explore" | "exploit"): void {
+  setTaskMode(taskId: string, mode: "explore" | "leverage"): void {
     this.taskModes.set(taskId, mode);
 
     emit("thalamus:mode-set", { taskId, mode });
@@ -131,7 +151,7 @@ export class Thalamus {
     this.taskModes.delete(taskId);
   }
 
-  getTaskMode(taskId: string): "explore" | "exploit" | undefined {
+  getTaskMode(taskId: string): "explore" | "leverage" | undefined {
     return this.taskModes.get(taskId);
   }
 
@@ -966,7 +986,7 @@ export class Thalamus {
     library: SensoryCortex,
     task?: Task,
     neLevel?: number,
-    mode?: "explore" | "exploit",
+    mode?: "explore" | "leverage",
   ): Promise<InhibitionBriefing> {
     const { intent, taste } = this.getProjectContext();
     const accumulated = this.getAccumulatedContext();

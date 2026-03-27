@@ -19,9 +19,12 @@
 import type { ConvictionResult } from "./conviction.js";
 import type { WeightedComposite } from "../kernel/evaluation-weighter.js";
 import type { Tension } from "./tension.js";
-import type { OscillationSignal } from "./working-memory.js";
+import type { OscillationSignal, ScoreTrend } from "./working-memory.js";
 import type { SpeedOfLight } from "./cerebellum.js";
 import type { Task } from "./task.js";
+import type { TaskGraphNode, VitalSigns } from "./brainstem.js";
+import type { OrchestratorResult } from "./orchestrator.js";
+import type { ProjectIntent } from "./intent.js";
 
 // ─── Diagnosis ──────────────────────────────────────────────────
 
@@ -79,6 +82,33 @@ export interface FlexibilityAssessment {
   shouldEscalate: boolean;
   /** Present when shouldEscalate is true. */
   escalationContext?: string;
+}
+
+// ─── Dispatch-Level Context ─────────────────────────────────────
+
+/** What dispatch-level Cognitive Flexibility reads. Aggregate signals, not per-build. */
+export interface DispatchFlexibilityContext {
+  /** The conviction loop's verdict that triggered flexibility. */
+  conviction: ConvictionResult;
+  /** Task graph (full node list). */
+  taskGraph: TaskGraphNode[];
+  /** IDs of completed tasks. */
+  completedTaskIds: Set<string>;
+  /** IDs of escalated tasks. */
+  escalatedTaskIds: Set<string>;
+  /** Task results so far (scores, confidence, cycles). */
+  taskResults: Map<string, OrchestratorResult>;
+  /** Per-sense score trends from WM. */
+  senseTrends: ScoreTrend[];
+  /** Scheduler escalation that triggered this (if any). */
+  schedulerEscalation?: {
+    type: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
+    reason: string;
+  };
+  /** Vital signs from homeostasis. */
+  vitals: VitalSigns;
+  /** Project intent. */
+  intent: ProjectIntent;
 }
 
 /** Instructions for the premotor when re-planning from scratch. */

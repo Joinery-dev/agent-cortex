@@ -1,5 +1,5 @@
 ---
-title: "Escalation Pathways — When the System Asks for Help"
+title: "Escalation Pathways — Self-Healing Before Human"
 scope: global
 ---
 flowchart TD
@@ -7,15 +7,24 @@ flowchart TD
         S1["DRIFT MONITOR<br/>Trajectory diverging<br/>from manifested future"]
         S2["COGNITIVE FLEXIBILITY<br/>Perseveration detected:<br/>same approach, no improvement"]
         S3["AMYGDALA<br/>Threat detected:<br/>security, data loss, unsafe op"]
-        S4["ATTENTION SCHEDULER<br/>Deadlock: no ready tasks<br/>but graph not done"]
+        S4["ATTENTION SCHEDULER<br/>Deadlock, cratering,<br/>open questions"]
         S5["CONVICTION LOOP<br/>Conviction too low to proceed<br/>or manifested future broken"]
         S6["HOMEOSTASIS<br/>Learning signal broken<br/>or tonic dopamine crashed"]
-        S7["BUILD CYCLE<br/>Too many open questions<br/>or scores cratering"]
+        S7["BUILD CYCLE<br/>Conviction reshape<br/>at task level"]
     end
 
-    subgraph LEVELS["Escalation Severity"]
-        L1["SOFT<br/>Wait for current gate,<br/>then surface for decision<br/>(medium urgency)"]
-        L2["HARD<br/>Freeze immediately,<br/>escalate to human<br/>(critical urgency)"]
+    subgraph GATE["Self-Healing Gate"]
+        G1["CONVICTION<br/>Scheduler signal fed<br/>as undermining evidence"]
+        G2{"Conviction<br/>verdict?"}
+        G3["COGNITIVE FLEXIBILITY<br/>Dispatch-level heuristic:<br/>execution / strategy /<br/>evasion / irreconcilable"]
+        G4{"CogFlex<br/>diagnosis?"}
+    end
+
+    subgraph TRIAGE["Project Triage Cascade"]
+        T1["TRIAGE<br/>Rule-based routing:<br/>scheduler-specific rules<br/>+ existing R1–R6"]
+        T2{"Route?"}
+        T3["SELF-HEAL<br/>Replan with directive /<br/>re-manifest / recalibrate /<br/>taste update / rest"]
+        T4["FULL DIAGNOSTIC<br/>LLM root-cause analysis:<br/>path / vision / calibration /<br/>taste / environmental"]
     end
 
     subgraph HANDLER["Escalation Handler"]
@@ -25,31 +34,55 @@ flowchart TD
     end
 
     subgraph RESOLUTION["Human Resolves"]
-        R1["CONTINUE<br/>'Keep going, it's fine'<br/>→ resume with<br/>conviction boost"]
-        R2["REDIRECT<br/>'Try this instead'<br/>→ reshape: replan<br/>from new direction"]
-        R3["ABORT<br/>'Stop this task/project'<br/>→ deliver what's done"]
-        R4["ANSWER<br/>'The answer is X'<br/>→ resolve open question,<br/>resume"]
+        R1["CONTINUE<br/>'Keep going'<br/>→ conviction boost"]
+        R2["REDIRECT<br/>'Try this instead'<br/>→ replan"]
+        R3["ABORT<br/>'Stop'<br/>→ deliver what's done"]
+        R4["ANSWER<br/>'The answer is X'<br/>→ resolve question"]
     end
 
-    S1 --> L1
-    S2 --> L1
-    S4 --> L1
-    S5 --> L1
-    S6 --> L1
-    S7 --> L1
-    S3 --> L2
+    %% All non-amygdala sources → conviction gate
+    S1 & S2 & S4 & S5 & S6 --> G1
+    S7 -->|"Build-cycle has its<br/>own conviction gate"| RESUME
 
-    L1 --> H1
-    L2 --> H1
+    %% Amygdala bypasses everything
+    S3 -->|"HARD — freeze now"| H1
+
+    %% Conviction gate
+    G1 --> G2
+    G2 -->|"escalate"| T1
+    G2 -->|"reshape"| G3
+    G2 -->|"proceed"| RESUME["Resume rhythm<br/>(scheduler overridden)"]
+
+    %% Dispatch CogFlex
+    G3 --> G4
+    G4 -->|"irreconcilable"| H1
+    G4 -->|"strategy-limited<br/>(shouldReset)"| T1
+    G4 -->|"execution-problem<br/>tension-evasion"| RESUME
+
+    %% Project triage cascade
+    T1 --> T2
+    T2 -->|"replan /<br/>re-manifest"| T3
+    T2 -->|"full-diagnostic"| T4
+    T2 -->|"escalate"| H1
+    T3 -->|"retry"| RESUME
+    T4 -->|"self-healable"| T3
+    T4 -->|"environmental"| H1
+
+    %% Human handler
     H1 --> H2 --> H3
     H3 --> R1 & R2 & R3 & R4
 
-    R1 --> RESUME["Resume rhythm"]
+    R1 --> RESUME2["Resume rhythm"]
     R2 --> REPLAN["Invoke planner"]
     R3 --> COMPLETE["Deliver + complete"]
-    R4 --> RESUME
+    R4 --> RESUME2
 
     style SOURCES fill:#1a1d27,stroke:#f87171,color:#e2e4ea
-    style LEVELS fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style GATE fill:#1a1d27,stroke:#a78bfa,color:#e2e4ea
+    style TRIAGE fill:#1a1d27,stroke:#facc15,color:#e2e4ea
     style HANDLER fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
     style RESOLUTION fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style RESUME fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style RESUME2 fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style REPLAN fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style COMPLETE fill:#1a1d27,stroke:#a78bfa,color:#e2e4ea

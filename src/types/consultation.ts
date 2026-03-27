@@ -56,7 +56,7 @@ export interface StakeDistribution {
 
 export interface ConsultationConditions {
   neLevel?: number;
-  mode?: "explore" | "exploit";
+  mode?: "explore" | "leverage";
   activeSenses: { senseId: string; senseName: string }[];
   inhibitedSenses: { senseId: string; reason: string }[];
 }

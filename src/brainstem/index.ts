@@ -52,6 +52,14 @@ import { DriftMonitor } from "../kernel/drift-monitor.js";
 import { Planner } from "../kernel/planner.js";
 import { ProjectDiagnostics } from "../kernel/project-diagnostics.js";
 import { ProspectiveMemory } from "../kernel/prospective-memory.js";
+import { TasteFeedbackLoop } from "../kernel/taste-feedback.js";
+import {
+  processTasteResponse,
+  processTaskSignal,
+  applyMapping,
+  applyTasteUpdate,
+} from "../kernel/satisfaction-signal.js";
+import type { SatisfactionResponse, SatisfactionSignal } from "../types/satisfaction-signal.js";
 import { EscalationHandler } from "./escalation-handler.js";
 import { CostTracker } from "./cost-tracker.js";
 import { registerCostCallback, setCostTaskId } from "../llm/client.js";
@@ -83,6 +91,7 @@ export class Brainstem {
   private planner: Planner;
   private projectDiagnostics: ProjectDiagnostics;
   private prospectiveMemory: ProspectiveMemory;
+  private tasteFeedbackLoop: TasteFeedbackLoop;
   private escalationHandler: EscalationHandler;
   private costTracker: CostTracker | null = null;
 
@@ -144,6 +153,9 @@ export class Brainstem {
     this.planner = new Planner(config.models.motorCortex);
     this.projectDiagnostics = new ProjectDiagnostics(config);
     this.prospectiveMemory = new ProspectiveMemory();
+    this.tasteFeedbackLoop = new TasteFeedbackLoop({
+      proposalModel: config.models.consultation,
+    });
 
     // StakeAdjuster: if caller provides one, use it. Otherwise build
     // one that reads evaluation-influence weights from the store.
@@ -157,6 +169,7 @@ export class Brainstem {
       plasticity: this.plasticityStore,
       basalGanglia: this.basalGanglia,
       tonic: this.tonicTracker,
+      wm: this.wm,
       projectId: "default",
     });
 
@@ -165,6 +178,7 @@ export class Brainstem {
 
     // Wire sense library to components that need sense verification
     this.hippocampus.setLibrary(library);
+    this.tasteFeedbackLoop.setLibrary(library);
     this.escalationHandler.setLibraryAndModel(library, config.models.consultation);
 
     // ── Afferent signal routing ────────────────────────────────
@@ -317,6 +331,7 @@ export class Brainstem {
       this.worldModel,
       this.pns,
       this.driftMonitor,
+      this.tasteFeedbackLoop,
       this.planner,
       this.projectDiagnostics,
       this.prospectiveMemory,
@@ -416,6 +431,59 @@ export class Brainstem {
     this.escalationHandler.setDeliveryAdapter(adapter);
   }
 
+  /** Get the taste feedback loop (taste divergence proposals). */
+  getTasteFeedbackLoop(): TasteFeedbackLoop {
+    return this.tasteFeedbackLoop;
+  }
+
+  /**
+   * Receive a human response to a taste divergence proposal.
+   *
+   * This closes the learning loop:
+   *   1. TasteFeedbackLoop surfaced a proposal (via dispatch:taste-proposal event)
+   *   2. Human responded with update/keep/nuanced/deferred
+   *   3. This method routes the response through satisfaction-signal
+   *      to produce plasticity weight updates and taste profile mutations
+   *   4. Changes propagate via Thalamus to all future consumers
+   *
+   * Returns true if the response was processed, false if the proposal
+   * wasn't found (expired or already responded).
+   */
+  receiveTasteResponse(response: SatisfactionResponse): boolean {
+    // 1. Route to taste feedback loop — attaches response to proposal
+    const proposal = this.tasteFeedbackLoop.receiveResponse(response);
+    if (!proposal) return false;
+
+    // 2. Process through satisfaction signal — compute plasticity mapping
+    const mapping = processTasteResponse(response, proposal);
+
+    // 3. Apply plasticity weight updates
+    applyMapping(mapping, this.plasticityStore);
+
+    // 4. Apply taste profile mutation if present
+    if (mapping.tasteUpdate) {
+      const currentTaste = this.thalamus.getTaste();
+      if (currentTaste) {
+        const updatedTaste = applyTasteUpdate(currentTaste, mapping.tasteUpdate);
+        this.thalamus.updateTaste(updatedTaste);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Receive a task-level approval or correction signal.
+   *
+   * Lighter-weight than taste responses — adjusts per-sense evaluation
+   * influence weights based on whether the human approved or corrected
+   * a task's output.
+   */
+  receiveTaskSignal(signal: SatisfactionSignal, activeSenseNames: string[]): void {
+    const mapping = processTaskSignal(signal, activeSenseNames);
+    applyMapping(mapping, this.plasticityStore);
+  }
+
   /** Get the cost tracker (null when no budget is set). */
   getCostTracker(): CostTracker | null {
     return this.costTracker;
@@ -468,4 +536,6 @@ export { TonicTracker } from "../subcortical/tonic.js";
 export { CognitiveFlexibility } from "../kernel/cognitive-flexibility.js";
 export { PeripheralNervousSystem } from "../kernel/pns.js";
 export { DriftMonitor } from "../kernel/drift-monitor.js";
+export { TasteFeedbackLoop } from "../kernel/taste-feedback.js";
+export { processTasteResponse, processTaskSignal, applyMapping, applyTasteUpdate } from "../kernel/satisfaction-signal.js";
 export { ProjectDiagnostics } from "../kernel/project-diagnostics.js";

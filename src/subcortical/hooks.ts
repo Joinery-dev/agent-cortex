@@ -27,6 +27,7 @@ import type { SenseEvaluation } from "../types/sense.js";
 import type { CerebellumPrediction, SpeedOfLight, ScoredEpisode } from "../types/cerebellum.js";
 import type { Sense } from "../types/sense.js";
 import type { SensoryCortex } from "../senses/cortex.js";
+import type { WorkingMemory } from "../kernel/working-memory.js";
 import type { DopamineProjections } from "../types/dopamine.js";
 import type { ResolutionOutcome } from "../types/tension.js";
 import type { TaskGraphNode } from "../types/brainstem.js";
@@ -49,6 +50,7 @@ export interface CompositeHooksSources {
   tonic?: TonicTracker;
   basalGanglia?: BasalGanglia;
   amygdala?: Amygdala;
+  wm?: WorkingMemory;
 }
 
 export class CompositeSubcorticalHooks implements SubcorticalHooks {
@@ -59,6 +61,7 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   private plasticity?: PlasticityStoreImpl;
   private basalGanglia?: BasalGanglia;
   private amygdala?: Amygdala;
+  private wm?: WorkingMemory;
   private tonic: TonicTracker;
 
   /**
@@ -75,6 +78,7 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     this.plasticity = sources.plasticity;
     this.basalGanglia = sources.basalGanglia;
     this.amygdala = sources.amygdala;
+    this.wm = sources.wm;
     this.tonic = sources.tonic ?? new TonicTracker();
   }
 
@@ -255,8 +259,44 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   }
 
   async pruneMemory(): Promise<{ pruned: number; promoted: number }> {
-    log.debug("pruneMemory called — promotion logic pending");
-    return { pruned: 0, promoted: 0 };
+    if (!this.wm) return { pruned: 0, promoted: 0 };
+
+    const result = this.wm.pruneStale();
+
+    // Promote high-confidence patterns as lightweight episodes
+    // so hippocampal potentiation can crystallize them into principles
+    let promoted = 0;
+    for (const description of result.promotable) {
+      this.hippocampus.recordEpisode(
+        this.projectId,
+        `wm-promotion-${Date.now()}-${promoted}`,
+        `Pattern promoted from working memory: ${description}`,
+        {
+          status: "accepted",
+          confidence: 0.7,
+          work: description,
+          cycles: 0,
+          evaluations: [],
+          tensions: [],
+          resolutions: [],
+          decisionLog: [],
+        } as import("../types/orchestrator.js").OrchestratorResult,
+        0, // neutral dopamine — this is consolidation, not surprise
+      );
+      promoted++;
+    }
+
+    if (result.pruned > 0 || promoted > 0) {
+      this.homeostasis.update("workingMemoryLoad", this.wm.getLoad());
+
+      emitInfo("learning:wm-pruned", {
+        pruned: result.pruned,
+        promoted,
+        wmLoadAfter: this.wm.getLoad(),
+      });
+    }
+
+    return { pruned: result.pruned, promoted };
   }
 
   // ── Plasticity ─────────────────────────────────────────────

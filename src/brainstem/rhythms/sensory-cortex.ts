@@ -304,7 +304,7 @@ export function createSensoryCortexDefinition(
           });
         }
 
-        // Set explore/exploit mode
+        // Set explore/leverage mode
         if (mode) {
           thalamus.setTaskMode(task.id, mode);
         }

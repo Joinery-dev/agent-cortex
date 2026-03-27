@@ -103,8 +103,8 @@ export interface StriatalProjection {
    */
   reinforcement: number;
   /**
-   * Bias toward exploration vs exploitation (0–1).
-   * 0 = pure exploitation (keep doing what works).
+   * Bias toward exploration vs leveraging (0–1).
+   * 0 = pure leveraging (keep doing what works).
    * 1 = pure exploration (try something different).
    * Derived from tonic: negative tonic → explore more.
    */

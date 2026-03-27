@@ -96,8 +96,8 @@ export interface TaskGestalt {
   // ── Modulation Signals ────────────────────────────────────
   /** Norepinephrine level from Attention Scheduler. */
   neLevel?: number;
-  /** Explore/exploit mode from Attention Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Attention Scheduler. */
+  mode?: "explore" | "leverage";
   /** Budget pressure from CostTracker (0–1). Drives briefing depth. */
   budgetPressure?: number;
   /** Allocated budget for this task in dollars. */
@@ -271,8 +271,8 @@ export interface GestaltAssemblyContext {
   task: Task;
   /** NE level from Attention Scheduler. */
   neLevel?: number;
-  /** Explore/exploit mode from Attention Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Attention Scheduler. */
+  mode?: "explore" | "leverage";
   /**
    * Task graph context from task-dispatch. Optional — single-task
    * runs or test harnesses may not have a graph.

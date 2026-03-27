@@ -103,8 +103,8 @@ export interface SensoryCortexContext {
   neLevel?: number;
   /** Frozen risk factors from dispatch — enrichment sites reuse instead of re-deriving. */
   riskSnapshot?: RiskFactors;
-  /** Explore/exploit mode from Attention Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Attention Scheduler. */
+  mode?: "explore" | "leverage";
   /** Budget allocated for this task (dollars). From Scheduler dispatch. */
   taskBudget?: number;
   /** Project-level budget utilization (0–1). From CostTracker. */

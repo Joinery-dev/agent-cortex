@@ -184,8 +184,8 @@ export interface InhibitionEnrichment {
   patterns: EstablishedPattern[];
   /** NE level from Scheduler — modulates aggressiveness. */
   neLevel?: number;
-  /** Explore/exploit mode from Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Scheduler. */
+  mode?: "explore" | "leverage";
   /** Total number of senses in the library (before any filtering). */
   totalSenseCount: number;
   /** Taste dissolved for inhibition — how preferences shape sense relevance. */
@@ -241,8 +241,8 @@ export interface RoutineFingerprint {
   taskKeywords: string[];
   /** NE level bucket: "low" (<0.3), "mid" (0.3-0.7), "high" (>0.7). */
   neBucket: "low" | "mid" | "high";
-  /** Explore/exploit mode from Scheduler. */
-  mode?: "explore" | "exploit";
+  /** Explore/leverage mode from Scheduler. */
+  mode?: "explore" | "leverage";
   /** Number of senses available at briefing time. */
   senseCount: number;
   /** Keywords from taste profile (patterns + decisionStyle). Taste changes invalidate old routines. */

@@ -107,6 +107,13 @@ export interface TriageContext {
   replanCount: number;
   /** Max allowed before forced escalation. */
   maxReplans: number;
+
+  /** When the escalation originated from the scheduler (not a drift-triggered replan). */
+  escalationSource?: {
+    type: "conviction-escalation" | "scheduler-escalation" | "pfc-flag";
+    schedulerType?: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
+    reason: string;
+  };
 }
 
 /** What triage produces. */

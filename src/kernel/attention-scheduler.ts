@@ -95,6 +95,7 @@ export class AttentionScheduler {
       reason: "No tasks have satisfied dependencies but the graph is not complete. Possible circular dependency or all remaining tasks are blocked.",
       source: "attention-scheduler",
       questions: ["Are there circular dependencies in the task graph?", "Should any blocked tasks be unblocked manually?"],
+      escalationType: "deadlock",
     };
     emit("scheduler:escalation", { reason: action.reason, type: "deadlock" });
     this.emitDecision("escalate", signals);
@@ -118,6 +119,7 @@ export class AttentionScheduler {
         reason: "Cognitive Flexibility detected perseveration — same approach failing repeatedly. Strategy reset needed.",
         source: "attention-scheduler",
         questions: ["Should we try a fundamentally different approach?"],
+        escalationType: "perseveration",
       };
       emit("scheduler:escalation", { reason: action.reason, type: "perseveration" });
       this.emitDecision("escalate", signals);
@@ -143,6 +145,7 @@ export class AttentionScheduler {
         reason: `Drift level ${signals.driftLevel.toFixed(2)} exceeds escalation threshold. Project may be diverging from intent.`,
         source: "attention-scheduler",
         questions: ["Is the current trajectory acceptable?", "Should we adjust the plan?"],
+        escalationType: "drift",
       };
       emit("scheduler:escalation", { reason: action.reason, type: "drift", driftLevel: signals.driftLevel });
       this.emitDecision("escalate", signals);
@@ -157,6 +160,7 @@ export class AttentionScheduler {
         reason: `${openQuestions.length} unresolved questions — too much accumulated uncertainty to continue.`,
         source: "attention-scheduler",
         questions: openQuestions.map((q) => q.question),
+        escalationType: "open-questions",
       };
       emit("scheduler:escalation", { reason: action.reason, type: "open-questions", count: openQuestions.length });
       this.emitDecision("escalate", signals);
@@ -178,6 +182,7 @@ export class AttentionScheduler {
           reason: `Scores cratering: ${downCount}/${senseTrends.length} sense trends are declining (${downNames.join(", ")}). Quality trajectory is unsustainable.`,
           source: "attention-scheduler",
           questions: ["What's causing the quality decline?", "Should we pause and investigate?"],
+          escalationType: "cratering",
         };
         emit("scheduler:escalation", { reason: action.reason, type: "cratering", downFraction, downNames });
         this.emitDecision("escalate", signals);
@@ -399,13 +404,13 @@ export class AttentionScheduler {
     return { ne, riskSnapshot: { ...risk } };
   }
 
-  // ─── Private: Explore / exploit ─────────────────────────────────
+  // ─── Private: Explore / leverage ─────────────────────────────────
 
-  private determineMode(node: TaskGraphNode, signals: SchedulerSignals): "explore" | "exploit" {
+  private determineMode(node: TaskGraphNode, signals: SchedulerSignals): "explore" | "leverage" {
     if (signals.routineMatches) {
       const match = signals.routineMatches.get(node.task.id);
       if (match && match.confidence > 0.7) {
-        return "exploit";
+        return "leverage";
       }
     }
 

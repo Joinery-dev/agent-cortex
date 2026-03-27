@@ -264,6 +264,32 @@ export class HomeostasisMonitor {
   }
 
   /**
+   * Check whether PFC intervention is needed.
+   * Returns structured flags for cognitive-level problems that brainstem
+   * reflexes (rest, compress, tighten) can't fix. Parallel to needsRest()
+   * but reads vitals directly — no side effects, no event emission.
+   */
+  needsPfcIntervention(): Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }> {
+    const flags: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }> = [];
+
+    if (this.vitals.learningSignalHealth < this.thresholds.learningSignalHealth) {
+      flags.push({
+        type: "learning-signal-degraded",
+        reason: `Learning signal health ${this.vitals.learningSignalHealth.toFixed(2)} below threshold ${this.thresholds.learningSignalHealth}`,
+      });
+    }
+
+    if (this.vitals.tonicDopamine < this.thresholds.tonicDopamine) {
+      flags.push({
+        type: "tonic-dopamine-crashed",
+        reason: `Tonic dopamine ${this.vitals.tonicDopamine.toFixed(2)} below threshold ${this.thresholds.tonicDopamine} — project persistently disappointing`,
+      });
+    }
+
+    return flags;
+  }
+
+  /**
    * Compute consolidation load from current vitals.
    * Each signal is 0–1. Higher = more pressure to rest.
    */

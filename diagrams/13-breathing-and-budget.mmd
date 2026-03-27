@@ -3,53 +3,55 @@ title: "Breathing & Budget — Context and Cost Management"
 scope: global
 ---
 flowchart TD
-    subgraph BUDGET["COST TRACKING"]
-        B1["Every LLM call recorded:<br/>token count × model rate"]
+    TITLE["<b>BREATHING & BUDGET</b><br/>How the system manages cost and context pressure"]
+    style TITLE fill:#f8fafc,stroke:#94a3b8,color:#1a1a2e
+
+    TITLE --> BUDGET
+
+    subgraph BUDGET["COST TRACKING — every LLM call recorded"]
+        B1["token count × model rate<br/>per-task + per-project totals"]
         B2["Budget utilization =<br/>spent / total budget"]
         B3{"Utilization<br/>level?"}
     end
 
-    subgraph NORMAL["< 85% — Normal Operation"]
-        N1["Full briefings (deep depth)"]
+    B1 --> B2 --> B3
+
+    subgraph NORMAL["< 85% — normal operation"]
+        N1["Full briefing depth"]
         N2["Best model available"]
-        N3["All senses that should<br/>be active, are active"]
+        N3["All relevant senses active"]
     end
 
-    subgraph PRESSURED["≥ 85% — Breathing Active"]
-        P1["Briefing depth: moderate → shallow"]
+    subgraph PRESSURED["≥ 85% — homeostasis tighten-budget reflex"]
+        P1["Briefing depth: standard → compressed → minimal"]
         P2["Model downgrade if available"]
-        P3["Economic gate strategy"]
-        P4["Stop early if ceiling too low<br/>vs remaining budget"]
+        P3["Cerebellum SOL check:<br/>stop early if ceiling too low<br/>vs remaining budget"]
     end
 
-    subgraph EXHAUSTED["> 100% — Budget Exhausted"]
+    subgraph EXHAUSTED["> 100% — budget exhausted"]
         EX1["Hard stop: deliver what's done"]
         EX2["Scheduler returns 'complete'<br/>regardless of task graph state"]
     end
 
-    B1 --> B2 --> B3
     B3 -->|"< 85%"| NORMAL
     B3 -->|"≥ 85%"| PRESSURED
     B3 -->|"> 100%"| EXHAUSTED
 
-    subgraph BREATHING["CONTEXT BREATHING — Three Phases"]
-        BR1["WARMUP<br/>At rhythm start:<br/>preload predicted context<br/>(Cerebellum hints what's needed)"]
-        BR2["STEADY STATE<br/>During task:<br/>evict least-relevant when<br/>context capacity critical"]
-        BR3["COOLDOWN<br/>At rhythm complete:<br/>flush or persist<br/>to external stores"]
+    subgraph BREATHING["BREATHING REFLEX — three mechanisms"]
+        BR1["1. ASSEMBLY-TIME BUDGET<br/>Thalamus constrains what goes<br/>into each briefing based on<br/>BriefingDepth (NE + budget driven)<br/>Levels: full · standard · compressed · minimal"]
+        BR2["2. COMPACTION CONFIG<br/>Thalamus generates custom<br/>instructions for API's<br/>server-side compaction summarizer"]
+        BR3["3. POST-COMPACTION REHYDRATION<br/>Thalamus re-injects from<br/>WM, Hippocampus, World Model<br/>after context shrinks"]
     end
 
-    subgraph THALAMUS_MOD["Thalamus Adapts"]
-        T1["Assembly-time: constrain<br/>what goes into briefings"]
-        T2["Compaction config: custom<br/>instructions for API compactor"]
-        T3["Post-compaction rehydration:<br/>re-inject from WM, Hippocampus,<br/>World Model after context shrinks"]
-    end
+    BR1 --> BR2 --> BR3
 
     PRESSURED --> BREATHING
-    BREATHING --> THALAMUS_MOD
 
-    style BUDGET fill:#1a1d27,stroke:#facc15,color:#e2e4ea
-    style NORMAL fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
-    style PRESSURED fill:#1a1d27,stroke:#fb923c,color:#e2e4ea
-    style EXHAUSTED fill:#1a1d27,stroke:#f87171,color:#e2e4ea
-    style BREATHING fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
-    style THALAMUS_MOD fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
+    NOTE["Key insight: Anthropic handles<br/>context eviction (compaction).<br/>The Thalamus handles what goes IN<br/>(budget) and what survives OUT<br/>(rehydration). The Cerebellum<br/>predicts quality impact of<br/>compression."]
+
+    style BUDGET fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
+    style NORMAL fill:#d1fae5,stroke:#059669,color:#1a1a2e
+    style PRESSURED fill:#ffedd5,stroke:#ea580c,color:#1a1a2e
+    style EXHAUSTED fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style BREATHING fill:#bfdbfe,stroke:#2563eb,color:#1a1a2e
+    style NOTE fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e

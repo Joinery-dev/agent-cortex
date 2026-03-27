@@ -830,6 +830,64 @@ export class WorkingMemory {
     return Math.min(1, load);
   }
 
+  // ── Rest-Cycle Pruning ─────────────────────────────────────────
+
+  /**
+   * Prune stale items from working memory. Called by rest cycle.
+   *
+   * Removes resolved questions, old decisions beyond a cap,
+   * old patterns beyond a cap, and old conviction entries.
+   * Returns count of pruned items + items promoted (significant
+   * patterns that should be recorded as hippocampal episodes).
+   */
+  pruneStale(): { pruned: number; promotable: string[] } {
+    let pruned = 0;
+    const promotable: string[] = [];
+
+    // Prune resolved questions older than 10 items
+    const resolvedQuestions = this.state.openQuestions.filter((q) => q.resolvedAt);
+    if (resolvedQuestions.length > 10) {
+      const toRemove = resolvedQuestions.slice(0, resolvedQuestions.length - 10);
+      const removeIds = new Set(toRemove.map((q) => q.id));
+      const before = this.state.openQuestions.length;
+      this.state.openQuestions = this.state.openQuestions.filter((q) => !removeIds.has(q.id));
+      pruned += before - this.state.openQuestions.length;
+    }
+
+    // Prune decisions beyond 50 — keep the most recent
+    if (this.state.decisions.length > 50) {
+      const excess = this.state.decisions.length - 50;
+      this.state.decisions.splice(0, excess);
+      pruned += excess;
+    }
+
+    // Prune patterns beyond 30 — promote high-confidence ones first
+    if (this.state.patterns.length > 30) {
+      // Sort by confidence descending — promote the best, prune the rest
+      const sorted = [...this.state.patterns].sort((a, b) => b.confidence - a.confidence);
+      const toPromote = sorted.slice(0, 5).filter((p) => p.confidence >= 0.7);
+      promotable.push(...toPromote.map((p) => p.description));
+
+      this.state.patterns = sorted.slice(0, 30);
+      pruned += sorted.length - 30;
+    }
+
+    // Prune conviction ledger beyond 30 — keep the most recent
+    if (this.state.convictionLedger.length > 30) {
+      const excess = this.state.convictionLedger.length - 30;
+      this.state.convictionLedger.splice(0, excess);
+      pruned += excess;
+    }
+
+    if (pruned > 0) {
+      this.touch();
+      emit("wm:pruned", { pruned, promotable: promotable.length });
+      log.info("Working memory pruned", { pruned, promotable: promotable.length });
+    }
+
+    return { pruned, promotable };
+  }
+
   // ── Snapshot ────────────────────────────────────────────────────
 
   /** Deep copy of full state for serialization or dashboard. */

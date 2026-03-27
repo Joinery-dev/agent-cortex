@@ -81,9 +81,9 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     enrichmentSections.push(
       `APPROACH: EXPLORE — Think divergently. The established patterns below are reference points, not constraints. Consider fresh approaches that might outperform what's worked before.`
     );
-  } else if (enrichment.mode === "exploit") {
+  } else if (enrichment.mode === "leverage") {
     enrichmentSections.push(
-      `APPROACH: EXPLOIT — Build on what works. The established patterns and high-scoring approaches should be maintained and refined, not reimagined.`
+      `APPROACH: LEVERAGE — Build on what works. The established patterns and high-scoring approaches should be maintained and refined, not reimagined.`
     );
   }
 
@@ -334,9 +334,9 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
     enrichmentSections.push(
       `APPROACH: EXPLORE — Try new approaches. The patterns below are reference points, not constraints. The system is looking for creative solutions that might score higher than proven approaches.`
     );
-  } else if (enrichment.mode === "exploit") {
+  } else if (enrichment.mode === "leverage") {
     enrichmentSections.push(
-      `APPROACH: EXPLOIT — Follow proven approaches. The established patterns have scored well. Maintain them. Focus on refinement over reinvention.`
+      `APPROACH: LEVERAGE — Follow proven approaches. The established patterns have scored well. Maintain them. Focus on refinement over reinvention.`
     );
   }
 
@@ -826,7 +826,7 @@ ${intent.constraints.length > 0 ? `CONSTRAINTS: ${intent.constraints.join("; ")}
   }
 
   if (enrichment.mode) {
-    sections.push(`MODE: ${enrichment.mode}${enrichment.mode === "explore" ? " (exploring — prefer keeping more senses active for broader perspective)" : " (exploiting — safe to narrow to proven dimensions)"}`);
+    sections.push(`MODE: ${enrichment.mode}${enrichment.mode === "explore" ? " (exploring — prefer keeping more senses active for broader perspective)" : " (leveraging — safe to narrow to proven dimensions)"}`);
   }
 
   return `${sections.join("\n\n")}

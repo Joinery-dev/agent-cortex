@@ -5,7 +5,7 @@
  * Selection criterion: surprise × quality — the most creative path
  * that clears the quality floor.
  *
- * Skipped in exploit mode. Degrades gracefully on LLM failure.
+ * Skipped in leverage mode. Degrades gracefully on LLM failure.
  */
 
 import { z } from "zod";
@@ -183,13 +183,13 @@ export async function explore(
   consultation: Consultation,
   thalamus: Thalamus,
   config: CortexConfig,
-  mode?: "explore" | "exploit",
+  mode?: "explore" | "leverage",
 ): Promise<ExploreResult> {
-  // Skip in exploit mode
-  if (mode === "exploit") {
-    emit("explore:skipped", { taskId: task.id, reason: "exploit-mode" });
-    log.info("Explore skipped: exploit mode", { taskId: task.id });
-    return { kind: "skipped", reason: "exploit-mode" };
+  // Skip in leverage mode
+  if (mode === "leverage") {
+    emit("explore:skipped", { taskId: task.id, reason: "leverage-mode" });
+    log.info("Explore skipped: leverage mode", { taskId: task.id });
+    return { kind: "skipped", reason: "leverage-mode" };
   }
 
   emit("explore:start", { taskId: task.id, mode: mode ?? "explore" });
