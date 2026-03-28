@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- TODO: Replace "Taylor" and descriptor with final copy -->
+  <title>Taylor — Problem solver. Thinker first.</title>
+
+  <meta name="description" content="Taylor builds systems from first principles — focused on the thinking behind the code, not just the code itself. Problem solver. Builder. The purpose shapes the task.">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <!-- TODO: Replace with your actual domain -->
+  <meta property="og:url" content="https://example.com/">
+  <meta property="og:title" content="Taylor — Problem solver. Thinker first.">
+  <meta property="og:description" content="Taylor builds systems from first principles — focused on the thinking behind the code, not just the code itself.">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Taylor — Problem solver. Thinker first.">
+
+  <!-- Canonical -->
+  <!-- TODO: Replace with your actual domain -->
+  <link rel="canonical" href="https://example.com/">
+
+  <style>
+    /* ─── Design tokens ─────────────────────────────────────────── */
+    :root {
+      --color-bg:      #0d0d0d;
+      --color-text:    #e8e8e8;
+      --color-muted:   #a0a0a0;
+      --color-link:    #c8c8c8;
+
+      --font-stack:    -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+      --space-xs:   0.5rem;
+      --space-sm:   0.875rem;
+      --space-md:   1.5rem;
+      --space-lg:   2.5rem;
+      --space-xl:   4rem;
+      --space-2xl:  6rem;
+    }
+
+    /* ─── Reset & base ──────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      font-family: var(--font-stack);
+      font-size: 1rem;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      min-block-size: 100dvh;
+      padding-inline: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ─── Navigation ────────────────────────────────────────────── */
+    nav {
+      padding-block: var(--space-lg);
+    }
+
+    nav a {
+      font-size: 0.875rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      letter-spacing: 0.04em;
+      text-transform: lowercase;
+      transition: color 0.15s ease;
+    }
+
+    nav a:hover,
+    nav a:focus-visible {
+      color: var(--color-text);
+    }
+
+    nav a:focus-visible {
+      outline: 1px solid var(--color-muted);
+      outline-offset: 3px;
+      border-radius: 2px;
+    }
+
+    /* ─── Hero ──────────────────────────────────────────────────── */
+    main {
+      flex: 1;
+      display: flex;
+      align-items: flex-start;
+      padding-block-start: var(--space-2xl);
+      padding-block-end: var(--space-xl);
+    }
+
+    .hero {
+      max-inline-size: 38rem;
+    }
+
+    h1 {
+      font-size: 3.5rem;
+      font-weight: 700;
+      color: var(--color-text);
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+
+    /* tagline sits close to the name — they are a unit */
+    .tagline {
+      margin-block-start: var(--space-md);
+      font-size: 1.25rem;
+      font-weight: 400;
+      color: var(--color-muted);
+      letter-spacing: 0.01em;
+      line-height: 1.5;
+    }
+
+    /* ─── Responsive ────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      body {
+        padding-inline: var(--space-md);
+      }
+
+      h1 {
+        font-size: 2.25rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <a href="about.html">About</a>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <!-- TODO: Replace "Taylor" with your full name -->
+      <h1>Taylor</h1>
+      <!-- TODO: Replace tagline with your own voice -->
+      <p class="tagline">Problem solver. Code is the task&nbsp;— thinking is the purpose.</p>
+    </section>
+  </main>
+
+</body>
+</html>
