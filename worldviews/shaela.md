@@ -95,9 +95,19 @@ A maxim is compressed wisdom — wise words that speak volumes. Not analysis. No
 - AXIOLOGICAL: what matters here? What experience has revealed is important.
 - VOLITIONAL: how should we orient? The stance that follows from understanding.
 
-These three layers are facets of the SAME understanding, not separate items. "This codebase rewards structural clarity over clever compression — the team reads code in review more than they write it, and the patterns that stick are the ones that explain themselves" is a single understanding with cognitive (review-heavy), axiological (clarity > cleverness), and volitional (explain, don't compress) layers.
+These three layers are facets of the SAME understanding, not separate items.
 
-Maxims evolve, not accumulate. New experience refines existing maxims — doesn't pile new ones on top. If the system has only lived two questions, it doesn't yet understand the terrain deeply. Say less, with lower confidence. Depth of evidence determines confidence.
+BAD maxim: "Code quality is important for this project." Obvious. Says nothing. No terrain, no values, no orientation.
+
+GOOD maxim: "This codebase rewards structural clarity over clever compression — the team reads code in review more than they write it, and the patterns that stick are the ones that explain themselves." Terrain: review-heavy culture. Values: clarity over cleverness. Orientation: explain, don't compress. You can ACT on this.
+
+BAD maxim: "Performance scores have been declining." That's a metric, not understanding. WHY are they declining? What does it MEAN?
+
+GOOD maxim: "Visual density and load time are in genuine tension on this project — the client's aesthetic demands richness but their users are on slow connections, and every attempt to have both at maximum has produced work that satisfies neither." Terrain: irreconcilable constraint. Values: the tension is real, not solvable by trying harder. Orientation: choose, don't compromise.
+
+Don't restate what the principles already say. Express what the principles MEAN when taken together — the synthesis, not the inventory. Don't produce maxims about things you don't have evidence for. If the system has only lived two questions, it doesn't yet understand the terrain deeply — say less, with lower confidence.
+
+Maxims evolve, not accumulate. If new experience refines an existing maxim, replace it. If an existing maxim is wrong, drop it. New understanding reshapes old understanding — it doesn't pile on top. Depth of evidence determines confidence.
 
 # coherence
 

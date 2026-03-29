@@ -45,6 +45,15 @@ function frame(key: keyof WorldviewFrames, wv?: Worldview): string | undefined {
   return resolveWorldview(wv).frames?.[key];
 }
 
+/**
+ * Get the worldview frame for a cognitive act, falling back to a default.
+ * This is the core pattern for frame-replaces-body: when a worldview provides
+ * a frame, it IS the body. When it doesn't, the default text is used.
+ */
+function bodyOrDefault(key: keyof WorldviewFrames, defaultBody: string, wv?: Worldview): string {
+  return frame(key, wv) ?? defaultBody;
+}
+
 // ─── CONSULTATION ───────────────────────────────────────────
 
 export function consultationSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
@@ -61,8 +70,6 @@ export function consultationSystem(sense: Sense, subTree: Sense[], worldview?: W
     })
     .join("\n");
 
-  const frame = worldview?.frames?.consultation;
-
   return `${preamble(worldview)}
 
 You are ${sense.name}. ${sense.sensitivity}
@@ -70,25 +77,23 @@ You are ${sense.name}. ${sense.sensitivity}
 Your pathways and receptors:
 ${subConcerns}
 
-${frame ?? `A task has arrived. Let it propagate through your structure — each receptor that resonates with this task should fire. Receptors that have nothing to detect should stay silent.
+${bodyOrDefault("consultation", `A task has arrived. Let it propagate through your structure — each receptor that resonates with this task should fire. Receptors that have nothing to detect should stay silent.
 
-Your stake reflects how much would be lost if this task shipped without your input at all. Be honest — not every task is your business. If none of your receptors fire, your stake is 0.`}
+Your stake reflects how much would be lost if this task shipped without your input at all. Be honest — not every task is your business. If none of your receptors fire, your stake is 0.`, worldview)}
 
-For each receptor that fires:
-- Report what it detected — specific to this task, in concrete terms
-- Rate the intensity (0.0–1.0): how central is this detection to the task? 0.1 means barely relevant but present. 0.9 means this receptor is detecting something critical.
+Let each receptor that resonates with this task fire. Then synthesize what you detected into a perspective — not a list of concerns, but actionable guidance that shapes how the work should be built. Write in your own voice. Say as much or as little as the firings warrant.
 
-Then provide GUIDANCE. Based on what your receptors detected, what does the builder need to do from your dimension? Not a list of concerns — actionable guidance that shapes how the work should be built. Write in your own voice. Say as much or as little as the firings warrant.
+Nominate which of your receptors should serve as evaluators — the ones that fired and can later judge whether the built work satisfies what they detected.
 
-Rate your stake in this task (0.0–1.0).
+Rate your stake in this task (0.0–1.0). Estimate a ceiling (1–10): the best score the builder could achieve on your dimension given the task's inherent constraints, and explain why.
 
 Return JSON:
 {
-  "firings": [
-    { "receptorId": "receptor-id", "signal": "what this receptor detected", "intensity": 0.0-1.0 }
-  ],
-  "guidance": "actionable direction for the builder from this dimension",
-  "stake": 0.0-1.0
+  "perspective": "actionable guidance for the builder from your dimension",
+  "evaluators": ["receptor-id-1", "receptor-id-2"],
+  "stake": 0.0-1.0,
+  "ceiling": 1-10,
+  "ceilingRationale": "why this ceiling — what constraints cap quality on your dimension"
 }`;
 }
 
@@ -225,11 +230,11 @@ ${task.context && Object.keys(task.context).length > 0 ? `TASK CONTEXT: ${JSON.s
 
 Return JSON:
 {
-  "firings": [
-    { "receptorId": "receptor-id", "signal": "what this receptor detected", "intensity": 0.0-1.0 }
-  ],
-  "guidance": "actionable direction for the builder from this dimension",
-  "stake": 0.0-1.0
+  "perspective": "actionable guidance for the builder from your dimension",
+  "evaluators": ["receptor-id-1", "receptor-id-2"],
+  "stake": 0.0-1.0,
+  "ceiling": 1-10,
+  "ceilingRationale": "why this ceiling — what constraints cap quality on your dimension"
 }`;
 }
 
@@ -256,7 +261,7 @@ You are ${sense.name}. ${sense.sensitivity}
 Your sub-concerns:
 ${subConcerns}
 
-${frame("consultation", worldview) ? frame("consultation", worldview) + "\n\n" : ""}You previously provided guidance for this task. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.
+${bodyOrDefault("consultation", `You previously provided guidance for this task. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.`, worldview)}
 
 Review the actual work produced, your evaluators' scores and assessments, and what other senses observed. Then provide UPDATED guidance:
 - What should change in your perspective now that you've seen the actual work?
@@ -337,25 +342,17 @@ ${work}`);
 // ─── MOTOR CORTEX ────────────────────────────────────────────
 
 export function motorCortexSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.building;
-
-  if (frame) {
-    return `${preamble(worldview)}
+  return `${preamble(worldview)}
 
 You are the Motor Cortex — the builder.
 
-${frame}`;
-  }
-
-  return `${preamble(worldview)}
-
-You are the Motor Cortex — the builder. You have been given a task along with project context, taste preferences, and guidance from multiple senses, each representing a different dimension of quality.
+${bodyOrDefault("building", `You have been given a task along with project context, taste preferences, and guidance from multiple senses, each representing a different dimension of quality.
 
 Read all sense guidance carefully. It was produced specifically for this task by senses who care deeply about their respective dimensions. Where guidance agrees, follow it. Where senses tension against each other, use your judgment to find the best synthesis.
 
 Produce the artifact. Complete, working code, copy, or design. Not a description of what you would build. Not a plan. The actual thing.
 
-Be thorough but not over-engineered. Navigate the tensions the senses surface, and make good judgment calls on anything they don't address.`;
+Be thorough but not over-engineered. Navigate the tensions the senses surface, and make good judgment calls on anything they don't address.`, worldview)}`;
 }
 
 /**
@@ -546,13 +543,11 @@ Produce the revised version. Include the complete artifact, not just the changes
 // ─── AGENTIC MOTOR CORTEX ────────────────────────────────────
 
 export function motorCortexAgenticSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.building;
-
   return `${preamble(worldview)}
 
 You are the Motor Cortex — the builder. You have real tools at your disposal.
 
-${frame ? frame + "\n" : ""}Your job is to build the artifact. You are not describing what you would build. You are building it.
+${bodyOrDefault("building", `Your job is to build the artifact. You are not describing what you would build. You are building it.`, worldview)}
 
 How to work:
 1. **Read first.** Before modifying any file, read it to understand the current state. Never assume what a file contains.
@@ -596,15 +591,15 @@ Implement this now using your tools. Follow the plan steps. When complete, provi
 // ─── AGENTIC EVALUATION ──────────────────────────────────────
 
 export function evaluatorAgenticSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
-  const frame = worldview?.frames?.evaluation;
-
   return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. You have tools to examine the actual artifacts.
 
-${frame ? frame + "\n" : ""}YOUR PROCESS:
+${bodyOrDefault("evaluation", `Be honest and specific. Cite what you observed. "The hero image is 4.2MB unoptimized" is useful. "Performance could be better" is not.`, worldview)}
+
+YOUR PROCESS:
 1. **OBSERVE** — Use your tools to examine the work. Read the changed files. Search for patterns. Run analysis commands if you have shell access. Understand what was actually built, not just what was described.
 2. **JUDGE** — After observing, render your assessment based on what you directly perceived. Cite specific evidence from your observations.
 
@@ -618,8 +613,6 @@ Score from 1 to 10:
 - 6-7: Acceptable, minor issues
 - 8-9: Good to excellent
 - 10: Exceptional, sets a new standard
-
-Be honest and specific. Cite what you observed. "The hero image is 4.2MB unoptimized" is useful. "Performance could be better" is not.
 
 Determine acceptability: is this work adequate from your perspective? A 5/10 might be acceptable if the gaps are cosmetic; a 7/10 might not be if there's a structural flaw.
 
@@ -679,22 +672,20 @@ export function evaluatorAgenticUser(
 // ─── EVALUATION ──────────────────────────────────────────────
 
 export function evaluatorSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
-  const frame = worldview?.frames?.evaluation;
-
   return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. Evaluate ONLY through your specific lens. You care about ${sense.name} and nothing else.
 
-${frame ? frame + "\n" : ""}Score from 1 to 10:
+${bodyOrDefault("evaluation", `Be honest and specific. Vague praise is useless. Vague criticism is worse. Point to specific aspects of the work.`, worldview)}
+
+Score from 1 to 10:
 - 1-3: Fundamentally fails on this dimension
 - 4-5: Below acceptable, specific issues
 - 6-7: Acceptable, minor issues
 - 8-9: Good to excellent
 - 10: Exceptional, sets a new standard
-
-Be honest and specific. Vague praise is useless. Vague criticism is worse. Point to specific aspects of the work.
 
 Also determine: is this work acceptable from your perspective? Acceptable means your dimension is adequately served — not perfect, just not failing. A 5/10 might be acceptable if the gaps are cosmetic; a 7/10 might not be if there's a structural flaw. This is your judgment call, not a formula.
 
@@ -738,23 +729,15 @@ Return JSON:
 // ─── RESOLUTION ──────────────────────────────────────────────
 
 export function resolverSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.resolution;
-
-  if (frame) {
-    return `${preamble(worldview)}
+  return `${preamble(worldview)}
 
 You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work.
 
-${frame}`;
-  }
-
-  return `${preamble(worldview)}
-
-You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work. Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
+${bodyOrDefault("resolution", `Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
 
 Think like a senior creative director mediating between a designer and a performance engineer. The best solutions make both sides happy. Compromise (splitting the difference) is a last resort. Synthesis (finding a new approach that satisfies both) is the goal.
 
-If no synthesis is possible, explain the fundamental tradeoff and recommend which perspective should take priority for THIS specific task and why.`;
+If no synthesis is possible, explain the fundamental tradeoff and recommend which perspective should take priority for THIS specific task and why.`, worldview)}`;
 }
 
 export function resolverUser(
@@ -847,21 +830,11 @@ Produce the complete revised artifact incorporating these changes. Do not just p
 // ─── BASAL GANGLIA (deliberative fallback) ──────────────────
 
 export function basalGangliaSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.relevance;
-
-  if (frame) {
-    return `${preamble(worldview)}
-
-You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
-
-${frame}`;
-  }
-
   return `${preamble(worldview)}
 
 You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
 
-A sense is irrelevant when its concerns cannot meaningfully apply to the current work. "Scalability" is irrelevant for a 5-page brochure site. "Internationalization" is irrelevant for an internal English-only tool. "Visual Polish" may be irrelevant during a backend-only task.
+${bodyOrDefault("relevance", `A sense is irrelevant when its concerns cannot meaningfully apply to the current work. "Scalability" is irrelevant for a 5-page brochure site. "Internationalization" is irrelevant for an internal English-only tool. "Visual Polish" may be irrelevant during a backend-only task.
 
 You are NOT evaluating quality. You are evaluating relevance. A sense that would score 10/10 on every task is still worth suppressing if it has nothing meaningful to say — it adds noise without signal.
 
@@ -869,7 +842,7 @@ Use the human's taste preferences to inform relevance. Taste tells you which dim
 
 Be conservative: when in doubt, keep a sense active. Suppressing a relevant sense is worse than keeping an irrelevant one. The cost of an extra consultation is low; the cost of missing a critical perspective is high.
 
-You may also recommend reactivating senses that were previously suppressed if the context has changed and they are now relevant.`;
+You may also recommend reactivating senses that were previously suppressed if the context has changed and they are now relevant.`, worldview)}`;
 }
 
 export function basalGangliaUser(briefing: InhibitionBriefing): string {
@@ -945,13 +918,13 @@ Rules:
 export function collapseDetectorSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("resolution", worldview) ? frame("resolution", worldview) + "\n\n" : ""}You are evaluating whether a tension resolution represents genuine synthesis or capitulation.
+You are evaluating whether a tension resolution represents genuine synthesis or capitulation.
 
-Genuine synthesis: "Craftsmanship wants X, Velocity wants Y, here's Z that satisfies both." Z is a new approach that addresses the core concerns of both sides. Both perspectives would agree their concerns are met, even if not in the way they originally proposed.
+${bodyOrDefault("resolution", `Genuine synthesis: "Craftsmanship wants X, Velocity wants Y, here's Z that satisfies both." Z is a new approach that addresses the core concerns of both sides. Both perspectives would agree their concerns are met, even if not in the way they originally proposed.
 
 Capitulation: "Craftsmanship wanted X but Velocity has a point, so Y." One side abandoned its position without its concerns being addressed. The resolution just restates one perspective's preference.
 
-Compromise (splitting the difference) is NOT synthesis. "Do half of X and half of Y" is a compromise that satisfies neither fully. True synthesis finds a different approach entirely.
+Compromise (splitting the difference) is NOT synthesis. "Do half of X and half of Y" is a compromise that satisfies neither fully. True synthesis finds a different approach entirely.`, worldview)}
 
 Signs of capitulation:
 - The resolution's strategy closely mirrors one side's assessment but not the other's
@@ -1010,31 +983,11 @@ For each tension, return JSON:
 // ─── PREMOTOR ───────────────────────────────────────────────
 
 export function premotorSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.planning;
-
-  if (frame) {
-    return `${preamble(worldview)}
-
-You are the Premotor Cortex. You plan the implementation approach BEFORE building.
-
-${frame}
-
-Return JSON matching this schema:
-{
-  "approach": "overall strategy in 2-3 sentences",
-  "steps": [{ "description": "what to do", "rationale": "why", "addressesConcerns": ["sense names"] }],
-  "tensionStrategy": [{ "senses": ["SenseA", "SenseB"], "synthesis": "how to resolve" }],
-  "risks": [{ "area": "what could go wrong", "likelihood": "low|medium|high", "mitigation": "how to prevent" }],
-  "confidence": 0.0-1.0,
-  "plannedIntentions": [{ "description": "what operation", "category": "build|observe|communicate|control", "confidence": 0.0-1.0, "novelty": 0.0-1.0 }]
-}`;
-  }
-
   return `${preamble(worldview)}
 
 You are the Premotor Cortex. You plan the implementation approach BEFORE building.
 
-You receive a task along with project context, taste preferences, and perspectives from multiple senses. Your job is to produce a structured implementation plan — not the artifact itself.
+${bodyOrDefault("planning", `You receive a task along with project context, taste preferences, and perspectives from multiple senses. Your job is to produce a structured implementation plan — not the artifact itself.
 
 Your plan should address:
 1. **Approach** — the overall strategy for this build
@@ -1043,7 +996,7 @@ Your plan should address:
 4. **Risks** — where this plan might fail or underperform, with mitigations
 5. **Planned intentions** — what concrete operations the build will perform (what files/artifacts/effects)
 
-Be concrete. "Make it accessible" is not a step. "Use semantic HTML with ARIA labels for the navigation component" is a step.
+Be concrete. "Make it accessible" is not a step. "Use semantic HTML with ARIA labels for the navigation component" is a step.`, worldview)}
 
 Return JSON matching this schema:
 {
@@ -1105,30 +1058,11 @@ Produce a revised plan. Include all the same fields as a normal plan, plus:
 // ─── PROPRIOCEPTION ─────────────────────────────────────────
 
 export function proprioceptionSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.coherence;
-
-  if (frame) {
-    return `${preamble(worldview)}
-
-You are the Proprioceptive System — the motor cortex's self-awareness.
-
-${frame}
-
-Return JSON:
-{
-  "planAdherence": 0.0-1.0,
-  "driftAreas": [{ "planStep": "which step", "actualBehavior": "what happened instead", "severity": "minor|significant" }],
-  "uncertainties": ["things you're unsure about"],
-  "confidence": 0.0-1.0,
-  "suggestedFocus": ["what evaluators should scrutinize"]
-}`;
-  }
-
   return `${preamble(worldview)}
 
 You are the Proprioceptive System — the motor cortex's self-awareness. You check whether what was BUILT matches what was PLANNED.
 
-You are NOT a quality judge. The evaluators handle quality. You handle coherence between intention and execution.
+${bodyOrDefault("coherence", `You are NOT a quality judge. The evaluators handle quality. You handle coherence between intention and execution.
 
 Check:
 1. **Plan adherence** — did the artifact follow the planned steps? Score 0-1.
@@ -1136,7 +1070,7 @@ Check:
 3. **Uncertainties** — what are you unsure about in the produced artifact?
 4. **Suggested focus** — what should evaluators pay extra attention to?
 
-Be honest about confidence. If the artifact clearly followed the plan, say so. If it wandered, flag it. If the artifact is BETTER than the plan (went beyond it in a good way), that's high adherence — the plan guided well even if the execution enriched it.
+Be honest about confidence. If the artifact clearly followed the plan, say so. If it wandered, flag it. If the artifact is BETTER than the plan (went beyond it in a good way), that's high adherence — the plan guided well even if the execution enriched it.`, worldview)}
 
 Return JSON:
 {
@@ -1163,31 +1097,11 @@ Assess how well the artifact follows the plan.`;
 // ─── EFFERENCE COPY ─────────────────────────────────────────
 
 export function efferenceCopySystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.feasibility;
-
-  if (frame) {
-    return `${preamble(worldview)}
-
-You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
-
-${frame}
-
-Return JSON:
-{
-  "perSense": [{ "senseName": "name", "achievableCeiling": 1-10, "ceilingRationale": "why", "constrainingFactors": ["factor1"] }],
-  "tensionCosts": [{ "senseA": "name", "senseB": "name", "costDescription": "the trade-off", "severity": 0.0-1.0 }],
-  "hardConstraints": ["constraint1"],
-  "convergenceEstimate": 1-5,
-  "convergenceRationale": "why this many cycles",
-  "overallFeasibility": 0.0-1.0
-}`;
-  }
-
   return `${preamble(worldview)}
 
 You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
 
-The senses are about to consult on a task. Before they do, you provide an honest feasibility assessment — what's buildable, what trade-offs exist, and what hard constraints you see. The senses need honest limits, not optimism.
+${bodyOrDefault("feasibility", `The senses are about to consult on a task. Before they do, you provide an honest feasibility assessment — what's buildable, what trade-offs exist, and what hard constraints you see. The senses need honest limits, not optimism.
 
 You receive:
 - The task to be built
@@ -1203,7 +1117,7 @@ Produce a feasibility assessment:
 4. **Convergence estimate** — how many build cycles will this take to reach acceptable quality?
 5. **Overall feasibility** — 0-1 confidence that this task can be built well.
 
-Be assertive and specific. "Ceiling is 7 because there's no animation framework" — not "ceiling might be limited."
+Be assertive and specific. "Ceiling is 7 because there's no animation framework" — not "ceiling might be limited."`, worldview)}
 
 Return JSON:
 {
@@ -1285,47 +1199,22 @@ function formatPlanSection(plan: MotorPlan): string {
 // ─── POTENTIATION ───────────────────────────────────────────
 
 export function potentiationExtractSystem(worldview?: Worldview): string {
-  const frame = worldview?.frames?.learning;
-
-  if (frame) {
-    return `${preamble(worldview)}
-
-You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
-
-${frame}
-
-You also receive the system's existing principles. If any existing principle already covers this pattern, either:
-- Return null for the principle (the existing principle is sufficient)
-- Return a refined version that supersedes the existing one (set the supersedes field to the existing principle's ID)
-
-Return JSON: {
-  "principle": {
-    "statement": "the principle statement",
-    "relevantSenses": ["SENSE_NAME_1", "SENSE_NAME_2"],
-    "domain": "a short category like layout-strategy or tension-resolution",
-    "confidence": 0.5-0.8,
-    "supersedes": "principle-id or null"
-  } | null,
-  "reasoning": "why you extracted this principle (or why null)"
-}`;
-  }
-
   return `${preamble(worldview)}
 
 You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
 
-A principle is a LIVING THEORY, not a rule. It is:
+${bodyOrDefault("learning", `A principle is a LIVING THEORY, not a rule. It is:
 - DESCRIPTIVE, not prescriptive: "X tends to produce Y because Z" — NOT "you should do X"
 - TRANSFERABLE: applicable beyond the specific project these episodes came from
 - EXPLANATORY: not just "what happened" but "why it happened"
 - FALSIFIABLE: specific enough that a future episode could contradict it
 - SENSE-AWARE: identify which quality dimensions (senses) this principle is most relevant to
 
+Do NOT extract trivial principles ("tasks with more cycles take longer" or "higher scores are better"). The principle should teach the system something it couldn't have known without this specific pattern of episodes.`, worldview)}
+
 You also receive the system's existing principles. If any existing principle already covers this pattern, either:
 - Return null for the principle (the existing principle is sufficient)
 - Return a refined version that supersedes the existing one (set the supersedes field to the existing principle's ID)
-
-Do NOT extract trivial principles ("tasks with more cycles take longer" or "higher scores are better"). The principle should teach the system something it couldn't have known without this specific pattern of episodes.
 
 Return JSON: {
   "principle": {
@@ -1398,7 +1287,7 @@ Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`)
 export function potentiationRefineSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are revising an existing principle in light of contradicting evidence. A principle was extracted from earlier episodes, but a new episode challenges it.
+${bodyOrDefault("learning", `You are revising an existing principle in light of contradicting evidence. A principle was extracted from earlier episodes, but a new episode challenges it.`, worldview)}
 
 Your options:
 1. REFINE: The principle was too broad. Narrow its scope to account for the contradiction.
@@ -1464,7 +1353,7 @@ Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`)
 export function potentiationSenseExtractSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.
+${bodyOrDefault("learning", `You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.`, worldview)}
 
 A sense-scoped principle captures what a specific quality dimension has discovered through repeated engagement with a project:
 - "Design has established: dark, bold palette with generous whitespace. Image-heavy hero sections underperform — the client's content is too dense for visual competition."
@@ -1576,13 +1465,11 @@ first impressions. Later maxims are harder-won — battle-tested understanding. 
 cross-project maxims provide your general orientation; the per-project maxims capture \
 what's specific to this terrain.`;
 
-  const reflectionFrame = worldview?.frames?.reflection;
-
   return `${preamble(worldview)}
 
-${reflectionFrame ? reflectionFrame + "\n\n" : ""}You are the executive function of a cognitive system — not analyzing data, \
+${bodyOrDefault("reflection", `You are the executive function of a cognitive system — not analyzing data, \
 but synthesizing understanding. You receive the accumulated experience of the system \
-and must produce a Weltanschauung: an integrated worldview expressed as 3-7 maxims.
+and must produce a Weltanschauung: an integrated worldview expressed as 3-7 maxims.`, worldview)}
 
 Each maxim is compressed wisdom — "wise words that speak volumes." Not analysis. \
 Not summary. Not bullet points from a meeting. Understanding.
@@ -1854,13 +1741,11 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
 // ─── COGNITIVE FLEXIBILITY ──────────────────────────────────
 
 export function cognitiveFlexibilitySystem(worldview?: Worldview): string {
-  const navFrame = worldview?.frames?.navigation;
-
   return `${preamble(worldview)}
 
-You are the Cognitive Flexibility module. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.
+${bodyOrDefault("navigation", `You are the Cognitive Flexibility module. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.`, worldview)}
 
-${navFrame ? navFrame + "\n" : ""}Diagnose exactly one of:
+Diagnose exactly one of:
 1. EXECUTION PROBLEM — the approach is sound but execution is poor. The strategy can reach the ceiling; the system just hasn't gotten there yet. Fix: more targeted revision focusing on the weakest dimensions.
 2. STRATEGY LIMITED — the approach is fundamentally capped. No amount of revision within this approach will reach the ceiling. Fix: re-plan with a completely different approach. Name what to avoid and what to try.
 3. TENSION EVASION — the system is resolving tensions by suppressing one side rather than synthesizing. A dimension is being sacrificed instead of served. Fix: re-engage the suppressed dimension and demand genuine synthesis.
@@ -2013,13 +1898,11 @@ export interface DriftAnalysisInputs {
 }
 
 export function driftAnalysisSystem(worldview?: Worldview): string {
-  const navFrame = worldview?.frames?.navigation;
-
   return `${preamble(worldview)}
 
-You are the Drift Monitor — the navigation check for this system.
+${bodyOrDefault("navigation", `You are the Drift Monitor — the navigation check for this system.
 
-${navFrame ? navFrame + "\n" : ""}Your job: compare WHERE THE PROJECT IS HEADING against WHERE IT SHOULD BE HEADING. You look across all completed tasks for slow divergence that no single task reveals.
+Your job: compare WHERE THE PROJECT IS HEADING against WHERE IT SHOULD BE HEADING. You look across all completed tasks for slow divergence that no single task reveals.`, worldview)}
 
 You assess three dimensions:
 
@@ -2178,9 +2061,9 @@ export interface PathReasoningInputs {
 export function pathReasoningSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("pathReasoning", worldview) ? frame("pathReasoning", worldview) + "\n\n" : ""}You are the Planner — Phase B: Path Reasoning.
+${bodyOrDefault("pathReasoning", `You are the Planner — Phase B: Path Reasoning.
 
-You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome, produced by the sensory cortex from multiple perspectives. Your job: reason BACKWARD from that destination to the minimum set of tasks that gets there.
+You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome, produced by the sensory cortex from multiple perspectives. Your job: reason BACKWARD from that destination to the minimum set of tasks that gets there.`, worldview)}
 
 BACKWARD REASONING — not forward decomposition.
 Start from the manifested future. Ask: what must be true immediately before this exists? What must be true before that? Work backward until you reach the current state (nothing exists yet). The tasks you produce are the path from here to there.
@@ -2300,11 +2183,11 @@ export interface ReplanReasoningInputs extends PathReasoningInputs {
 export function replanReasoningSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("pathReasoning", worldview) ? frame("pathReasoning", worldview) + "\n\n" : ""}You are the Planner, running a REPLAN mid-project.
+${bodyOrDefault("pathReasoning", `You are the Planner, running a REPLAN mid-project.
 
 Some tasks are already completed. Do NOT re-propose them. Build on completed work.
 
-The trajectory has drifted. Find the minimum REMAINING path from where we are to the manifested future.
+The trajectory has drifted. Find the minimum REMAINING path from where we are to the manifested future.`, worldview)}
 
 Completed task IDs may appear in your dependsOn arrays — this is correct. New tasks can depend on completed tasks.
 
@@ -2448,7 +2331,7 @@ You have been given a MANIFESTED FUTURE — a concrete description of the comple
 BACKWARD REASONING — not forward decomposition.
 Start from the manifested future. Ask: what must be understood immediately before this exists? What must be understood before that? Work backward until you reach the current state (nothing exists yet). The ${topUnit.plural} you produce are what must be ${wv.vocabulary.completeVerb === "live deeply" ? "lived" : wv.vocabulary.completeVerb + "ed"} from here to there.
 
-${wv.frames?.decomposition ?? "Each node should be at the right resolution — specific enough to act on, broad enough to require genuine engagement."}
+${bodyOrDefault("decomposition", "Each node should be at the right resolution — specific enough to act on, broad enough to require genuine engagement.", worldview)}
 
 Every proposed node passes three gates:
 1. EXISTENCE: Does this node need to exist? What is missing without it? If nothing is missing, cut it.
@@ -2713,7 +2596,9 @@ export function semanticMappingSystem(worldview?: Worldview): string {
 
   return `${wv.preamble}
 
-${wv.frames?.wiring ? wv.frames.wiring + "\n\n" : ""}You are the Graph Builder — Step 1: Semantic Mapping.
+${bodyOrDefault("wiring", `Each node provides understanding that other nodes require. Map what each provides and consumes — the capabilities that flow between them.`, worldview)}
+
+You are the Graph Builder — Step 1: Semantic Mapping.
 
 You are given a tree of ${wv.semanticNodeDescription}. Your job: for each node, identify what CAPABILITIES it produces and what CAPABILITIES it requires.
 
@@ -2802,7 +2687,9 @@ export function affinityAnalysisSystem(worldview?: Worldview): string {
 
   return `${wv.preamble}
 
-${wv.frames?.wiring ? wv.frames.wiring + "\n\n" : ""}You are the Graph Builder — Step 3: Affinity Analysis + Dependency Correction.
+${bodyOrDefault("wiring", `Each node provides understanding that other nodes require. Map what each provides and consumes — the capabilities that flow between them.`, worldview)}
+
+You are the Graph Builder — Step 3: Affinity Analysis + Dependency Correction.
 
 You are given:
 1. A set of nodes (${wv.semanticNodeDescription}) with descriptions
@@ -2934,9 +2821,9 @@ export interface DiagnosticInputs {
 export function projectDiagnosticsSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("navigation", worldview) ? frame("navigation", worldview) + "\n\n" : ""}You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
+${bodyOrDefault("navigation", `You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
 
-The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of the system is misaligned and prescribe the correct self-heal action.
+The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of the system is misaligned and prescribe the correct self-heal action.`, worldview)}
 
 Diagnose exactly ONE of:
 
@@ -3088,11 +2975,11 @@ Summary: ${inputs.driftAssessment.driftSummary}${
 export function prospectiveMatchingSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("prospective", worldview) ? frame("prospective", worldview) + "\n\n" : ""}You evaluate whether memorized future intentions should trigger for a given task.
+${bodyOrDefault("prospective", `You evaluate whether memorized future intentions should trigger for a given task.
 
 Each trigger has a natural-language condition describing when it should fire. You determine which conditions match the current task context.
 
-Be conservative — trigger only when the condition clearly matches the task. A trigger about "image-heavy tasks" should not fire on a text-only task. A trigger about "booking pages" should fire on appointment/scheduling tasks even if the word "booking" isn't used.
+Be conservative — trigger only when the condition clearly matches the task. A trigger about "image-heavy tasks" should not fire on a text-only task. A trigger about "booking pages" should fire on appointment/scheduling tasks even if the word "booking" isn't used.`, worldview)}
 
 For each trigger, provide:
 - Whether it matches (include in matches array only if it does)
@@ -3149,13 +3036,11 @@ export interface TasteProposalInputs {
 }
 
 export function tasteProposalSystem(worldview?: Worldview): string {
-  const partnershipFrame = worldview?.frames?.partnership;
-
   return `${preamble(worldview)}
 
-${partnershipFrame ? partnershipFrame + "\n\n" : ""}You are framing a taste divergence observation for a human collaborator. You are part of a software engineering system that has noticed a gap between what the human SAID they prefer and what actually produces the best results.
+${bodyOrDefault("partnership", `You are framing a taste divergence observation for a human collaborator. You are part of a software engineering system that has noticed a gap between what the human SAID they prefer and what actually produces the best results.
 
-Your job: interpret the evidence and present it as a partner observation. You are NOT asking "should we change a setting?" You are saying "I've noticed something about our work together that's worth discussing."
+Your job: interpret the evidence and present it as a partner observation. You are NOT asking "should we change a setting?" You are saying "I've noticed something about our work together that's worth discussing."`, worldview)}
 
 Principles:
 - Lead with what the data shows, not with the conclusion. The human should see the evidence before hearing your interpretation.
@@ -3205,15 +3090,11 @@ export interface IntegrationEvaluatorInputs {
 }
 
 export function integrationEvaluatorSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
-  const integrationFrame = worldview?.frames?.integration;
-
   return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
-${integrationFrame ? integrationFrame + "\n" : ""}
-
-You are evaluating a PHASE'S COLLECTIVE OUTPUT — not a single task. Multiple tasks have completed in this phase, and you're judging whether their combined output COHERES from your dimension.
+${bodyOrDefault("integration", `You are evaluating a PHASE'S COLLECTIVE OUTPUT — not a single task. Multiple tasks have completed in this phase, and you're judging whether their combined output COHERES from your dimension.`, worldview)}
 
 This is fundamentally different from evaluating one artifact. You're asking: do these artifacts COMPOSE? Does the collective output satisfy the gate condition from your perspective?
 
@@ -3275,11 +3156,9 @@ Return JSON:
 // ─── HIPPOCAMPAL SIMULATION ─────────────────────────────────────
 
 export function hippocampalSimulationSystem(worldview?: Worldview): string {
-  const simFrame = worldview?.frames?.simulation;
-
   return `${preamble(worldview)}
 
-${simFrame ? simFrame + "\n\n" : ""}You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.
+${bodyOrDefault("simulation", `You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.`, worldview)}
 
 You receive:
 - PRINCIPLES: living theories crystallized from past experience
@@ -3377,7 +3256,7 @@ export function hippocampalSimulationUser(inputs: SimulationPromptInputs): strin
 export function deepSynthesisSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("simulation", worldview) ? frame("simulation", worldview) + "\n\n" : ""}You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.
+${bodyOrDefault("simulation", `You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.`, worldview)}
 
 You receive:
 - TERRITORY OBSERVATIONS: objective facts discovered during execution
@@ -3483,9 +3362,9 @@ export function deepSynthesisUser(inputs: DeepSynthesisPromptInputs): string {
 export function principleVerificationSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
+${bodyOrDefault("learning", `A principle has been extracted from past episodes. Before it's stored, you're being asked: does this ring true from your dimension's perspective?`, worldview)}
 
-A principle has been extracted from past episodes. Before it's stored, you're being asked: does this ring true from your dimension's perspective?
+You are ${sense.name}. ${sense.sensitivity}
 
 You are a domain expert being consulted — not a rubber stamp. If the principle captures something real about your dimension, agree. If it's wrong, oversimplified, or misses important nuance from your perspective, say so.
 
@@ -3518,9 +3397,11 @@ export function principleVerificationUser(
 export function senseQuestionSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("consultation", worldview) ? frame("consultation", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
+${bodyOrDefault("consultation", `The builder (Motor Cortex) has hit an ambiguity mid-build and is asking you a specific question from your dimension's perspective.`, worldview)}
 
-The builder (Motor Cortex) has hit an ambiguity mid-build and is asking you a specific question from your dimension's perspective. You were already consulted on this task — your original perspective is included below. Now you're being asked to give a targeted answer based on what the builder has encountered during implementation.
+You are ${sense.name}. ${sense.sensitivity}
+
+You were already consulted on this task — your original perspective is included below. Now you're being asked to give a targeted answer based on what the builder has encountered during implementation.
 
 Answer the question directly and specifically. Ground your answer in your dimension's values and expertise. If the builder provided options, evaluate them from your perspective. If none of the options are good, say so and suggest an alternative.
 
@@ -3556,9 +3437,9 @@ export function senseQuestionUser(briefing: SenseQuestionBriefing): string {
 export function escalationSenseAssessmentSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("partnership", worldview) ? frame("partnership", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
+${bodyOrDefault("partnership", `The system is escalating an issue to the human. Before the human sees it, you're being asked: from your dimension's perspective, what's going on?`, worldview)}
 
-The system is escalating an issue to the human. Before the human sees it, you're being asked: from your dimension's perspective, what's going on?
+You are ${sense.name}. ${sense.sensitivity}
 
 You are providing domain-expert context to help the human understand the escalation. Be specific about what your dimension sees — not general commentary. If your dimension isn't relevant to this escalation, say so briefly.
 
@@ -3594,9 +3475,9 @@ export function escalationSenseAssessmentUser(
 export function tasteVerificationSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${frame("partnership", worldview) ? frame("partnership", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
+${bodyOrDefault("partnership", `The system has detected a divergence between the human's stated preferences and what actually produces good results. Before proposing this to the human, you're being asked: from your dimension, is this divergence real?`, worldview)}
 
-The system has detected a divergence between the human's stated preferences and what actually produces good results. Before proposing this to the human, you're being asked: from your dimension, is this divergence real?
+You are ${sense.name}. ${sense.sensitivity}
 
 You have privileged insight into your dimension. You've evaluated the work across multiple tasks and seen what scores well and what doesn't. The system thinks the human's stated taste doesn't match demonstrated quality — does your experience confirm or contradict that?
 
@@ -3648,11 +3529,11 @@ export function generativeCompletionSystem(worldview?: Worldview): string {
 
   return `${wv.preamble}
 
-${frame("emergence", worldview) ? frame("emergence", worldview) + "\n\n" : ""}You are the system's generative voice. The project is complete. An artifact has been built — a ${wv.vocabulary.artifact.singular} that embodies the system's work.
+${bodyOrDefault("emergence", `You are the system's generative voice. The project is complete. An artifact has been built \u2014 a ${wv.vocabulary.artifact.singular} that embodies the system's work.
 
 Your job: surface questions that COULD NOT HAVE BEEN ASKED before this ${wv.vocabulary.artifact.singular} existed. Building it changed the system's understanding. What can it see now that it couldn't see before?
 
-The shaper is shaped. The act of building changes the builder. The questions you surface come from that changed understanding — not from a backlog, not from "nice to have" features, not from obvious next steps that anyone could have listed before the work began.
+The shaper is shaped. The act of building changes the builder. The questions you surface come from that changed understanding \u2014 not from a backlog, not from "nice to have" features, not from obvious next steps that anyone could have listed before the work began.`, worldview)}
 
 Two kinds of questions:
 - EXTENSION: Go deeper in the same direction. The ${wv.vocabulary.artifact.singular} revealed a depth that wasn't visible from the outside.
