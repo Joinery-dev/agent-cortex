@@ -403,6 +403,13 @@ export type {
 export { DEFAULT_TASTE_FEEDBACK_CONFIG } from "./taste-feedback.js";
 
 export type {
+  CycleRange,
+  CyclePercentiles,
+  AttentionBasis,
+  AttentionBudget,
+} from "./attention-budget.js";
+
+export type {
   CostBudget,
   ModelPricing,
   CostRecord,
@@ -418,6 +425,15 @@ export {
   computeCallCost,
   estimateCallCost,
 } from "./cost.js";
+
+export type {
+  RuntimeSurfaceArea,
+  NurserySurfaceScan,
+  NurseryScenario,
+  NurseryFinding,
+  NurseryContext,
+  NurseryResult,
+} from "./nursery.js";
 
 export type {
   GraphSurgeryOp,
@@ -463,3 +479,17 @@ export type {
   SatisfactionSignalConfig,
 } from "./satisfaction-signal.js";
 export { DEFAULT_SATISFACTION_CONFIG } from "./satisfaction-signal.js";
+
+export type {
+  MonitorSource,
+  SentryResult,
+  ExteroceptiveSignal,
+  ExteroceptiveBatch,
+  BatchAction,
+  MonitorCadence,
+  CadenceEpisode,
+  ExteroceptiveMonitor,
+  ExteroceptionConfig,
+  ExteroceptionState,
+} from "./exteroception.js";
+export { DEFAULT_EXTEROCEPTION_CONFIG } from "./exteroception.js";

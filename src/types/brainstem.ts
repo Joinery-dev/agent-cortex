@@ -74,6 +74,8 @@ export interface TaskGraphNode {
   dependsOn: string[];
   /** Which phase gate group this belongs to (for integration checks). */
   phaseGroup?: string;
+  /** Affinity group from Graph Builder — co-design cluster metadata. */
+  affinityGroupId?: string;
 }
 
 /** What the task-dispatch rhythm needs to start. */
@@ -92,6 +94,8 @@ export interface TaskDispatchContext {
   priorResults?: Map<string, import("./orchestrator.js").OrchestratorResult>;
   /** Which replan generation this dispatch is running under (0 = original plan). */
   replanGeneration?: number;
+  /** When executing within a shael (hierarchical planning), the shael ID. */
+  shaelId?: string;
 }
 
 /** What the sensory-cortex rhythm needs to start. */
@@ -109,6 +113,8 @@ export interface SensoryCortexContext {
   taskBudget?: number;
   /** Project-level budget utilization (0–1). From CostTracker. */
   projectBudgetUtilization?: number;
+  /** Attention budget for this task. From Attention Scheduler at dispatch. */
+  attentionBudget?: import("./attention-budget.js").AttentionBudget;
 }
 
 /** What the build-cycle rhythm needs to start. */
@@ -201,6 +207,8 @@ export interface BetweenTasksFastPath {
   episodeRecorded: boolean;
   workingMemoryUpdated: boolean;
   routineUpdated: boolean;
+  /** Number of exteroceptive signals processed in this batch (0 if none). */
+  exteroceptiveSignalsProcessed?: number;
 }
 
 export interface BetweenTasksSlowPath {
@@ -450,6 +458,13 @@ export interface ConsolidationLoad {
    * here. Rest is when it gets handled.
    */
   deferredProcessing: number;
+
+  /**
+   * Cumulative NE exposure normalized to 0–1.
+   * High = system has been running at high alertness for many tasks
+   * without rest. Needs cooldown to prevent cognitive fatigue.
+   */
+  neFatigue: number;
 }
 
 // ─── Rest cycle ─────────────────────────────────────────────────

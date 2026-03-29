@@ -15,6 +15,8 @@ export interface ProjectIntent {
   budget?: import("./cost.js").CostBudget;
   /** Runtime configuration — how to start the project for observation (dev server, API, etc.). */
   runtime?: import("./runtime.js").RuntimeConfig[];
+  /** Human-declared urgency. Defaults to "normal" when absent. */
+  urgency?: "low" | "normal" | "high" | "critical";
 }
 
 export interface TasteProfile {

@@ -31,6 +31,7 @@ export type BrainRegion =
   | "world-model"
   | "inhibitor"
   | "budget-allocator"
+  | "exteroception"
   | "unknown";
 
 // ─── Trace entry (one per event) ────────────────────────────────

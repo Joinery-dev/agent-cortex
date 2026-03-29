@@ -103,6 +103,10 @@ export class HomeostasisMonitor {
   /** Configurable diagnostic load thresholds. */
   private diagnosticLoadCritical: number;
   private diagnosticLoadElevated: number;
+  /** Cumulative NE exposure since last rest. Sum of NE levels across tasks. */
+  private cumulativeNE = 0;
+  /** Threshold above which cumulative NE biases toward rest. */
+  private readonly cumulativeNEThreshold = 5.0;
 
   constructor(
     thresholds?: Partial<VitalSignThresholds>,
@@ -142,6 +146,22 @@ export class HomeostasisMonitor {
   dispose(): void {
     this.stopListening?.();
     this.stopListening = null;
+  }
+
+  /** Record NE from a completed task. Called from task-dispatch between-tasks. */
+  recordTaskNE(neLevel: number): void {
+    this.cumulativeNE += Math.max(0, Math.min(1, neLevel));
+    emit("vitals:cumulative-ne", { cumulativeNE: this.cumulativeNE });
+  }
+
+  /** Reset cumulative NE. Called when rest cycle completes. */
+  resetCumulativeNE(): void {
+    this.cumulativeNE = 0;
+  }
+
+  /** Get current cumulative NE. */
+  getCumulativeNE(): number {
+    return this.cumulativeNE;
   }
 
   /** Update episode density from hippocampus. Drives rest-cycle triggers. */
@@ -243,6 +263,14 @@ export class HomeostasisMonitor {
       });
     }
 
+    // ── Cumulative NE fatigue ──────────────────────────────────
+    if (this.cumulativeNE > this.cumulativeNEThreshold) {
+      actions.push({
+        type: "trigger-rest",
+        reason: `Cumulative NE exposure ${this.cumulativeNE.toFixed(2)} exceeds threshold ${this.cumulativeNEThreshold} — system needs cooldown`,
+      });
+    }
+
     if (actions.length > 0) {
       emit("vitals:reflex", {
         actions: actions.map((a) => ({ type: a.type, reason: a.reason })),
@@ -300,6 +328,7 @@ export class HomeostasisMonitor {
       predictionDrift: 1 - this.vitals.predictionAccuracy,
       weightInstability: this.vitals.weightVolatility,
       deferredProcessing: 0, // No deferred work yet
+      neFatigue: Math.min(1, this.cumulativeNE / this.cumulativeNEThreshold),
     };
   }
 }

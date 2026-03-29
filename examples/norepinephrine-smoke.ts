@@ -13,7 +13,8 @@
  * Run: npx tsx examples/norepinephrine-smoke.ts
  */
 
-import { computeNE, DEFAULT_NE_WEIGHTS, extractRiskFromSchedulerSignals } from "../src/kernel/norepinephrine.js";
+import { computeNE, DEFAULT_NE_WEIGHTS, extractRiskFromSchedulerSignals, mapUrgencyToNE, computeTaskComplexity } from "../src/kernel/norepinephrine.js";
+import { modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../src/kernel/conviction.js";
 import type { NEInputs, RiskFactors, NEWeights } from "../src/types/norepinephrine.js";
 
 let passed = 0;
@@ -200,7 +201,7 @@ console.log("\n9. Custom weights");
   });
 
   // Heavy novelty weight
-  const noveltyHeavy: NEWeights = { maturity: 0.1, risk: 0.1, novelty: 0.7, conviction: 0.1 };
+  const noveltyHeavy: NEWeights = { maturity: 0.05, risk: 0.05, novelty: 0.7, conviction: 0.1, urgency: 0.1 };
   const customResult = computeNE(
     { cerebellumAccuracy: 0.5, bestSimilarity: 0.5, convictionLevel: 0.5 },
     noveltyHeavy,
@@ -229,7 +230,8 @@ console.log("\n10. Clamping");
     convictionLevel: 1.0,
   });
   assert(minInputs.ne >= 0.0, `Min inputs → NE ${minInputs.ne.toFixed(3)} ≥ 0.0`);
-  assert(minInputs.ne <= 0.05, `Min inputs → NE ${minInputs.ne.toFixed(3)} near zero`);
+  // With urgency default 0.25, min NE is ~0.115 (urgency component contributes via max-blend)
+  assert(minInputs.ne <= 0.15, `Min inputs → NE ${minInputs.ne.toFixed(3)} near zero`);
 }
 
 // ─── 11. extractRiskFromSchedulerSignals ─────────────────────────
@@ -340,7 +342,100 @@ console.log("\n13. Gate strategy alignment");
     bestSimilarity: 0.1,
     convictionLevel: 0.3,
   });
-  assert(deliberative.ne > 0.7, `Novel + immature + low conviction → deliberative: NE ${deliberative.ne.toFixed(3)} > 0.7`);
+  // With 5-component weights, this lands at ~0.68 — still firmly democratic/deliberative territory
+  assert(deliberative.ne > 0.65, `Novel + immature + low conviction → deliberative: NE ${deliberative.ne.toFixed(3)} > 0.65`);
+}
+
+// ─── 14. Recency of failure ─────────────────────────────────────
+
+console.log("\n14. Recency of failure raises NE");
+{
+  const baseline = computeNE({
+    cerebellumAccuracy: 0.8,
+    bestSimilarity: 0.7,
+    convictionLevel: 0.5,
+  });
+
+  const afterFailure = computeNE({
+    cerebellumAccuracy: 0.8,
+    bestSimilarity: 0.7,
+    convictionLevel: 0.5,
+    risk: { recentFailure: 0.8 },
+  });
+
+  assert(afterFailure.ne > baseline.ne, `Recent failure (0.8) raises NE: ${afterFailure.ne.toFixed(3)} > ${baseline.ne.toFixed(3)}`);
+
+  const afterSuccess = computeNE({
+    cerebellumAccuracy: 0.8,
+    bestSimilarity: 0.7,
+    convictionLevel: 0.5,
+    risk: { recentFailure: 0 },
+  });
+
+  assertApprox(afterSuccess.ne, baseline.ne, 0.01, "Recent success (0) has no effect on NE");
+}
+
+// ─── 15. Human urgency ─────────────────────────────────────────
+
+console.log("\n15. Human urgency input");
+{
+  assertApprox(mapUrgencyToNE("low"), 0.0, 0.01, "low → 0.0");
+  assertApprox(mapUrgencyToNE("normal"), 0.25, 0.01, "normal → 0.25");
+  assertApprox(mapUrgencyToNE("high"), 0.65, 0.01, "high → 0.65");
+  assertApprox(mapUrgencyToNE("critical"), 1.0, 0.01, "critical → 1.0");
+  assertApprox(mapUrgencyToNE(undefined), 0.25, 0.01, "undefined → 0.25 (normal)");
+
+  const lowUrgency = computeNE({ humanUrgency: 0.0 });
+  const criticalUrgency = computeNE({ humanUrgency: 1.0 });
+  assert(criticalUrgency.ne > lowUrgency.ne, `Critical urgency raises NE: ${criticalUrgency.ne.toFixed(3)} > ${lowUrgency.ne.toFixed(3)}`);
+}
+
+// ─── 16. Weight sum invariant ──────────────────────────────────
+
+console.log("\n16. Weight sum invariant");
+{
+  const sum = DEFAULT_NE_WEIGHTS.maturity + DEFAULT_NE_WEIGHTS.risk +
+    DEFAULT_NE_WEIGHTS.novelty + DEFAULT_NE_WEIGHTS.conviction + DEFAULT_NE_WEIGHTS.urgency;
+  assertApprox(sum, 1.0, 0.01, `Default weights sum to 1.0: ${sum}`);
+}
+
+// ─── 17. Task complexity ───────────────────────────────────────
+
+console.log("\n17. Task complexity");
+{
+  const simple = computeTaskComplexity(0, 50, 0, 5);
+  const complex = computeTaskComplexity(5, 500, 4, 5);
+
+  assert(simple < 0.1, `Simple task complexity: ${simple.toFixed(3)} < 0.1`);
+  assert(complex > 0.7, `Complex task complexity: ${complex.toFixed(3)} > 0.7`);
+
+  const withComplexity = computeNE({
+    cerebellumAccuracy: 0.8,
+    bestSimilarity: 0.7,
+    convictionLevel: 0.5,
+    risk: { taskComplexity: complex },
+  });
+  const baseline = computeNE({
+    cerebellumAccuracy: 0.8,
+    bestSimilarity: 0.7,
+    convictionLevel: 0.5,
+  });
+  assert(withComplexity.ne > baseline.ne, `High complexity raises NE: ${withComplexity.ne.toFixed(3)} > ${baseline.ne.toFixed(3)}`);
+}
+
+// ─── 18. Conviction threshold modulation ───────────────────────
+
+console.log("\n18. Conviction threshold modulation");
+{
+  const unmodulated = modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, undefined);
+  assert(unmodulated.escalateThreshold === 0.3, "No NE → thresholds unchanged");
+
+  const modNE05 = modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, 0.5);
+  assertApprox(modNE05.escalateThreshold, 0.3 * (1 - 0.4 * 0.5), 0.01, `NE=0.5 → escalateThreshold ~${(0.3 * 0.8).toFixed(3)}`);
+
+  const modNE08 = modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, 0.8);
+  assert(modNE08.escalateThreshold < modNE05.escalateThreshold, "Higher NE → lower threshold");
+  assert(modNE08.solNearCeiling === DEFAULT_CONVICTION_THRESHOLDS.solNearCeiling, "SoL thresholds unchanged by NE");
 }
 
 // ─── Results ─────────────────────────────────────────────────────

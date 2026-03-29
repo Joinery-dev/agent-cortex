@@ -48,8 +48,8 @@ import type { CollapseContext } from "../../types/basal-ganglia.js";
 import type { CollapseSignal } from "../../types/collapse.js";
 import { computeResolutionOutcomes } from "../../kernel/resolution-quality.js";
 import type { ConvictionResult, ConvictionShaping } from "../../types/conviction.js";
-import { runConvictionLoop } from "../../kernel/conviction.js";
-import { computeNE } from "../../kernel/norepinephrine.js";
+import { runConvictionLoop, modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../../kernel/conviction.js";
+import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
 import type { RiskFactors } from "../../types/norepinephrine.js";
 import { extractRiskFromGestalt } from "./sensory-cortex.js";
 import type { CognitiveFlexibility } from "../../kernel/cognitive-flexibility.js";
@@ -745,7 +745,10 @@ export function createBuildCycleDefinition(
         approachClassificationFailed: acc.approachClassificationFailed ?? false,
       };
 
-      const conviction = runConvictionLoop(convictionCtx);
+      const conviction = runConvictionLoop(
+        convictionCtx,
+        modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, convictionNE),
+      );
       acc.previousConviction = conviction;
       acc.convictionShaping = conviction.shaping;
 
@@ -870,6 +873,7 @@ export function createBuildCycleDefinition(
         convictionLevel: conviction.level,
         risk: gateRisk,
         amygdalaOverride: acc.amygdalaOverride,
+        humanUrgency: mapUrgencyToNE(ctx.intent?.urgency),
       });
       acc.effectiveNE = effectiveNEResult.ne;
 

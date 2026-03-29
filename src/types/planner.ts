@@ -32,12 +32,25 @@ export interface PlannerConfig {
   maxPhaseDepth: number;
   /** Max tokens for path reasoning LLM call. */
   maxTokens: number;
+
+  // ── Hierarchical planning (Phase B evolution) ──────────────────
+  /** Enable hierarchical planning: shaels upfront, shana just-in-time. Default false. */
+  hierarchicalPlanning?: boolean;
+  /** Model for Graph Builder (B.2) LLM calls. Defaults to pathReasoningModel or motorCortex. */
+  graphBuilderModel?: string;
+  /** Minimum shana count to trigger B.2 pipeline during per-shael JIT planning. Default 5. */
+  jitWiringThreshold?: number;
+  /** NE level above which B.2 always runs regardless of shana count. Default 0.5. */
+  jitWiringNEThreshold?: number;
 }
 
 export const DEFAULT_PLANNER_CONFIG: PlannerConfig = {
   maxTasks: 30,
   maxPhaseDepth: 1,
   maxTokens: 8192,
+  hierarchicalPlanning: false,
+  jitWiringThreshold: 5,
+  jitWiringNEThreshold: 0.5,
 };
 
 // ─── Phase A: Manifestation ─────────────────────────────────────
@@ -179,6 +192,152 @@ export interface ReplanResult {
   /** Tasks rejected by necessity gates. */
   rejected: RejectedTask[];
   /** The raw reasoning from the replan LLM call. */
+  reasoning: string;
+  /** Phase definitions for integration checks. */
+  phases: ProposedPhase[];
+}
+
+// ─── Hierarchical Planning — Graph Builder (Phase B.2) ───────────
+
+/**
+ * A capability that a shael/shana provides or consumes.
+ * Token consistency is critical — if one node provides "auth-boundary",
+ * consumers must use "auth-boundary", not "authentication" or "access-control".
+ */
+export interface CapabilityToken {
+  /** Short, consistent token (e.g. "clinical-data-model", "auth-boundary"). */
+  capability: string;
+  /** What this capability means in context. */
+  description: string;
+}
+
+/**
+ * Semantic map entry for a single node in the shael tree.
+ * Produced by Graph Builder Step 1 (LLM semantic mapping).
+ */
+export interface SemanticMapEntry {
+  /** Matches shael/shana id from B.1 decomposition. */
+  id: string;
+  /** Capabilities this node produces when completed. */
+  provides: CapabilityToken[];
+  /** Capabilities this node requires before it can be lived. */
+  consumes: CapabilityToken[];
+}
+
+/**
+ * A co-design cluster — nodes that share a boundary and create mutual
+ * constraints even without hard dependencies. Produced by Graph Builder
+ * Step 3 (LLM affinity analysis).
+ *
+ * Affinity groups must come from the LLM, not from algorithmic token overlap.
+ * Algorithmic affinity produces groups so broad they're meaningless.
+ * Real affinity requires understanding what specifically breaks.
+ */
+export interface AffinityGroup {
+  /** Human-readable group name. */
+  name: string;
+  /** Node IDs in this group. */
+  shaelIds: string[];
+  /** What boundary they share. */
+  sharedBoundary: string;
+  /** Concrete co-design risk: what breaks if built without mutual awareness. */
+  coDesignRisk: string;
+}
+
+/**
+ * A dependency correction proposed by Graph Builder Step 3.
+ * The algorithm (Step 2) is correct given the tokens — corrections mean
+ * the tokens were misleading or the relationship isn't expressible
+ * in provides/consumes (e.g. parent→child composition).
+ */
+export interface DepCorrection {
+  /** Whether to add or remove an edge. */
+  action: "add" | "remove";
+  /** Node that depends (the consumer). */
+  from: string;
+  /** Node depended on (the provider). */
+  to: string;
+  /** Why this correction is needed. */
+  reason: string;
+}
+
+/**
+ * Complete output of the Graph Builder (Phase B.2).
+ * Combines semantic mapping, algorithmic derivation, LLM correction,
+ * and topological sorting into a single result with full provenance.
+ */
+export interface DependencyWiringResult {
+  /** From Step 1: capability tokens per node. */
+  semanticMap: SemanticMapEntry[];
+
+  /** From Step 2 + Step 3 corrections: dependency edges with provenance. */
+  dependencies: Array<{
+    /** Node that depends (the consumer). */
+    from: string;
+    /** Node depended on (the provider). */
+    to: string;
+    /** How this edge was derived — algorithmic (Step 2) or correction (Step 3). */
+    source: "algorithmic" | "correction";
+    /** Present for corrections — why the LLM changed or added this edge. */
+    reason?: string;
+  }>;
+
+  /** From Step 3: co-design clusters with concrete risks. */
+  affinityGroups: AffinityGroup[];
+  /** From Step 3: what the LLM changed and why (transparency). */
+  corrections: DepCorrection[];
+
+  /** Post-Step 3: valid execution order after corrections applied. */
+  topologicalOrder: string[];
+}
+
+// ─── Hierarchical Planning — Shael Tree ──────────────────────────
+
+/**
+ * A node in the hierarchical plan tree.
+ *
+ * Shaels are questions to be lived. At the project level, the planner
+ * produces shaels (high-level questions). Each shael is planned
+ * just-in-time into shana (leaf tasks) when it's about to execute.
+ *
+ * The same fields as ProposedTask (necessity gates apply identically)
+ * but with hierarchy: level, parentId, gateCondition.
+ */
+export interface ShaelNode {
+  /** Temporary ID for references within the plan. */
+  id: string;
+  /** The question to be lived. */
+  description: string;
+  /** Whether this is a high-level question or a leaf task. */
+  level: "shael" | "shana";
+  /** Phase group for integration checks. */
+  phaseGroup: string;
+  /** Parent node ID, or null for root-level shaels. */
+  parentId: string | null;
+  /** What must be true when this node completes. */
+  gateCondition: string;
+  /** Why this node needs to exist — necessity gate 1. */
+  necessity: string;
+  /** Why this specific form, not simpler — necessity gate 2. */
+  formJustification: string;
+  /** Why this scope, not smaller — necessity gate 3. */
+  scopeJustification: string;
+}
+
+/**
+ * What the hierarchical planner produces.
+ * Analog of PlannerResult for the new planning pipeline.
+ */
+export interface HierarchicalPlanResult {
+  /** The manifested future from Phase A. */
+  manifestedFuture: ManifestedFuture;
+  /** The shael tree from Phase B.1 (after necessity gates). */
+  shaels: ShaelNode[];
+  /** Dependency wiring from Phase B.2 (semantic map + deps + affinity). */
+  wiring: DependencyWiringResult;
+  /** Nodes that were proposed but failed necessity gates. */
+  rejected: RejectedTask[];
+  /** The raw backward reasoning from B.1 (for transparency). */
   reasoning: string;
   /** Phase definitions for integration checks. */
   phases: ProposedPhase[];

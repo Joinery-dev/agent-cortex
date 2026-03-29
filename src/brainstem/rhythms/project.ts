@@ -38,6 +38,7 @@ import { createLogger } from "../../util/logger.js";
 import { emit } from "../../events.js";
 import { EscalationError, RhythmAbortedError } from "../errors.js";
 import { createTaskDispatchDefinition } from "./task-dispatch.js";
+import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
 import { createSensoryCortexDefinition } from "./sensory-cortex.js";
 import type { SubcorticalHooks } from "../stubs.js";
 import type { HomeostasisMonitor } from "../homeostasis.js";
@@ -73,17 +74,19 @@ import type { RhythmDefinition as RD } from "../../types/rhythm.js";
 import type { SensoryCortexResult } from "../../types/brainstem.js";
 import type { ProjectIntent, TasteProfile } from "../../types/intent.js";
 
-import type { ManifestedFuture, ProposedPhase } from "../../types/planner.js";
+import type { ManifestedFuture, ProposedPhase, ShaelNode, HierarchicalPlanResult, DependencyWiringResult } from "../../types/planner.js";
 import { createTask } from "../../types/task.js";
 import { newId } from "../../util/ids.js";
 import { allocateBudget } from "../../kernel/budget-allocator.js";
+import { GraphBuilder } from "../../kernel/graph-builder.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { setCostTaskId } from "../../llm/client.js";
 
 async function runManifestation(
   planner: Planner,
   thalamus: Thalamus,
-  sensoryCortexDef: RD<SensoryCortexContext, SensoryCortexResult, unknown, unknown, unknown>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sensoryCortexDef: RD<SensoryCortexContext, SensoryCortexResult, any, any, any>,
   runner: RhythmRunner,
   parentId: string,
   intent: ProjectIntent,
@@ -110,6 +113,52 @@ async function runManifestation(
 
   thalamus.setManifestedFuture(future.vision);
   return future;
+}
+
+// ─── Hierarchical planning helpers ───────────────────────────────
+
+/**
+ * Get shaels whose meta-dependencies are all satisfied.
+ * Pure function — reads the wiring result and completed set.
+ */
+function getReadyShaels(
+  shaels: ShaelNode[],
+  wiring: DependencyWiringResult,
+  completedShaelIds: Set<string>,
+): ShaelNode[] {
+  // Build dep map: shaelId → IDs it depends on
+  const depsFor = new Map<string, string[]>();
+  for (const dep of wiring.dependencies) {
+    const deps = depsFor.get(dep.from) ?? [];
+    deps.push(dep.to);
+    depsFor.set(dep.from, deps);
+  }
+
+  // Shaels whose deps are all completed (or have no deps)
+  const shaelIds = new Set(shaels.map((s) => s.id));
+  return shaels.filter((shael) => {
+    if (completedShaelIds.has(shael.id)) return false;
+    const deps = depsFor.get(shael.id) ?? [];
+    // Only count deps that are actually shaels in this plan (not external)
+    const relevantDeps = deps.filter((d) => shaelIds.has(d));
+    return relevantDeps.every((d) => completedShaelIds.has(d));
+  });
+}
+
+/**
+ * Pick the next shael to execute from ready shaels, preferring
+ * topological order from the wiring result.
+ */
+function pickNextShael(
+  readyShaels: ShaelNode[],
+  wiring: DependencyWiringResult,
+): ShaelNode {
+  // Prefer the one earliest in topological order
+  const orderIndex = new Map(wiring.topologicalOrder.map((id, i) => [id, i]));
+  const sorted = [...readyShaels].sort(
+    (a, b) => (orderIndex.get(a.id) ?? Infinity) - (orderIndex.get(b.id) ?? Infinity),
+  );
+  return sorted[0];
 }
 
 // ─── Definition factory ─────────────────────────────────────────
@@ -227,12 +276,19 @@ export function createProjectDefinition(
         const maxims = worldModel?.getMaximsForBriefing();
         const capabilities = pns?.describeCapabilities();
 
+        // Compute planning-time NE (maturity + urgency — no task-specific signals yet)
+        const planningNE = computeNE({
+          cerebellumAccuracy: hooks.getCerebellumAccuracy(),
+          humanUrgency: mapUrgencyToNE(intent.urgency),
+        });
+
         const planResult = await planner.reasonBackward(
           future,
           intent,
           taste,
           maxims,
           capabilities,
+          planningNE.ne,
         );
 
         graph = planResult.graph;
@@ -359,6 +415,7 @@ export function createProjectDefinition(
                 taste,
                 maxims,
                 capabilities,
+                planningNE.ne,
               );
 
               graph = replanResult.graph;
@@ -373,7 +430,219 @@ export function createProjectDefinition(
         }
       }
 
-      // ── Task dispatch with replan cascade ──────────────────────
+      // ── Hierarchical shael dispatch (when enabled) ──────────────
+      // When hierarchical planning produced shaels, dispatch them one
+      // at a time with just-in-time per-shael planning. Each shael's
+      // shana become a flat TaskGraphNode[] fed to the existing
+      // task-dispatch machinery.
+      if (planner && config.plannerConfig?.hierarchicalPlanning && graph.length === 0) {
+        // The hierarchical path runs inside the planning block above.
+        // If we get here with an empty graph AND hierarchical is enabled,
+        // it means the planner should have run hierarchically.
+        // Run it now if it hasn't been run yet.
+        log.info("Hierarchical planning mode — running shael dispatch");
+
+        const future = await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste);
+
+        emit("planner:phase-b-start", { hierarchical: true });
+        const maxims = worldModel?.getMaximsForBriefing();
+        const capabilities = pns?.describeCapabilities();
+        const planningNE = computeNE({
+          cerebellumAccuracy: hooks.getCerebellumAccuracy(),
+          humanUrgency: mapUrgencyToNE(intent.urgency),
+        });
+
+        const hierarchicalPlan = await planner.reasonBackwardHierarchical(
+          future, intent, taste, maxims, capabilities, planningNE.ne,
+        );
+
+        emit("planner:phase-b-complete", {
+          hierarchical: true,
+          shaelCount: hierarchicalPlan.shaels.length,
+          edgeCount: hierarchicalPlan.wiring.dependencies.length,
+          affinityGroupCount: hierarchicalPlan.wiring.affinityGroups.length,
+        });
+
+        log.info("Hierarchical planning complete", {
+          shaels: hierarchicalPlan.shaels.length,
+          edges: hierarchicalPlan.wiring.dependencies.length,
+          affinityGroups: hierarchicalPlan.wiring.affinityGroups.length,
+        });
+
+        // ── Shael dispatch loop ──────────────────────────────────
+        const completedShaelIds = new Set<string>();
+        const allTaskResults = new Map<string, OrchestratorResult>();
+        const allCompletedTasks: string[] = [];
+        const allEscalatedTasks: string[] = [];
+
+        const jitThreshold = config.plannerConfig?.jitWiringThreshold ?? 5;
+        const jitNEThreshold = config.plannerConfig?.jitWiringNEThreshold ?? 0.5;
+        const graphBuilderModel = config.plannerConfig?.graphBuilderModel ?? config.models.motorCortex;
+
+        let readyShaels = getReadyShaels(
+          hierarchicalPlan.shaels, hierarchicalPlan.wiring, completedShaelIds,
+        );
+
+        while (readyShaels.length > 0) {
+          const shael = pickNextShael(readyShaels, hierarchicalPlan.wiring);
+
+          emit("project:shael-dispatch", {
+            shaelId: shael.id,
+            description: shael.description,
+            completedShaels: completedShaelIds.size,
+            totalShaels: hierarchicalPlan.shaels.length,
+          });
+
+          log.info("Dispatching shael", {
+            shaelId: shael.id,
+            description: shael.description.slice(0, 80),
+            completed: completedShaelIds.size,
+            total: hierarchicalPlan.shaels.length,
+          });
+
+          // ── JIT per-shael planning ────────────────────────────
+          // Use the existing reasonBackward scoped to this shael's question.
+          // The shael's description + gate condition frame the "manifested future"
+          // for the sub-plan.
+          const shaelFuture: import("../../types/planner.js").ManifestedFuture = {
+            vision: `Shael: ${shael.description}\n\nGate condition: ${shael.gateCondition}`,
+            senseContributions: hierarchicalPlan.manifestedFuture.senseContributions,
+            confidence: hierarchicalPlan.manifestedFuture.confidence,
+            cycles: 0,
+          };
+
+          const shaelPlanResult = await planner.reasonBackward(
+            shaelFuture, intent, taste, maxims, capabilities, planningNE.ne,
+          );
+
+          let shanaGraph = shaelPlanResult.graph;
+          const shanaPhases = shaelPlanResult.phases;
+
+          // Optionally run B.2 on the shana if complex enough
+          const shanaCount = shanaGraph.length;
+          const shouldWire = shanaCount >= jitThreshold || planningNE.ne >= jitNEThreshold;
+
+          if (shouldWire && shanaCount > 0) {
+            log.info("Running B.2 on shael shana", {
+              shaelId: shael.id,
+              shanaCount,
+              ne: planningNE.ne,
+            });
+
+            // Convert flat graph nodes back to ShaelNode for the GraphBuilder
+            const shanaNodes: ShaelNode[] = shanaGraph.map((node) => ({
+              id: node.task.id,
+              description: node.task.description,
+              level: "shana" as const,
+              phaseGroup: node.phaseGroup ?? shael.phaseGroup,
+              parentId: shael.id,
+              gateCondition: "",
+              necessity: String(node.task.context?.necessity ?? ""),
+              formJustification: "",
+              scopeJustification: "",
+            }));
+
+            const graphBuilder = new GraphBuilder(graphBuilderModel);
+            const shanaWiring = await graphBuilder.wire(shanaNodes, planningNE.ne);
+
+            // Rebuild graph from wiring
+            shanaGraph = planner.buildGraphFromShana(shanaNodes, shanaWiring, shanaPhases);
+          }
+
+          // ── Dispatch shana through existing task-dispatch ─────
+          const dispatchCtx: TaskDispatchContext = {
+            intent,
+            taste,
+            graph: shanaGraph,
+            phases: shanaPhases,
+            shaelId: shael.id,
+          };
+
+          try {
+            const result = await runner.run(taskDispatchDef, dispatchCtx, state.id);
+
+            allCompletedTasks.push(...result.completedTasks);
+            allEscalatedTasks.push(...result.escalatedTasks);
+            for (const [id, res] of result.taskResults) {
+              allTaskResults.set(id, res);
+            }
+
+            completedShaelIds.add(shael.id);
+
+            emit("project:shael-complete", {
+              shaelId: shael.id,
+              completedTasks: result.completedTasks.length,
+              escalatedTasks: result.escalatedTasks.length,
+            });
+
+            log.info("Shael complete", {
+              shaelId: shael.id,
+              completed: result.completedTasks.length,
+              escalated: result.escalatedTasks.length,
+            });
+          } catch (err) {
+            if (err instanceof EscalationError) {
+              // Shael-level failure — mark as escalated, continue to next
+              log.warn("Shael escalated", {
+                shaelId: shael.id,
+                reason: err.decision.reason,
+              });
+              completedShaelIds.add(shael.id); // Treat as done (escalated)
+              allEscalatedTasks.push(shael.id);
+            } else {
+              throw err;
+            }
+          }
+
+          readyShaels = getReadyShaels(
+            hierarchicalPlan.shaels, hierarchicalPlan.wiring, completedShaelIds,
+          );
+        }
+
+        // ── Final evaluation ─────────────────────────────────────
+        if (allCompletedTasks.length > 0) {
+          const future = thalamus.getManifestedFuture() ?? undefined;
+          const finalResult: TaskDispatchResult = {
+            completedTasks: allCompletedTasks,
+            escalatedTasks: allEscalatedTasks,
+            taskResults: allTaskResults,
+          };
+          const finalDescription = formatFinalEvaluation(finalResult, [], future);
+          const finalEvalTask = createTask(newId(), finalDescription, {
+            role: "final-evaluation",
+            completedCount: allCompletedTasks.length,
+          });
+
+          thalamus.assembleGestalt({ task: finalEvalTask });
+          const finalEvalCtx: SensoryCortexContext = {
+            task: finalEvalTask,
+            intent,
+            taste,
+          };
+
+          emit("project:final-eval-start", {
+            completedTasks: allCompletedTasks.length,
+            escalatedTasks: allEscalatedTasks.length,
+          });
+
+          const finalEvalResult = await runner.run(sensoryCortexDef, finalEvalCtx, state.id);
+          thalamus.clearGestalt(finalEvalTask.id);
+
+          emit("project:final-eval-complete", {
+            confidence: finalEvalResult.confidence,
+          });
+
+          state.accumulator.__finalEvaluation = finalEvalResult;
+        }
+
+        return {
+          completedTasks: allCompletedTasks,
+          escalatedTasks: allEscalatedTasks,
+          taskResults: allTaskResults,
+        };
+      }
+
+      // ── Task dispatch with replan cascade (flat path) ────────────
       let replanCount = 0;
       let carryOver: {
         completed: Set<string>;
@@ -648,12 +917,19 @@ export function createProjectDefinition(
             const maxims = worldModel?.getMaximsForBriefing();
             const capabilities = pns?.describeCapabilities();
 
+            // Recompute NE at replan time — maturity may have shifted
+            const replanNE = computeNE({
+              cerebellumAccuracy: hooks.getCerebellumAccuracy(),
+              humanUrgency: mapUrgencyToNE(intent.urgency),
+            });
+
             const replanResult = await planner.replan(
               replanCtx,
               intent,
               taste,
               maxims,
               capabilities,
+              replanNE.ne,
             );
 
             graph = replanResult.graph;

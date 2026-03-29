@@ -1,0 +1,79 @@
+---
+title: "Exteroception — External World Perception"
+scope: feature
+---
+flowchart TB
+    subgraph REGISTRY["Monitor Registry (generic, stubbed)"]
+        direction LR
+        M1["Monitor A\nnpm advisories"]
+        M2["Monitor B\nAPI changelogs"]
+        M3["Monitor C\ndeploy status"]
+        MN["Monitor N\nanything"]
+    end
+
+    subgraph SENTRY["Haiku Sentry (continuous background)"]
+        direction TB
+        POLL["Poll each monitor\nat its learned cadence\n(per-monitor setTimeout chains)"]
+        TRIAGE["Relevance + urgency\nassessment"]
+        POLL --> TRIAGE
+    end
+
+    subgraph URGENT_PATH["Urgent Path (bypass)"]
+        ALARM["Build Alarm\nsource: exteroception\nseverity: urgent"]
+        AMYGDALA["Amygdala\nreceiveAlarm()"]
+        NE_OVERRIDE["NE floors at 0.95\nhard interrupt"]
+        ALARM --> AMYGDALA --> NE_OVERRIDE
+    end
+
+    subgraph NORMAL_PATH["Normal Path (accumulate)"]
+        direction TB
+        STORE["Signal Store\n(in-memory, bounded)\noldest-first pruning"]
+        PRESSURE["Signal pressure\nfeeds NE risk"]
+    end
+
+    subgraph BETWEEN["Between-Tasks (rhythm boundary)"]
+        direction TB
+        ASSEMBLE["assembleBatch()\ncollect pending signals"]
+        PROCESS["PFC batch processing\n— update world model\n— test manifested future\n— graph surgery?"]
+        OUTCOME["recordBatchOutcome()\nper-signal: acted upon?"]
+        ASSEMBLE --> PROCESS --> OUTCOME
+    end
+
+    subgraph MINI_CB["Mini Cerebellum (cadence learning)"]
+        direction TB
+        EMA["EMA action rate\nper monitor\n(recent signals weigh more)"]
+        ADJUST["Adjust polling cadence\nactionRate > 0.5 → faster\nactionRate < 0.1 → slower\nclamped to floor/ceiling"]
+    end
+
+    subgraph EFFECTS["System Effects"]
+        direction LR
+        TASKGRAPH["Task Graph\namendment"]
+        WM["Working Memory\nupdate"]
+        ESCALATE["Human\nalert"]
+        NOTED["Noted\n(no action)"]
+    end
+
+    M1 & M2 & M3 & MN --> POLL
+
+    TRIAGE -->|"urgent"| ALARM
+    TRIAGE -->|"relevant,\nnot urgent"| STORE
+    TRIAGE -->|"irrelevant"| DISCARD["∅"]
+
+    STORE -.->|"pending count / 20"| PRESSURE
+
+    STORE -->|"at rhythm\nboundary"| ASSEMBLE
+
+    PROCESS --> TASKGRAPH & WM & ESCALATE & NOTED
+
+    OUTCOME -->|"per-signal\nled to action?"| EMA
+    EMA --> ADJUST
+    ADJUST -->|"reschedule\nmonitor timer"| POLL
+
+    style REGISTRY fill:#e8f4fd,stroke:#74b9ff,color:#2d3436
+    style SENTRY fill:#dfe6e9,stroke:#636e72,color:#2d3436
+    style URGENT_PATH fill:#ff7675,stroke:#d63031,color:#2d3436
+    style NORMAL_PATH fill:#dfe6e9,stroke:#636e72,color:#2d3436
+    style BETWEEN fill:#74b9ff,stroke:#0984e3,color:#2d3436
+    style MINI_CB fill:#ffeaa7,stroke:#fdcb6e,color:#2d3436
+    style EFFECTS fill:#55efc4,stroke:#00b894,color:#2d3436
+    style DISCARD fill:none,stroke:none,color:#b2bec3

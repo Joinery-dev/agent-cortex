@@ -32,6 +32,8 @@ export interface NEWeights {
   novelty: number;
   /** Weight for conviction deficit (1 - conviction level). */
   conviction: number;
+  /** Weight for human urgency signal. */
+  urgency: number;
 }
 
 // ─── Inputs ──────────────────────────────────────────────────────
@@ -64,6 +66,13 @@ export interface NEInputs {
 
   /** Structured risk factors from task graph and system state. */
   risk?: RiskFactors;
+
+  /**
+   * Mapped human urgency (0–1). From ProjectIntent.urgency.
+   * low=0.0, normal=0.25, high=0.65, critical=1.0.
+   * Absent → 0.25 (normal — no urgency declared).
+   */
+  humanUrgency?: number;
 
   /** Amygdala urgency override. When true, NE floors at ~0.95. */
   amygdalaOverride?: boolean;
@@ -112,6 +121,30 @@ export interface RiskFactors {
    * attentive and trigger synthesis sooner.
    */
   observationPressure?: number;
+
+  /**
+   * Recency of failure (0–1). abs(aggregateDopamine) from the last
+   * completed task when that dopamine was negative. Per-task, not
+   * cumulative — a "be careful" reflex after a miss.
+   * 0 when the last task was successful or no previous task exists.
+   */
+  recentFailure?: number;
+
+  /**
+   * Exteroceptive signal pressure (0–1). From ExteroceptionSystem.getSignalPressure().
+   * High = many unprocessed external signals piling up = system should be
+   * more attentive and process the batch sooner.
+   */
+  exteroceptivePressure?: number;
+
+  /**
+   * Task complexity (0–1). Computed from:
+   *   - Number of dependencies (integration surface)
+   *   - Task description length (scope proxy)
+   *   - Proportion of high-stake senses
+   * Complex tasks warrant more attention even when nothing else is risky.
+   */
+  taskComplexity?: number;
 }
 
 // ─── Result ──────────────────────────────────────────────────────
@@ -138,6 +171,8 @@ export interface NEComponents {
   noveltyComponent: number;
   /** 1 - convictionLevel. High when conviction is low. */
   convictionComponent: number;
+  /** Mapped urgency from human intent. High when critical urgency. */
+  urgencyComponent: number;
   /** Whether the amygdala override fired. */
   amygdalaOverride: boolean;
 }

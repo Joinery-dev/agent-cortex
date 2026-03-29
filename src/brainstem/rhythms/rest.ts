@@ -66,6 +66,7 @@ export function createRestCycleDefinition(
   getVitals: () => VitalSigns,
   getConsolidationLoad: () => ConsolidationLoad,
   maxRestCycles: number = 3,
+  resetCumulativeNE?: () => void,
 ): RhythmDefinition<RestCycleContext, RestCycleResult, PreparedRest, ExecutedRest, RestCycleResult> {
   return {
     name: "rest-cycle",
@@ -152,6 +153,9 @@ export function createRestCycleDefinition(
     },
 
     async integrate(executed, _state) {
+      // Reset cumulative NE fatigue — the system has rested
+      resetCumulativeNE?.();
+
       const vitalsAfter = getVitals();
       const loadAfter = getConsolidationLoad();
 

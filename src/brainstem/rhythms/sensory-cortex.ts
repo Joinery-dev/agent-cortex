@@ -46,7 +46,9 @@ import type { RiskFactors } from "../../types/norepinephrine.js";
 import type { TaskGestalt } from "../../types/task-gestalt.js";
 import type { SerializedEpisode } from "../../types/efference-copy.js";
 import type { ScoredEpisode } from "../../types/cerebellum.js";
-import { computeNE } from "../../kernel/norepinephrine.js";
+import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
+import { reviseWithEfference, computeAttentionBudget } from "../../kernel/attention-budget.js";
+import { extractFingerprint } from "../../subcortical/forward-model.js";
 
 const log = createLogger("sensory-cortex");
 
@@ -111,6 +113,8 @@ interface SensoryCortexAccumulator {
   reconsultSenseIds: string[] | null;
   /** Total inner build cycles accumulated across all outer cycles. */
   totalInnerCycles: number;
+  /** Attention budget (may be revised by Phase 2 efference/cerebellum). */
+  attentionBudget: import("../../types/attention-budget.js").AttentionBudget | null;
 }
 
 function getAcc(
@@ -127,6 +131,7 @@ function getAcc(
     prediction: null,
     reconsultSenseIds: null,
     totalInnerCycles: 0,
+    attentionBudget: null,
   };
 }
 
@@ -304,6 +309,46 @@ export function createSensoryCortexDefinition(
           });
         }
 
+        // ── Phase 2: Refine attention budget with cerebellum + efference ──
+        {
+          let budget = context.attentionBudget ?? null;
+
+          // Cerebellum: predict cycle distribution now that we have a fingerprint
+          if (consultation) {
+            const fingerprint = extractFingerprint(consultation);
+            const cyclePercentiles = hooks.predictCycleDistribution(fingerprint);
+            if (cyclePercentiles && budget) {
+              // Recompute with learned data, preserving NE from dispatch
+              budget = computeAttentionBudget({
+                neLevel: budget.basis.neLevel,
+                maxOuterCycles: config.maxOuterCycles,
+                cerebellumPercentiles: cyclePercentiles,
+                taskImportance: budget.basis.importance,
+              });
+            }
+          }
+
+          // Efference copy revision (attached to gestalt during prepare above)
+          const gestaltForBudget = thalamus.getGestalt(task.id);
+          if (gestaltForBudget?.efferenceCopy && budget) {
+            budget = reviseWithEfference(budget, gestaltForBudget.efferenceCopy.convergenceEstimate);
+          }
+
+          // Emit revision event if budget changed from dispatch
+          if (budget && context.attentionBudget
+              && budget.basis.source !== context.attentionBudget.basis.source) {
+            emit("attention-budget:revised", {
+              taskId: task.id,
+              before: context.attentionBudget.cycleRange,
+              after: budget.cycleRange,
+              source: budget.basis.source,
+              efferenceEstimate: budget.basis.efferenceEstimate,
+            });
+          }
+
+          acc.attentionBudget = budget;
+        }
+
         // Set explore/leverage mode
         if (mode) {
           thalamus.setTaskMode(task.id, mode);
@@ -323,6 +368,7 @@ export function createSensoryCortexDefinition(
           cerebellumAccuracy: hooks.getCerebellumAccuracy(),
           bestSimilarity: prediction?.bestSimilarity,
           risk: riskFactors,
+          humanUrgency: mapUrgencyToNE(context.intent?.urgency),
         });
 
         emit("ne:novelty-enriched", {
@@ -531,7 +577,18 @@ export function createSensoryCortexDefinition(
       const aggregateImprovement = computeAggregateImprovement(weighted);
       const sensesToReconsult = selectSensesForReconsultation(weighted, buildResult, consultation);
 
-      // ── NE-modulated threshold ──
+      // ── Attention budget zone logic ──
+      const budget = acc.attentionBudget ?? ctx.attentionBudget;
+      const floor = budget?.cycleRange.floor ?? 1;
+      const expected = budget?.cycleRange.expected ?? config.maxOuterCycles;
+      const ceiling = budget?.cycleRange.ceiling ?? config.maxOuterCycles;
+
+      // Progress fraction: 0 at floor, 1 at ceiling
+      const progressFraction = ceiling > floor
+        ? Math.max(0, (outerCycle - floor) / (ceiling - floor))
+        : 1;
+
+      // ── NE-modulated threshold (tightens as we approach ceiling) ──
       const currentNE = acc.enrichedNE ?? ctx.neLevel ?? 0.5;
       let effectiveThreshold = config.improvementThreshold;
       if (currentNE < 0.3) {
@@ -539,50 +596,78 @@ export function createSensoryCortexDefinition(
       } else if (currentNE > 0.7) {
         effectiveThreshold *= 0.75; // Novel/risky task: lower bar, be more thorough
       }
+      // Progressive tightening: easier to exit as we approach ceiling
+      effectiveThreshold *= (1 - 0.3 * progressFraction);
 
       // ── Exit conditions ──
       let exitReason: string | null = null;
 
-      // 1. Max outer cycles
-      if (outerCycle >= config.maxOuterCycles) {
-        exitReason = `Reached max outer cycles (${config.maxOuterCycles})`;
+      // 0. Floor guard: below floor, never exit (minimum investment not met)
+      const belowFloor = outerCycle < floor;
+
+      // 1. Ceiling: hard stop (replaces old maxOuterCycles check)
+      if (!belowFloor && outerCycle >= ceiling) {
+        exitReason = `Attention budget ceiling reached (${outerCycle}/${ceiling}). Range: floor=${floor}, expected=${expected}, ceiling=${ceiling}`;
       }
 
-      // 2. Build-cycle accepted AND no significant potential
-      if (!exitReason && buildResult.accepted) {
-        const hasSignificant = weighted.some((w) => w.improvementPotential.level === "significant");
-        if (!hasSignificant) {
-          exitReason = "Build accepted and no sense flagged significant improvement potential";
+      // 2. Safety cap: absolute max from config (should rarely trigger)
+      if (!exitReason && outerCycle >= config.maxOuterCycles) {
+        exitReason = `Absolute safety cap reached (${config.maxOuterCycles})`;
+      }
+
+      // 2x expected checkpoint: cognitive flexibility signal
+      if (!exitReason && !belowFloor && outerCycle >= expected * 2 && expected > 0) {
+        emit("sensory-cortex:double-expected", {
+          taskId: ctx.task.id,
+          outerCycle,
+          expected,
+          ceiling,
+        });
+      }
+
+      // Remaining exit conditions only apply above floor
+      if (!belowFloor) {
+        // 3. Build-cycle accepted AND no significant potential
+        if (!exitReason && buildResult.accepted) {
+          const hasSignificant = weighted.some((w) => w.improvementPotential.level === "significant");
+          if (!hasSignificant) {
+            exitReason = "Build accepted and no sense flagged significant improvement potential";
+          }
+        }
+
+        // 4. Aggregate improvement below threshold
+        if (!exitReason && aggregateImprovement < effectiveThreshold) {
+          exitReason = `Aggregate improvement potential (${aggregateImprovement.toFixed(2)}) below threshold (${effectiveThreshold.toFixed(2)})`;
+        }
+
+        // 5. Diminishing returns (composite not improving across outer cycles)
+        if (!exitReason && acc.compositeHistory.length >= 2) {
+          const prev = acc.compositeHistory[acc.compositeHistory.length - 2];
+          const curr = acc.compositeHistory[acc.compositeHistory.length - 1];
+          const delta = curr - prev;
+          if (delta < config.diminishingReturnsDelta) {
+            exitReason = `Diminishing returns: composite delta ${delta.toFixed(2)} < ${config.diminishingReturnsDelta}`;
+          }
+        }
+
+        // 6. Near speed-of-light ceiling
+        if (!exitReason && acc.speedOfLight) {
+          const solCeiling = acc.speedOfLight.compositeCeiling;
+          if (solCeiling > 0 && composite.weightedMean >= solCeiling * 0.9) {
+            exitReason = `Near speed-of-light ceiling (${composite.weightedMean.toFixed(1)} / ${solCeiling.toFixed(1)})`;
+          }
+        }
+
+        // 7. No senses to re-consult
+        if (!exitReason && sensesToReconsult.length === 0) {
+          exitReason = "No senses identified for re-consultation";
         }
       }
 
-      // 3. Aggregate improvement below threshold
-      if (!exitReason && aggregateImprovement < effectiveThreshold) {
-        exitReason = `Aggregate improvement potential (${aggregateImprovement.toFixed(2)}) below threshold (${effectiveThreshold.toFixed(2)})`;
-      }
-
-      // 4. Diminishing returns (composite not improving across outer cycles)
-      if (!exitReason && acc.compositeHistory.length >= 2) {
-        const prev = acc.compositeHistory[acc.compositeHistory.length - 2];
-        const curr = acc.compositeHistory[acc.compositeHistory.length - 1];
-        const delta = curr - prev;
-        if (delta < config.diminishingReturnsDelta) {
-          exitReason = `Diminishing returns: composite delta ${delta.toFixed(2)} < ${config.diminishingReturnsDelta}`;
-        }
-      }
-
-      // 5. Near speed-of-light ceiling
-      if (!exitReason && acc.speedOfLight) {
-        const ceiling = acc.speedOfLight.compositeCeiling;
-        if (ceiling > 0 && composite.weightedMean >= ceiling * 0.9) {
-          exitReason = `Near speed-of-light ceiling (${composite.weightedMean.toFixed(1)} / ${ceiling.toFixed(1)})`;
-        }
-      }
-
-      // 6. No senses to re-consult
-      if (!exitReason && sensesToReconsult.length === 0) {
-        exitReason = "No senses identified for re-consultation";
-      }
+      const budgetZone = belowFloor ? "below-floor"
+        : outerCycle >= ceiling ? "ceiling"
+        : outerCycle >= expected ? "tightening"
+        : "normal";
 
       emit("sensory-cortex:gate", {
         taskId: ctx.task.id,
@@ -593,6 +678,9 @@ export function createSensoryCortexDefinition(
         compositeScore: composite.weightedMean,
         reconsultSenseIds: sensesToReconsult,
         threshold: effectiveThreshold,
+        budgetZone,
+        budgetRange: { floor, expected, ceiling },
+        progressFraction,
       });
 
       if (exitReason) {

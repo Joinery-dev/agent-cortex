@@ -63,6 +63,7 @@ const REGION_MAP: [string, BrainRegion][] = [
   ["routine:", "basal-ganglia"],
   ["amygdala:", "amygdala"],
   ["urgency:", "amygdala"],
+  ["exteroception:", "exteroception"],
   ["pns:", "pns"],
   ["tool:", "pns"],
   ["dopamine:", "dopamine"],

@@ -1,0 +1,55 @@
+---
+title: "Phase Loop with Nursery"
+scope: global
+---
+flowchart TD
+    subgraph PHASE["Phase Loop"]
+        direction TB
+
+        DISPATCH["DISPATCH TASK<br/>Scheduler picks next task"]
+        BUILD["BUILD + EVALUATE<br/>Motor builds, senses evaluate,<br/>gate accepts/rejects"]
+        BETWEEN["BETWEEN TASKS<br/>Dopamine, crystallization,<br/>drift check, forward briefing"]
+
+        MORETASKS{More tasks<br/>in phase?}
+
+        PHASEGATE["PHASE GATE<br/>Integration check:<br/>do the pieces cohere?"]
+
+        DETECT{"Runtime<br/>surface area<br/>detected?"}
+
+        subgraph NURS["Nursery"]
+            N1["Scan what was built"]
+            N2["PNS exercises artifacts"]
+            N3["Senses observe runtime behavior"]
+            N4{"Healthy?"}
+            N5["Fix / self-heal"]
+            N1 --> N2 --> N3 --> N4
+            N4 -->|"No"| N5 --> N2
+            N4 -->|"Yes"| N6["Graduate"]
+        end
+
+        DISPATCH --> BUILD --> BETWEEN --> MORETASKS
+        MORETASKS -->|"Yes"| DISPATCH
+        MORETASKS -->|"All tasks done"| PHASEGATE
+        PHASEGATE --> DETECT
+        DETECT -->|"Yes"| NURS
+        DETECT -->|"No"| DONE
+        N6 --> DONE["PHASE COMPLETE"]
+    end
+
+    NEXT{"More<br/>phases?"}
+    DONE --> NEXT
+    NEXT -->|"Yes"| PHASE
+    NEXT -->|"No"| COMPLETION["PROJECT COMPLETE"]
+
+    subgraph LEGEND["The four questions"]
+        L1["Build: 'Is this good code?'"]
+        L2["Phase Gate: 'Do the pieces cohere?'"]
+        L3["Nursery: 'Does it survive reality?'"]
+        L4["A phase isn't done until<br/>its artifacts are healthy."]
+    end
+
+    style PHASE fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style NURS fill:#1e2233,stroke:#f0aa6c,color:#e2e4ea
+    style LEGEND fill:#111318,stroke:#555,color:#999
+    style L3 fill:#1e2233,stroke:#f0aa6c,color:#f0aa6c
+    style L4 fill:#111318,stroke:#f0aa6c,color:#f0aa6c

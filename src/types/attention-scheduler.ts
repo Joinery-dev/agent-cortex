@@ -24,13 +24,14 @@ import type { NEWeights, RiskFactors } from "./norepinephrine.js";
 
 // ─── Scheduler Actions ──────────────────────────────────────────
 
-/** The five actions the Scheduler can return. Discriminated on `action`. */
+/** The six actions the Scheduler can return. Discriminated on `action`. */
 export type SchedulerAction =
   | SchedulerDispatch
   | SchedulerEscalate
   | SchedulerRest
   | SchedulerReplan
-  | SchedulerComplete;
+  | SchedulerComplete
+  | SchedulerGestate;
 
 export interface SchedulerDispatch {
   action: "dispatch-task";
@@ -46,6 +47,8 @@ export interface SchedulerDispatch {
   taskBudget?: number;
   /** Frozen risk factors from dispatch — carried forward so enrichment sites don't re-derive from shifting sources. */
   riskSnapshot?: RiskFactors;
+  /** Attention budget: task-specific cycle range. Replaces flat maxOuterCycles. */
+  attentionBudget?: import("./attention-budget.js").AttentionBudget;
 }
 
 export interface SchedulerEscalate {
@@ -72,6 +75,13 @@ export interface SchedulerReplan {
 
 export interface SchedulerComplete {
   action: "complete";
+}
+
+export interface SchedulerGestate {
+  action: "dispatch-gestate";
+  /** Which phase group needs nursery stress-testing. */
+  phaseGroup: string;
+  reason: string;
 }
 
 // ─── Scheduler Signals ──────────────────────────────────────────
@@ -139,12 +149,26 @@ export interface SchedulerSignals {
   /** Territory observation pressure (0–1). From WM.getObservationPressure(). */
   observationPressure?: number;
 
+  // ── NE recency-of-failure signal ────────────────────────────
+  /** Last completed task's aggregate dopamine. Negative = recent failure → heightened NE. */
+  lastTaskDopamine?: number;
+
+  // ── NE human urgency signal ────────────────────────────────
+  /** Mapped human urgency (0–1). From ProjectIntent.urgency via mapUrgencyToNE(). */
+  humanUrgency?: number;
+
   // ── Homeostasis PFC flags ───────────────────────────────────
   /** PFC intervention flags from homeostasis (learning signal degraded, tonic dopamine crashed). */
   pfcFlags?: Array<{
     type: "learning-signal-degraded" | "tonic-dopamine-crashed";
     reason: string;
   }>;
+
+  // ── Nursery signals ───────────────────────────────────────────
+  /** Phase groups awaiting nursery graduation (detected runtime surface, not yet graduated). */
+  nurseryPendingPhases?: Set<string>;
+  /** Phase groups that have graduated from the nursery. */
+  nurseryGraduatedPhases?: Set<string>;
 }
 
 // ─── Scheduler Config ───────────────────────────────────────────

@@ -206,6 +206,10 @@ export class Cerebellum {
       modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
       briefingDepth?: import("../types/cost.js").BriefingDepth;
     },
+    cycleData?: {
+      outerCycles: number;
+      attentionBudget?: { floor: number; expected: number; ceiling: number };
+    },
   ): DopamineSignal | null {
     // Filter out degraded evaluations — the cerebellum must never learn from
     // garbage data. A degraded evaluation (e.g., from an agentic parse failure)
@@ -296,6 +300,9 @@ export class Cerebellum {
       costByPurpose: costData?.costByPurpose,
       modelsByPurpose: costData?.modelsByPurpose,
       briefingDepth: costData?.briefingDepth,
+      // Cycle metadata for attention budget learning
+      outerCycles: cycleData?.outerCycles,
+      attentionBudget: cycleData?.attentionBudget,
     };
 
     this.episodes.push(episode);
@@ -449,6 +456,44 @@ export class Cerebellum {
     }
 
     return totalScore / relevant.length;
+  }
+
+  // ── Cycle distribution prediction ───────────────────────────
+
+  /**
+   * Predict the outer cycle distribution for a task from similar episodes.
+   * Returns similarity-weighted p10/p50/p90 percentiles, or null on cold start.
+   *
+   * Uses the same findSimilarEpisodes infrastructure as predictCost().
+   * Only considers episodes that have outerCycles data — early episodes
+   * without this field are skipped.
+   */
+  predictCycleDistribution(
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/attention-budget.js").CyclePercentiles | null {
+    const episodesWithCycles = this.episodes.filter((e) => e.outerCycles !== undefined);
+    if (episodesWithCycles.length < this.config.minEpisodes) return null;
+
+    const matches = findSimilarEpisodes(fingerprint, episodesWithCycles, this.config);
+    if (matches.length === 0) return null;
+
+    // Collect cycle values weighted by similarity
+    const weighted: Array<{ cycles: number; weight: number }> = [];
+    for (const { episode, similarity } of matches) {
+      if (episode.outerCycles === undefined) continue;
+      weighted.push({ cycles: episode.outerCycles, weight: similarity });
+    }
+
+    if (weighted.length === 0) return null;
+
+    // Sort by cycle count for percentile computation
+    weighted.sort((a, b) => a.cycles - b.cycles);
+
+    const p10 = weightedPercentile(weighted, 0.10);
+    const p50 = weightedPercentile(weighted, 0.50);
+    const p90 = weightedPercentile(weighted, 0.90);
+
+    return { p10, p50, p90, episodeCount: weighted.length };
   }
 
   /** Number of episodes stored. */
@@ -661,4 +706,33 @@ export class Cerebellum {
       })),
     };
   }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+
+/**
+ * Compute a weighted percentile from sorted (value, weight) pairs.
+ * Uses linear interpolation between weighted cumulative positions.
+ */
+function weightedPercentile(
+  sorted: Array<{ cycles: number; weight: number }>,
+  p: number,
+): number {
+  if (sorted.length === 0) return 0;
+  if (sorted.length === 1) return sorted[0].cycles;
+
+  const totalWeight = sorted.reduce((s, e) => s + e.weight, 0);
+  if (totalWeight === 0) return sorted[0].cycles;
+
+  const target = p * totalWeight;
+  let cumulative = 0;
+
+  for (let i = 0; i < sorted.length; i++) {
+    cumulative += sorted[i].weight;
+    if (cumulative >= target) {
+      return sorted[i].cycles;
+    }
+  }
+
+  return sorted[sorted.length - 1].cycles;
 }

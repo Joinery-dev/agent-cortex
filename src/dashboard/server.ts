@@ -134,6 +134,8 @@ export function startDashboard(port: number = 3000): Promise<string> {
 
       if (req.url === "/build") {
         filename = "build.html";
+      } else if (req.url === "/planning") {
+        filename = "planning.html";
       } else if (req.url === "/build-status") {
         // Serve build-status.json from project root
         const jsonCandidates = [

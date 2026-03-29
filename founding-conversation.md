@@ -2,6 +2,8 @@
 
 *This captures the conversation that led to the Agent Cortex vision, starting from the frontier research phase.*
 
+> **Note (2026-03-29):** References to "autoresearch" below reflect the old pipeline's nightly benchmark optimization. This approach was investigated for Agent Cortex and determined not to fit — the system learns through its passive stack (episodes, potentiation, plasticity, dopamine) instead.
+
 ---
 
 ## Kevin: What comes next?

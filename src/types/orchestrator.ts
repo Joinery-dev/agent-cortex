@@ -54,6 +54,8 @@ export interface CortexConfig {
   };
   /** Reliability thresholds and timeouts. Uses DEFAULT_RELIABILITY_CONFIG when absent. */
   reliability?: Partial<ReliabilityConfig>;
+  /** Hierarchical planning configuration. */
+  plannerConfig?: import("./planner.js").PlannerConfig;
 }
 
 // ─── Reliability configuration ───────────────────────────────────
@@ -97,7 +99,7 @@ export const DEFAULT_RELIABILITY_CONFIG: ReliabilityConfig = {
 
 export const DEFAULT_CONFIG: CortexConfig = {
   maxCycles: 2,
-  maxOuterCycles: 3,
+  maxOuterCycles: 6,
   improvementThreshold: 0.3,
   diminishingReturnsDelta: 0.5,
   models: {

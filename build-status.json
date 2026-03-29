@@ -558,6 +558,11 @@
               "name": "Build prospective preparation",
               "status": "complete",
               "detail": "src/kernel/prospective-preparation.ts — prepareForward() pure function. Three tension algorithms + bottleneck detection + predicted cycles + conviction carry-forward. Wired in task-dispatch.ts integrate phase. Implemented as Feature #32."
+            },
+            {
+              "name": "Attention budget: task-specific cycle ranges",
+              "status": "complete",
+              "detail": "Replaces hardcoded maxOuterCycles with NE-modulated CycleRange {floor, expected, ceiling} per task. Types: src/types/attention-budget.ts. Computation: src/kernel/attention-budget.ts (computeAttentionBudget, reviseWithEfference). Gate: zone-based exit in sensory-cortex (floor guard, progressive tightening, ceiling force-exit, 2x-expected signal). Cerebellum: predictCycleDistribution(), outerCycles+budget in episodes. Two-phase: coarse at dispatch (NE+importance), refined in prepare (cerebellum+efference). maxOuterCycles=6 safety cap. Events: attention-budget:computed/revised, budgetZone on gate."
             }
           ],
           "diagrams": [
@@ -581,12 +586,12 @@
             {
               "name": "Define Inhibitor types",
               "status": "complete",
-              "detail": "src/types/inhibitor.ts — InhibitorConfig (minActiveSenses, highNeThreshold, exploreSuppressionScale), InhibitionScope hierarchy (project→phase→subphase→task), SuppressionDecision/Entry/ReactivationEntry, CollapseContext/CollapseSignal/CollapseDetail, InhibitionBriefing with InhibitionEnrichment (senses, currentInhibitions, senseTrends, patterns, neLevel, mode), SenseSummary"
+              "detail": "src/types/basal-ganglia.ts (merged from inhibitor.ts) — InhibitorConfig (minActiveSenses, highNeThreshold, exploreSuppressionScale), InhibitionScope hierarchy (project→phase→subphase→task), SuppressionDecision/Entry/ReactivationEntry, CollapseContext/CollapseSignal/CollapseDetail, InhibitionBriefing with InhibitionEnrichment (senses, currentInhibitions, senseTrends, patterns, neLevel, mode), SenseSummary"
             },
             {
               "name": "Build Inhibitor class",
               "status": "complete",
-              "detail": "src/kernel/inhibitor.ts — Inhibitor class: suppress() (5-step: clear scope → LLM eval → NE modulation → min-active enforcement → WM write), detectCollapse() (LLM-based capitulation detection). Zod schemas: SuppressionResultSchema, CollapseResultSchema. Events: inhibitor:scope-cleared, inhibitor:reactivated, inhibitor:suppressed, inhibitor:collapse-detected"
+              "detail": "src/kernel/basal-ganglia.ts (merged from inhibitor.ts) — Inhibitor class: suppress() (5-step: clear scope → LLM eval → NE modulation → min-active enforcement → WM write), detectCollapse() (LLM-based capitulation detection). Zod schemas: SuppressionResultSchema, CollapseResultSchema. Events: inhibitor:scope-cleared, inhibitor:reactivated, inhibitor:suppressed, inhibitor:collapse-detected"
             },
             {
               "name": "Add inhibitor/collapseDetection model fields",
@@ -1598,9 +1603,9 @@
           "id": 34,
           "name": "Efference Copy",
           "region": "Sensory Cortex",
-          "status": "not-started",
+          "status": "complete",
           "description": "Motor Cortex's feedforward feasibility assessment — sent before building so senses calibrate expectations against what's actually achievable. One lightweight LLM call in sensory-cortex prepare (before consultation) that receives PNS capabilities + Cerebellum episodes + speed-of-light ceiling + codebase context. Produces per-dimension ceiling estimates, tension cost assessments, hard constraints, and convergence estimates. Thalamus dissolves into every sense's consultation briefing. Counterpart to proprioception (feedforward vs feedback). Depends on Motor Cortex (#11) + PNS + Cerebellum.",
-          "notes": "[Reconciled] src/types/efference-copy.ts exists but isn't referenced in any subtask."
+          "notes": "Fully implemented as subtasks of Feature 11 (Motor Cortex). Types: src/types/efference-copy.ts. LLM: predictFeasibility + synthesizeFeasibility in src/kernel/motor-cortex.ts. Forward model: src/subcortical/forward-model.ts. NE-gated synthesis path with plastic threshold in sensory-cortex.ts. Thalamus dissolution: attachEfferenceCopy() + consultation enrichment."
         },
         {
           "id": 10,
@@ -2068,7 +2073,8 @@
               "status": "complete",
               "detail": "examples/graph-surgery-smoke.ts — 40 assertions: ID generation, blast radius, validation (cycles, active tasks, completed tasks), all 4 ops, multi-op proposals, partial failure"
             }
-          ]
+          ],
+          "notes": "[Reconciled] src/kernel/graph-builder.ts exists but isn't referenced in any subtask."
         },
         {
           "id": 37,
@@ -2291,13 +2297,11 @@
   ],
   "reconciliation": {
     "notes": [
-      "[Reconciled] src/types/council.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/intent.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/task.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/tension.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/orchestrator.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/resolver.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/rhythm-runner.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/sandbox.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/integration-check.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/integration-check.ts exists but isn't referenced in any subtask.",
@@ -2310,7 +2314,10 @@
       "[Reconciled] src/kernel/budget-allocator.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/collapse.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/collapse-detector.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/types/exteroception.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/nursery.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/nursery-consul.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/nursery-scanner.ts exists but isn't referenced in any subtask."
     ]
   }
 }

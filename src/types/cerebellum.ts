@@ -55,6 +55,12 @@ export interface CerebellumEpisode {
   modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
   /** Thalamus briefing depth used during this task. */
   briefingDepth?: import("./cost.js").BriefingDepth;
+
+  // ── Attention budget metadata (for cycle prediction learning) ──
+  /** Actual outer cycles used by the sensory cortex loop. */
+  outerCycles?: number;
+  /** The attention budget that was active during this task. */
+  attentionBudget?: { floor: number; expected: number; ceiling: number };
 }
 
 // ─── Predictions ────────────────────────────────────────────────

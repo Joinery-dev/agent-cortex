@@ -211,7 +211,7 @@ Crystallized principles become first-class material for the Thalamus. Over time,
 ### 16. Basal Ganglia
 Learned routines. Task type → sense activation patterns. Direct pathway: release these senses. Indirect pathway: suppress competing senses. Hyperdirect pathway: novel task → global pause, full consultation.
 
-Also gates the explore/exploit decision:
+Also gates the explore/leverage decision:
 - Strong routine match → skip explore, converge directly (we've done this before)
 - Novel + creative task → explore first (no routine, high design surface area)
 - Constrained task (spec implementation, compliance fix) → skip explore

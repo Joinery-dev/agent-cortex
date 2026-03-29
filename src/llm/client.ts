@@ -36,7 +36,10 @@ export type Purpose =
   | "simulation"
   | "principle-verification"
   | "escalation-assessment"
-  | "taste-verification";
+  | "taste-verification"
+  | "nursery-consultation"
+  | "nursery-observation"
+  | "graph-builder";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -98,6 +101,9 @@ const totalUsage: Record<Purpose, TokenUsage> = {
   "principle-verification": { inputTokens: 0, outputTokens: 0 },
   "escalation-assessment": { inputTokens: 0, outputTokens: 0 },
   "taste-verification": { inputTokens: 0, outputTokens: 0 },
+  "nursery-consultation": { inputTokens: 0, outputTokens: 0 },
+  "nursery-observation": { inputTokens: 0, outputTokens: 0 },
+  "graph-builder": { inputTokens: 0, outputTokens: 0 },
 };
 
 // Map our model IDs to Agent SDK model aliases

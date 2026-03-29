@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Cortex — Planning Process</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "react": "https://esm.sh/react@18.3.1",
+      "react-dom": "https://esm.sh/react-dom@18.3.1",
+      "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+      "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+      "@xyflow/react": "https://esm.sh/@xyflow/react@12.6.0?external=react,react-dom",
+      "@xyflow/react/dist/base.css": "https://esm.sh/@xyflow/react@12.6.0/dist/base.css"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="https://esm.sh/@xyflow/react@12.6.0/dist/base.css">
+  <style>
+    :root {
+      --bg: rgb(17,17,17);
+      --surface: rgb(28,28,28);
+      --text: rgb(243,244,246);
+      --text-dim: rgb(140,140,160);
+      --pink: #e92a67;
+      --purple: #a853ba;
+      --blue: #2a8af6;
+      --green: #34d399;
+      --amber: #f59e0b;
+      --cyan: #22d3ee;
+      --node-radius: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Fira Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #root { width: 100%; height: 100%; }
+
+    /* ─── React Flow overrides ─── */
+    .react-flow {
+      background-color: var(--bg);
+      color: var(--text);
+    }
+
+    /* ─── Turbo Node ─── */
+    .react-flow__node-turbo {
+      border-radius: var(--node-radius);
+      display: flex;
+      min-width: 200px;
+      font-family: inherit;
+      font-weight: 500;
+      letter-spacing: -0.2px;
+      box-shadow: 6px 0 12px rgba(42,138,246,0.15), -6px 0 12px rgba(233,42,103,0.15);
+    }
+
+    .react-flow__node-turbo .wrapper {
+      overflow: hidden;
+      display: flex;
+      padding: 2px;
+      position: relative;
+      border-radius: var(--node-radius);
+      flex-grow: 1;
+    }
+
+    .react-flow__node-turbo .wrapper.gradient::before {
+      content: '';
+      position: absolute;
+      padding-bottom: calc(100% * 1.41421356237);
+      width: calc(100% * 1.41421356237);
+      background: conic-gradient(
+        from -160deg at 50% 50%,
+        #e92a67 0deg, #a853ba 120deg, #2a8af6 240deg, #e92a67 360deg
+      );
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 100%;
+    }
+
+    .react-flow__node-turbo:hover .wrapper.gradient::before {
+      animation: glow-pulse 2s ease-in-out infinite;
+    }
+
+    .react-flow__node-turbo.selected .wrapper.gradient::before {
+      background: conic-gradient(
+        from -160deg at 50% 50%,
+        #e92a67 0deg, #a853ba 120deg, #2a8af6 240deg, rgba(42,138,246,0) 360deg
+      );
+      animation: spinner 4s linear infinite;
+      transform: translate(-50%, -50%) rotate(0deg);
+      z-index: -1;
+    }
+
+    @keyframes spinner {
+      100% { transform: translate(-50%, -50%) rotate(-360deg); }
+    }
+
+    @keyframes glow-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .react-flow__node-turbo .inner {
+      background: var(--bg);
+      padding: 12px 16px;
+      border-radius: var(--node-radius);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      flex-grow: 1;
+      position: relative;
+    }
+
+    .react-flow__node-turbo .body {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .react-flow__node-turbo .icon {
+      font-size: 18px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .react-flow__node-turbo .title {
+      font-size: 13px;
+      line-height: 1.2;
+      margin-bottom: 2px;
+    }
+
+    .react-flow__node-turbo .subtitle {
+      font-size: 10px;
+      color: var(--text-dim);
+      line-height: 1.3;
+    }
+
+    .react-flow__node-turbo .fields {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .react-flow__node-turbo .field {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 10px;
+    }
+
+    .react-flow__node-turbo .field .fname { color: var(--text-dim); }
+    .react-flow__node-turbo .field .ftype { color: var(--purple); }
+
+    /* ─── Handles ─── */
+    .react-flow__handle { opacity: 0; width: 8px; height: 8px; }
+    .react-flow__handle.source { right: -4px; }
+    .react-flow__handle.target { left: -4px; }
+    .react-flow__node:focus { outline: none; }
+
+    /* ─── Edges ─── */
+    .react-flow__edge .react-flow__edge-path {
+      stroke: url(#edge-gradient);
+      stroke-width: 2;
+      stroke-opacity: 0.75;
+    }
+
+    /* ─── Edge labels ─── */
+    .edge-label {
+      font-size: 9px;
+      font-family: inherit;
+      background: rgba(28,28,28,0.9);
+      border: 1px solid rgba(168,83,186,0.25);
+      color: var(--text-dim);
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: all;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .edge-label:hover {
+      color: var(--text);
+      border-color: rgba(168,83,186,0.5);
+    }
+
+    /* ─── Group nodes ─── */
+    .react-flow__node-group-node {
+      border-radius: 12px;
+      font-family: inherit;
+    }
+
+    .group-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 12px;
+      position: relative;
+    }
+
+    .group-inner[data-color="purple"] {
+      background: rgba(168,83,186,0.04);
+      border: 1px solid rgba(168,83,186,0.12);
+    }
+    .group-inner[data-color="amber"] {
+      background: rgba(245,158,11,0.05);
+      border: 1px solid rgba(245,158,11,0.10);
+    }
+    .group-inner[data-color="blue"] {
+      background: rgba(42,138,246,0.05);
+      border: 1px solid rgba(42,138,246,0.10);
+    }
+    .group-inner[data-color="green"] {
+      background: rgba(52,211,153,0.05);
+      border: 1px solid rgba(52,211,153,0.10);
+    }
+    .group-inner[data-color="pink"] {
+      background: rgba(233,42,103,0.05);
+      border: 1px solid rgba(233,42,103,0.10);
+    }
+    .group-inner[data-color="cyan"] {
+      background: rgba(34,211,238,0.05);
+      border: 1px solid rgba(34,211,238,0.10);
+    }
+
+    .group-label {
+      position: absolute;
+      top: 10px;
+      left: 14px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .group-inner[data-color="purple"] .group-label { color: rgba(168,83,186,0.55); }
+    .group-inner[data-color="amber"] .group-label { color: rgba(245,158,11,0.55); }
+    .group-inner[data-color="blue"] .group-label { color: rgba(42,138,246,0.55); }
+    .group-inner[data-color="green"] .group-label { color: rgba(52,211,153,0.55); }
+    .group-inner[data-color="pink"] .group-label { color: rgba(233,42,103,0.55); }
+    .group-inner[data-color="cyan"] .group-label { color: rgba(34,211,238,0.55); }
+
+    /* ─── Detail panel ─── */
+    .detail-panel {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: 340px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+      background: rgba(28,28,28,0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 20px;
+      z-index: 100;
+      font-size: 12px;
+    }
+
+    .detail-panel h3 {
+      font-size: 14px;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .detail-panel .detail-subtitle {
+      color: var(--text-dim);
+      font-size: 11px;
+      margin-bottom: 12px;
+    }
+
+    .detail-panel .detail-body {
+      color: var(--text-dim);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+
+    .detail-panel .detail-fields {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 10px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+
+    .detail-panel .detail-field {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .detail-panel .detail-field .df-name { color: var(--text-dim); }
+    .detail-panel .detail-field .df-type { color: var(--purple); }
+
+    .detail-panel .edge-chips {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .detail-panel .chip {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+    }
+
+    .detail-panel .chip-source { background: rgba(233,42,103,0.15); color: var(--pink); }
+    .detail-panel .chip-target { background: rgba(42,138,246,0.15); color: var(--blue); }
+    .detail-panel .chip-arrow { color: var(--text-dim); }
+
+    .detail-panel .close-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .detail-panel .close-btn:hover { color: var(--text); }
+
+    /* ─── Controls ─── */
+    .react-flow__controls button {
+      background-color: var(--bg);
+      color: var(--text);
+      border: 1px solid rgba(149,103,158,0.4);
+      border-bottom: none;
+    }
+    .react-flow__controls button:hover { background-color: rgb(37,37,37); }
+    .react-flow__controls button:first-child { border-radius: 5px 5px 0 0; }
+    .react-flow__controls button:last-child { border-bottom: 1px solid rgba(149,103,158,0.4); border-radius: 0 0 5px 5px; }
+    .react-flow__controls button path { fill: var(--text); }
+
+    /* ─── Title overlay ─── */
+    .title-overlay {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 50;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .title-overlay h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+
+    /* ─── Minimap ─── */
+    .react-flow__minimap { background: var(--bg) !important; border: 1px solid rgba(255,255,255,0.06) !important; border-radius: 8px !important; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import React, { useState, useCallback, memo } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import {
+      ReactFlow,
+      Controls,
+      MiniMap,
+      Background,
+      Handle,
+      Position,
+      getBezierPath,
+      EdgeLabelRenderer,
+      useNodesState,
+      useEdgesState,
+    } from '@xyflow/react';
+
+    const h = React.createElement;
+
+    // ─── TurboNode ───────────────────────────────────────────
+    const TurboNode = memo(({ data }) => {
+      return h('div', null,
+        h('div', { className: 'wrapper gradient' },
+          h('div', { className: 'inner' },
+            h('div', { className: 'body' },
+              data.icon && h('div', { className: 'icon' }, data.icon),
+              h('div', null,
+                h('div', { className: 'title' }, data.title),
+                data.subtitle && h('div', { className: 'subtitle' }, data.subtitle),
+              ),
+            ),
+            data.fields && h('div', { className: 'fields' },
+              ...data.fields.map((f, i) =>
+                h('div', { className: 'field', key: i },
+                  h('span', { className: 'fname' }, f.name),
+                  h('span', { className: 'ftype' }, f.type),
+                )
+              )
+            ),
+            h(Handle, { type: 'target', position: Position.Top }),
+            h(Handle, { type: 'source', position: Position.Bottom }),
+          ),
+        ),
+      );
+    });
+
+    // ─── GroupNode ────────────────────────────────────────────
+    const GroupNode = memo(({ data }) => {
+      return h('div', {
+        className: 'group-inner',
+        'data-color': data.color || 'purple',
+        style: { width: '100%', height: '100%' },
+      },
+        h('div', { className: 'group-label' }, data.label),
+      );
+    });
+
+    // ─── TurboEdge ───────────────────────────────────────────
+    function TurboEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data, markerEnd }) {
+      const [edgePath, labelX, labelY] = getBezierPath({
+        sourceX, sourceY: sourceY,
+        sourcePosition: sourcePosition || Position.Bottom,
+        targetX, targetY,
+        targetPosition: targetPosition || Position.Top,
+      });
+
+      return h('g', null,
+        h('path', {
+          id,
+          className: 'react-flow__edge-path',
+          d: edgePath,
+          markerEnd,
+        }),
+        data?.label && h(EdgeLabelRenderer, null,
+          h('div', {
+            className: 'edge-label',
+            style: {
+              position: 'absolute',
+              transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
+            },
+          }, data.label),
+        ),
+      );
+    }
+
+    // ─── Node & Edge Types ───────────────────────────────────
+    const nodeTypes = { turbo: TurboNode, 'group-node': GroupNode };
+    const edgeTypes = { turbo: TurboEdge };
+    const defaultEdgeOptions = { type: 'turbo', markerEnd: 'edge-circle' };
+
+    // ─── Layout helpers ──────────────────────────────────────
+    const COL = 320;
+    const cx = (c) => c * COL;
+    const ry = (r) => r * 130;
+
+    // ─── Nodes ───────────────────────────────────────────────
+    const initialNodes = [
+      // ── Group: Phase A ──
+      { id: 'g-phaseA', type: 'group-node', position: { x: cx(0) - 30, y: ry(0) - 20 }, style: { width: COL * 3 + 60, height: ry(2.6) + 20 }, data: { label: 'Phase A — Manifestation', color: 'pink' } },
+
+      // Step 0: Arrival
+      { id: 'arrival', type: 'turbo', position: { x: cx(1), y: ry(0.3) }, parentId: 'g-phaseA', extent: 'parent', data: {
+        icon: '\u{1F30A}', title: 'Arrival', subtitle: 'A shaela arrives — a great question',
+      }},
+
+      // Step 1a: Inquiry
+      { id: 'inquiry', type: 'turbo', position: { x: cx(0), y: ry(1.2) }, parentId: 'g-phaseA', extent: 'parent', data: {
+        icon: '\u{1F50D}', title: '1a. Inquiry', subtitle: 'Senses query the question-asker',
+        fields: [
+          { name: 'who', type: 'activated senses' },
+          { name: 'asks', type: 'question-asker' },
+          { name: 'until', type: 'understanding reached' },
+        ],
+      }},
+
+      // Step 1b: Synthesis
+      { id: 'synthesis', type: 'turbo', position: { x: cx(1), y: ry(1.2) }, parentId: 'g-phaseA', extent: 'parent', data: {
+        icon: '\u{1F9E0}', title: '1b. Synthesis', subtitle: 'Motor Cortex produces manifested future',
+        fields: [
+          { name: 'vision', type: 'string' },
+          { name: 'senseContributions', type: 'Record<,string>' },
+          { name: 'confidence', type: 'number 0\u20131' },
+        ],
+      }},
+
+      // Step 1c: Approval
+      { id: 'approval', type: 'turbo', position: { x: cx(2), y: ry(1.2) }, parentId: 'g-phaseA', extent: 'parent', data: {
+        icon: '\u2705', title: '1c. Approval', subtitle: 'Question-asker confirms or redirects',
+        fields: [
+          { name: 'approved', type: '\u2192 Phase B' },
+          { name: 'rejected', type: '\u2192 loop 1a/1b' },
+        ],
+      }},
+
+      // ── Group: Phase B.1 ──
+      { id: 'g-b1', type: 'group-node', position: { x: cx(0.5) - 30, y: ry(3.2) }, style: { width: COL * 2 + 60, height: ry(1.6) }, data: { label: 'Phase B.1 — Decomposition', color: 'purple' } },
+
+      // Step 2: Decompose
+      { id: 'decompose', type: 'turbo', position: { x: cx(0.5), y: ry(0.4) }, parentId: 'g-b1', extent: 'parent', data: {
+        icon: '\u{1F52C}', title: '2. Decompose (LLM)', subtitle: 'Backward reasoning \u2192 shael tree',
+        fields: [
+          { name: 'input', type: 'ManifestedFuture' },
+          { name: 'output', type: 'shaels + phaseGroups' },
+          { name: 'gates', type: 'existence/form/scope' },
+        ],
+      }},
+
+      // Necessity gates
+      { id: 'gates', type: 'turbo', position: { x: cx(1.5), y: ry(0.4) }, parentId: 'g-b1', extent: 'parent', data: {
+        icon: '\u{1F6E1}\uFE0F', title: 'Necessity Gates', subtitle: 'Jensen\u2019s three gates filter',
+        fields: [
+          { name: 'accepted', type: 'ProposedTask[]' },
+          { name: 'rejected', type: 'RejectedTask[]' },
+        ],
+      }},
+
+      // ── Group: Phase B.2 ──
+      { id: 'g-b2', type: 'group-node', position: { x: cx(0) - 30, y: ry(5.4) }, style: { width: COL * 3 + 60, height: ry(2.4) }, data: { label: 'Phase B.2 — Dependency Wiring (3-step pipeline)', color: 'amber' } },
+
+      // Step 3.1: Semantic Mapping
+      { id: 'sem-map', type: 'turbo', position: { x: cx(0), y: ry(0.5) }, parentId: 'g-b2', extent: 'parent', data: {
+        icon: '\u{1F3F7}\uFE0F', title: 'Step 1: Semantic Mapping', subtitle: 'LLM \u2014 capability tokens per node',
+        fields: [
+          { name: 'provides', type: 'CapabilityToken[]' },
+          { name: 'consumes', type: 'CapabilityToken[]' },
+          { name: 'quality', type: 'unresolved = gap' },
+        ],
+      }},
+
+      // Step 3.2: Algorithmic Derivation
+      { id: 'algo-derive', type: 'turbo', position: { x: cx(1), y: ry(0.5) }, parentId: 'g-b2', extent: 'parent', data: {
+        icon: '\u2699\uFE0F', title: 'Step 2: Algorithmic Derivation', subtitle: 'Code \u2014 provides\u2192consumes matching',
+        fields: [
+          { name: 'method', type: 'token \u2192 edge map' },
+          { name: 'cycles', type: 'detected, not broken' },
+          { name: 'source', type: '"algorithmic"' },
+        ],
+      }},
+
+      // Step 3.3: Affinity + Correction
+      { id: 'affinity-correct', type: 'turbo', position: { x: cx(2), y: ry(0.5) }, parentId: 'g-b2', extent: 'parent', data: {
+        icon: '\u{1F517}', title: 'Step 3: Affinity + Correction', subtitle: 'LLM \u2014 co-design risks + dep fixes',
+        fields: [
+          { name: 'affinityGroups', type: 'AffinityGroup[]' },
+          { name: 'corrections', type: 'DepCorrection[]' },
+          { name: 'fixes', type: 'cycles/composition/direction' },
+        ],
+      }},
+
+      // Topo sort
+      { id: 'topo-sort', type: 'turbo', position: { x: cx(1), y: ry(1.6) }, parentId: 'g-b2', extent: 'parent', data: {
+        icon: '\u{1F4CA}', title: 'Topological Sort', subtitle: 'Corrected graph \u2192 execution order',
+        fields: [
+          { name: 'output', type: 'DependencyWiringResult' },
+          { name: 'order', type: 'topologicalOrder[]' },
+        ],
+      }},
+
+      // ── Phase B.3 ──
+      { id: 'g-b3', type: 'group-node', position: { x: cx(0.5) - 30, y: ry(8.3) }, style: { width: COL * 2 + 60, height: ry(1.5) }, data: { label: 'Phase B.3 — PFC Review', color: 'blue' } },
+
+      { id: 'pfc-review', type: 'turbo', position: { x: cx(0.5), y: ry(0.35) }, parentId: 'g-b3', extent: 'parent', data: {
+        icon: '\u{1F9D0}', title: '4. PFC Review', subtitle: 'Conviction loop on the plan',
+        fields: [
+          { name: 'gaps', type: 'missing shaels?' },
+          { name: 'redundancy', type: 'duplicate questions?' },
+          { name: 'affinity', type: 'risks valid?' },
+          { name: 'corrections', type: 'justified?' },
+        ],
+      }},
+
+      { id: 'final-plan', type: 'turbo', position: { x: cx(1.5), y: ry(0.35) }, parentId: 'g-b3', extent: 'parent', data: {
+        icon: '\u{1F4DC}', title: 'Final Project Plan', subtitle: 'Shael tree + deps + affinity',
+        fields: [
+          { name: 'shaels', type: 'tree with gates' },
+          { name: 'deps', type: 'meta-dependencies' },
+          { name: 'affinity', type: 'AffinityGroup[]' },
+          { name: 'capabilities', type: 'SemanticMap' },
+        ],
+      }},
+
+      // ── Group: Execution ──
+      { id: 'g-exec', type: 'group-node', position: { x: cx(0) - 30, y: ry(10.3) }, style: { width: COL * 3 + 60, height: ry(5) }, data: { label: 'Execution — Per-Shael Cycle', color: 'green' } },
+
+      // Step 5: Scheduler
+      { id: 'scheduler', type: 'turbo', position: { x: cx(1), y: ry(0.35) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F3AF}', title: '5. Attention Scheduler', subtitle: 'Pick next ready shael',
+        fields: [
+          { name: 'checks', type: 'meta-deps satisfied?' },
+          { name: 'considers', type: 'affinity groups' },
+        ],
+      }},
+
+      // Step 6a: Shael Manifestation
+      { id: 'shael-manifest', type: 'turbo', position: { x: cx(0), y: ry(1.4) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F52E}', title: '6a. Shael Manifestation', subtitle: 'Phase A\u2019 \u2014 grounded in prior output',
+      }},
+
+      // Step 6b: Shael Decompose
+      { id: 'shael-decompose', type: 'turbo', position: { x: cx(1), y: ry(1.4) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F52C}', title: '6b. Decompose \u2192 Shana', subtitle: 'Phase B.1\u2019 \u2014 leaf tasks (3\u20138)',
+      }},
+
+      // Step 6c: Shana Wiring
+      { id: 'shana-wire', type: 'turbo', position: { x: cx(2), y: ry(1.4) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F517}', title: '6c. Wire Shana Deps', subtitle: 'Phase B.2\u2019 \u2014 same 3-step pipeline',
+        fields: [
+          { name: 'trigger', type: '\u22655 shana or NE\u22650.5' },
+        ],
+      }},
+
+      // Step 6d: PFC Review (shael)
+      { id: 'shael-pfc', type: 'turbo', position: { x: cx(0), y: ry(2.5) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F9D0}', title: '6d. PFC Review', subtitle: 'Phase B.3\u2019 \u2014 scaled by NE',
+      }},
+
+      // Step 7: Shana execution
+      { id: 'shana-exec', type: 'turbo', position: { x: cx(1), y: ry(2.5) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u26A1', title: '7. Shana Execution', subtitle: 'Sensory cortex rhythm per shana',
+        fields: [
+          { name: 'rhythm', type: 'consult\u2192explore\u2192build\u2192eval' },
+          { name: 'output', type: 'shalem (artifact)' },
+        ],
+      }},
+
+      // Step 8: Phase Gate
+      { id: 'phase-gate', type: 'turbo', position: { x: cx(2), y: ry(2.5) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F6E1}\uFE0F', title: '8. Phase Gate', subtitle: 'Integration check on shael',
+        fields: [
+          { name: 'pass', type: '\u2192 between-shaels' },
+          { name: 'fail', type: '\u2192 replan within shael' },
+        ],
+      }},
+
+      // Step 9: Between shaels
+      { id: 'between-shaels', type: 'turbo', position: { x: cx(0), y: ry(3.7) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F4A4}', title: '9. Between Shaels', subtitle: 'Fast path + slow path at phase boundaries',
+        fields: [
+          { name: 'fast', type: 'dopamine, episodes, WM' },
+          { name: 'slow', type: 'drift, crystallize, replan?' },
+        ],
+      }},
+
+      // Step 10: Next shael
+      { id: 'next-shael', type: 'turbo', position: { x: cx(1), y: ry(3.7) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F501}', title: '10. Next Shael', subtitle: 'Loop back to scheduler',
+      }},
+
+      // Step 11: Recursive depth
+      { id: 'recursive', type: 'turbo', position: { x: cx(2), y: ry(3.7) }, parentId: 'g-exec', extent: 'parent', data: {
+        icon: '\u{1F504}', title: '11. Recursive Depth', subtitle: 'Sub-shaels if question too large',
+        fields: [
+          { name: 'signal', type: '\u226515 shana \u2192 split' },
+          { name: 'depth', type: 'coherence-driven' },
+        ],
+      }},
+
+      // ── Group: Completion ──
+      { id: 'g-complete', type: 'group-node', position: { x: cx(0) - 30, y: ry(15.8) }, style: { width: COL * 3 + 60, height: ry(2) }, data: { label: 'Completion', color: 'cyan' } },
+
+      // Step 12a: Retrospective
+      { id: 'retrospective', type: 'turbo', position: { x: cx(0), y: ry(0.4) }, parentId: 'g-complete', extent: 'parent', data: {
+        icon: '\u{1F4D6}', title: '12a. Retrospective', subtitle: 'Final eval + learning consolidation',
+        fields: [
+          { name: 'vs', type: 'manifested future' },
+          { name: 'crystallize', type: 'episodes \u2192 principles' },
+          { name: 'recalibrate', type: 'Cerebellum SoL' },
+        ],
+      }},
+
+      // Step 12b: Generative questions
+      { id: 'generative', type: 'turbo', position: { x: cx(1.5), y: ry(0.4) }, parentId: 'g-complete', extent: 'parent', data: {
+        icon: '\u{1F331}', title: '12b. Generative Questions', subtitle: 'What questions couldn\u2019t be asked before?',
+        fields: [
+          { name: 'extensions', type: 'go deeper' },
+          { name: 'revisions', type: 'shalem should change' },
+          { name: 'to', type: 'question-asker decides' },
+        ],
+      }},
+    ];
+
+    // ─── Edges ───────────────────────────────────────────────
+    const mk = (id, source, target, label, flow) => ({
+      id, source, target, type: 'turbo', markerEnd: 'edge-circle',
+      data: { label, flow },
+    });
+
+    const initialEdges = [
+      // Phase A flow
+      mk('e-arr-inq', 'arrival', 'inquiry', 'shaela', 'The great question arrives and senses begin inquiry'),
+      mk('e-inq-syn', 'inquiry', 'synthesis', 'perspectives', 'Sense perspectives feed Motor Cortex synthesis'),
+      mk('e-syn-app', 'synthesis', 'approval', 'vision', 'Manifested future presented for approval'),
+
+      // Approval loop
+      mk('e-app-inq', 'approval', 'inquiry', 'redirect', 'Question-asker redirects \u2192 re-inquire'),
+
+      // Phase A \u2192 B.1
+      mk('e-app-dec', 'approval', 'decompose', 'approved', 'Approved manifested future drives decomposition'),
+
+      // B.1 internal
+      mk('e-dec-gates', 'decompose', 'gates', 'proposed shaels', 'Jensen\u2019s three gates filter proposed shaels'),
+
+      // B.1 \u2192 B.2
+      mk('e-gates-sem', 'gates', 'sem-map', 'accepted shaels', 'Accepted shaels enter dependency wiring pipeline'),
+
+      // B.2 internal
+      mk('e-sem-algo', 'sem-map', 'algo-derive', 'tokens', 'Capability tokens \u2192 mechanical matching'),
+      mk('e-algo-aff', 'algo-derive', 'affinity-correct', 'raw deps', 'Algorithmic deps reviewed by LLM'),
+      mk('e-aff-topo', 'affinity-correct', 'topo-sort', 'corrected', 'Corrections applied \u2192 topological sort'),
+      mk('e-sem-topo', 'sem-map', 'topo-sort', '', ''),
+
+      // B.2 \u2192 B.3
+      mk('e-topo-pfc', 'topo-sort', 'pfc-review', 'wiring result', 'DependencyWiringResult with provenance'),
+
+      // B.3 internal
+      mk('e-pfc-plan', 'pfc-review', 'final-plan', 'validated', 'Conviction loop validates the plan'),
+
+      // Plan \u2192 Execution
+      mk('e-plan-sched', 'final-plan', 'scheduler', 'project plan', 'Final plan drives execution scheduling'),
+
+      // Execution flow
+      mk('e-sched-man', 'scheduler', 'shael-manifest', 'ready shael', 'Just-in-time planning begins'),
+      mk('e-man-dec', 'shael-manifest', 'shael-decompose', 'shael future', 'Grounded manifested future'),
+      mk('e-dec-wire', 'shael-decompose', 'shana-wire', 'shana list', 'Shana enter B.2\u2019 pipeline'),
+      mk('e-wire-pfc', 'shana-wire', 'shael-pfc', 'wired graph', 'PFC reviews shana plan'),
+      mk('e-pfc-exec', 'shael-pfc', 'shana-exec', 'approved', 'Shana dispatched to sensory cortex'),
+      mk('e-exec-gate', 'shana-exec', 'phase-gate', 'shalem', 'Completed artifacts checked at gate'),
+      mk('e-gate-between', 'phase-gate', 'between-shaels', 'pass', 'Gate passed \u2192 learning cycle'),
+      mk('e-between-next', 'between-shaels', 'next-shael', 'learned', 'Episodes recorded, predictions updated'),
+      mk('e-next-sched', 'next-shael', 'scheduler', 'loop', 'Next ready shael selected'),
+
+      // Recursive
+      mk('e-recursive-man', 'recursive', 'shael-manifest', 'sub-shael', 'Sub-shael runs same cycle'),
+
+      // Gate fail loop
+      mk('e-gate-replan', 'phase-gate', 'shael-decompose', 'fail', 'Gate fails \u2192 replan within shael'),
+
+      // Execution \u2192 Completion
+      mk('e-next-retro', 'next-shael', 'retrospective', 'all done', 'All shaels complete \u2192 retrospective'),
+      mk('e-retro-gen', 'retrospective', 'generative', 'shalem', 'Shalem seeds new questions'),
+    ];
+
+    // Remove the empty-labeled edge
+    const filteredEdges = initialEdges.filter(e => e.id !== 'e-sem-topo');
+
+    // ─── Detail Panel ────────────────────────────────────────
+    function DetailPanel({ selected, nodes, edges, onClose }) {
+      if (!selected) return null;
+
+      if (selected.type === 'edge') {
+        const edge = edges.find(e => e.id === selected.id);
+        if (!edge) return null;
+        const srcNode = nodes.find(n => n.id === edge.source);
+        const tgtNode = nodes.find(n => n.id === edge.target);
+        return h('div', { className: 'detail-panel' },
+          h('button', { className: 'close-btn', onClick: onClose }, '\u00D7'),
+          h('div', { className: 'edge-chips' },
+            h('span', { className: 'chip chip-source' }, srcNode?.data?.title || edge.source),
+            h('span', { className: 'chip-arrow' }, '\u2192'),
+            h('span', { className: 'chip chip-target' }, tgtNode?.data?.title || edge.target),
+          ),
+          edge.data?.label && h('h3', null, edge.data.label),
+          edge.data?.flow && h('div', { className: 'detail-body' }, edge.data.flow),
+        );
+      }
+
+      const node = nodes.find(n => n.id === selected.id);
+      if (!node || node.type === 'group-node') return null;
+
+      return h('div', { className: 'detail-panel' },
+        h('button', { className: 'close-btn', onClick: onClose }, '\u00D7'),
+        h('h3', null, node.data.icon && h('span', null, node.data.icon), ' ', node.data.title),
+        node.data.subtitle && h('div', { className: 'detail-subtitle' }, node.data.subtitle),
+        node.data.fields && h('div', { className: 'detail-fields' },
+          ...node.data.fields.map((f, i) =>
+            h('div', { className: 'detail-field', key: i },
+              h('span', { className: 'df-name' }, f.name),
+              h('span', { className: 'df-type' }, f.type),
+            )
+          )
+        ),
+      );
+    }
+
+    // ─── App ─────────────────────────────────────────────────
+    function App() {
+      const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+      const [edges, setEdges, onEdgesChange] = useEdgesState(filteredEdges);
+      const [selected, setSelected] = useState(null);
+
+      const onNodeClick = useCallback((_, node) => {
+        if (node.type !== 'group-node') setSelected({ type: 'node', id: node.id });
+      }, []);
+
+      const onEdgeClick = useCallback((_, edge) => {
+        setSelected({ type: 'edge', id: edge.id });
+      }, []);
+
+      const onPaneClick = useCallback(() => setSelected(null), []);
+
+      return h('div', { style: { width: '100%', height: '100%' } },
+        h(ReactFlow, {
+          nodes, edges, onNodesChange, onEdgesChange,
+          nodeTypes, edgeTypes, defaultEdgeOptions,
+          onNodeClick, onEdgeClick, onPaneClick,
+          fitView: true,
+          fitViewOptions: { padding: 0.08 },
+          minZoom: 0.15,
+          maxZoom: 1.5,
+          proOptions: { hideAttribution: true },
+        },
+          h('svg', null,
+            h('defs', null,
+              h('linearGradient', { id: 'edge-gradient' },
+                h('stop', { offset: '0%', stopColor: '#ae53ba' }),
+                h('stop', { offset: '100%', stopColor: '#2a8af6' }),
+              ),
+              h('marker', {
+                id: 'edge-circle',
+                viewBox: '-5 -5 10 10',
+                refX: '0', refY: '0',
+                markerUnits: 'strokeWidth',
+                markerWidth: '10', markerHeight: '10',
+                orient: 'auto',
+              },
+                h('circle', { stroke: '#2a8af6', strokeOpacity: '0.75', r: '2', cx: '0', cy: '0' }),
+              ),
+            ),
+          ),
+          h(Controls, { position: 'bottom-left' }),
+          h(MiniMap, {
+            position: 'bottom-right',
+            nodeColor: (n) => {
+              if (n.type === 'group-node') return 'transparent';
+              return '#a853ba';
+            },
+            maskColor: 'rgba(0,0,0,0.7)',
+            style: { width: 160, height: 100 },
+          }),
+        ),
+        h('div', { className: 'title-overlay' },
+          h('h1', null, 'Planning Process'),
+          h('span', null, 'Agent Cortex \u2014 Shaela \u2192 Shalem'),
+        ),
+        h(DetailPanel, { selected, nodes: initialNodes, edges: filteredEdges, onClose: () => setSelected(null) }),
+      );
+    }
+
+    // ─── Mount ───────────────────────────────────────────────
+    const root = createRoot(document.getElementById('root'));
+    root.render(h(App));
+  </script>
+</body>
+</html>

@@ -23,6 +23,7 @@ import type { OrchestratorResult, CortexConfig } from "../../types/orchestrator.
 import type { SensoryCortex } from "../../senses/cortex.js";
 import type { SchedulerSignals } from "../../types/attention-scheduler.js";
 import type { RiskFactors } from "../../types/norepinephrine.js";
+import { mapUrgencyToNE } from "../../kernel/norepinephrine.js";
 import { createLogger } from "../../util/logger.js";
 import { emit, emitInfo, emitWarn } from "../../events.js";
 import { createSensoryCortexDefinition } from "./sensory-cortex.js";
@@ -40,7 +41,7 @@ import type { StakeAdjuster } from "../../kernel/evaluation-weighter.js";
 import type { WorldModel } from "../../kernel/world-model.js";
 import type { PeripheralNervousSystem } from "../../kernel/pns.js";
 import type { ConvictionResult } from "../../types/conviction.js";
-import { runConvictionLoop } from "../../kernel/conviction.js";
+import { runConvictionLoop, modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../../kernel/conviction.js";
 import { prepareForward } from "../../kernel/prospective-preparation.js";
 import type { DriftMonitor } from "../../kernel/drift-monitor.js";
 import type { TasteFeedbackLoop } from "../../kernel/taste-feedback.js";
@@ -55,13 +56,14 @@ import { newId } from "../../util/ids.js";
 import { setCostTaskId } from "../../llm/client.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { reallocateBudget } from "../../kernel/budget-allocator.js";
+import { computeAttentionBudget } from "../../kernel/attention-budget.js";
 
 const log = createLogger("task-dispatch");
 
 // ─── Intermediate types ─────────────────────────────────────────
 
 interface PreparedDispatch {
-  action: "run-task" | "run-rest" | "done" | "escalate" | "replan";
+  action: "run-task" | "run-rest" | "run-nursery" | "done" | "escalate" | "replan";
   task?: TaskGraphNode;
   restContext?: RestCycleContext;
   /** NE level from Scheduler — passed through to sensory-cortex context. */
@@ -78,10 +80,12 @@ interface PreparedDispatch {
   taskBudget?: number;
   /** Project-level budget utilization (0–1). */
   projectBudgetUtilization?: number;
+  /** Phase group for nursery dispatch. */
+  nurseryPhaseGroup?: string;
 }
 
 interface ExecutedDispatch {
-  action: "task-completed" | "task-escalated" | "rested" | "done" | "scheduler-escalated" | "replan-requested";
+  action: "task-completed" | "task-escalated" | "rested" | "done" | "scheduler-escalated" | "replan-requested" | "nursery-completed";
   taskId?: string;
   taskResult?: SensoryCortexResult;
   restResult?: RestCycleResult;
@@ -89,6 +93,10 @@ interface ExecutedDispatch {
   escalationQuestions?: string[];
   escalationType?: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
   replanReason?: string;
+  /** Nursery result when action is "nursery-completed". */
+  nurseryResult?: import("../../types/nursery.js").NurseryResult;
+  /** Phase group that was nursed. */
+  nurseryPhaseGroup?: string;
 }
 
 interface IntegratedDispatch {
@@ -128,6 +136,20 @@ interface DispatchAccumulator {
   liveGraph: TaskGraphNode[];
   /** Counter for discovery task ID generation. */
   discoveryCounter: number;
+  /** Last completed task's aggregate dopamine — for NE recency-of-failure. */
+  lastDopamine?: number;
+  /** Last dispatched attention budget — for episode recording. */
+  lastAttentionBudget?: import("../../types/attention-budget.js").AttentionBudget;
+
+  // ── Nursery tracking ──
+  /** Phases that had runtime surface detected — awaiting nursery graduation. */
+  nurseryPendingPhases: Set<string>;
+  /** Phases that graduated from the nursery (or had no runtime surface). */
+  nurseryGraduatedPhases: Set<string>;
+  /** Task IDs inserted by nursery fix proposals, keyed by phase group. */
+  nurseryFixTasks: Map<string, Set<string>>;
+  /** How many nursery cycles have run per phase group. */
+  nurseryCycles: Map<string, number>;
 }
 
 function getAcc(
@@ -142,6 +164,10 @@ function getAcc(
     liveGraph: [], // Populated on first cycle from context.graph
     discoveryCounter: 0,
     __pfcRestRequested: false,
+    nurseryPendingPhases: new Set(),
+    nurseryGraduatedPhases: new Set(),
+    nurseryFixTasks: new Map(),
+    nurseryCycles: new Map(),
   };
 }
 
@@ -268,6 +294,10 @@ function assembleSignals(
     // Cost budget signals — from CostTracker when a budget is set
     budgetUtilization: costTracker?.getUtilization(),
     budgetExhausted: costTracker?.isExhausted() || undefined,
+    // NE recency-of-failure: last task's aggregate dopamine
+    lastTaskDopamine: acc.lastDopamine,
+    // NE human urgency: mapped from ProjectIntent.urgency
+    humanUrgency: mapUrgencyToNE(context.intent.urgency),
     taskBudgets: costTracker ? (() => {
       const budgets = new Map<string, { allocated: number; spent: number; remaining: number }>();
       for (const node of graph) {
@@ -282,6 +312,9 @@ function assembleSignals(
       }
       return budgets.size > 0 ? budgets : undefined;
     })() : undefined,
+    // Nursery signals — which phases need graduation
+    nurseryPendingPhases: acc.nurseryPendingPhases.size > 0 ? acc.nurseryPendingPhases : undefined,
+    nurseryGraduatedPhases: acc.nurseryGraduatedPhases.size > 0 ? acc.nurseryGraduatedPhases : undefined,
   };
 }
 
@@ -313,6 +346,8 @@ export function createTaskDispatchDefinition(
     hooks,
     () => homeostasis.getVitals(),
     () => homeostasis.getConsolidationLoad(),
+    3,
+    () => homeostasis.resetCumulativeNE(),
   );
 
   return {
@@ -369,6 +404,14 @@ export function createTaskDispatchDefinition(
       switch (decision.action) {
         case "complete":
           return { action: "done" };
+
+        case "dispatch-gestate":
+          log.info("Nursery dispatch requested", { phaseGroup: decision.phaseGroup });
+          return {
+            action: "run-nursery" as const,
+            nurseryPhaseGroup: decision.phaseGroup,
+            neLevel: acc.lastNELevel,
+          };
 
         case "dispatch-task": {
           const taskNode = acc.liveGraph.find((n) => n.task.id === decision.taskId);
@@ -532,6 +575,73 @@ export function createTaskDispatchDefinition(
         return { action: "rested", restResult };
       }
 
+      if (prepared.action === "run-nursery" && prepared.nurseryPhaseGroup) {
+        const acc = getAcc(state);
+        const phaseGroup = prepared.nurseryPhaseGroup;
+
+        // Surface scan — detect what was built that runs
+        const { scanPhaseArtifacts } = await import("../../kernel/nursery-scanner.js");
+        const surfaceScan = scanPhaseArtifacts(
+          phaseGroup, acc.liveGraph, acc.taskResults, acc.completedTasks,
+        );
+
+        emit("nursery:scan-complete", {
+          phaseGroup,
+          hasRuntimeSurface: surfaceScan.hasRuntimeSurface,
+          surfaceAreaCount: surfaceScan.surfaceAreas.length,
+        });
+
+        if (!surfaceScan.hasRuntimeSurface) {
+          // No runtime surface — auto-graduate
+          acc.nurseryGraduatedPhases.add(phaseGroup);
+          log.info("Phase auto-graduated (no runtime surface)", { phaseGroup });
+          return {
+            action: "nursery-completed",
+            nurseryPhaseGroup: phaseGroup,
+            nurseryResult: {
+              graduated: true,
+              findings: [],
+              exercisedScenarios: [],
+              surgeryProposals: [],
+              durationMs: 0,
+            },
+          };
+        }
+
+        const cycle = acc.nurseryCycles.get(phaseGroup) ?? 0;
+        acc.nurseryCycles.set(phaseGroup, cycle + 1);
+
+        emit("nursery:enter", {
+          phaseGroup,
+          surfaceAreaCount: surfaceScan.surfaceAreas.length,
+          cycle,
+        });
+
+        // Spawn the nursery rhythm
+        const { createNurseryDefinition } = await import("./nursery.js");
+        const nurseryDef = createNurseryDefinition(config, library, pns!);
+
+        const nurseryResult = await runner.run(
+          nurseryDef,
+          {
+            phaseGroup,
+            surfaceScan,
+            taskResults: acc.taskResults,
+            graph: acc.liveGraph,
+            completedTaskIds: acc.completedTasks,
+            neLevel: prepared.neLevel ?? acc.lastNELevel,
+            cycle,
+          },
+          state.id,
+        );
+
+        return {
+          action: "nursery-completed",
+          nurseryPhaseGroup: phaseGroup,
+          nurseryResult,
+        };
+      }
+
       // Run the task through sensory-cortex
       const taskNode = prepared.task!;
       const acc = getAcc(state);
@@ -539,6 +649,32 @@ export function createTaskDispatchDefinition(
       wm.startTask(taskNode.task.id);
       // Attribute LLM call costs to this task
       setCostTaskId(taskNode.task.id);
+
+      // Compute coarse attention budget from NE + importance (Phase 1).
+      // Cerebellum refinement happens in sensory-cortex prepare (Phase 2)
+      // after consultation produces a fingerprint.
+      const dependentsCount = acc.liveGraph.filter(
+        (n) => n.dependsOn.includes(taskNode.task.id)
+          && !acc.completedTasks.has(n.task.id),
+      ).length;
+      const taskImportance = Math.min(1, dependentsCount * 0.2
+        + (taskNode.phaseGroup ? 0.3 : 0));
+
+      const attentionBudget = computeAttentionBudget({
+        neLevel: prepared.neLevel ?? 0.5,
+        maxOuterCycles: config.maxOuterCycles,
+        taskImportance,
+      });
+
+      acc.lastAttentionBudget = attentionBudget;
+
+      emit("attention-budget:computed", {
+        taskId: taskNode.task.id,
+        cycleRange: attentionBudget.cycleRange,
+        source: attentionBudget.basis.source,
+        neLevel: attentionBudget.basis.neLevel,
+        importance: taskImportance,
+      });
 
       const ctx: SensoryCortexContext = {
         task: taskNode.task,
@@ -549,6 +685,7 @@ export function createTaskDispatchDefinition(
         mode: prepared.mode,
         taskBudget: prepared.taskBudget,
         projectBudgetUtilization: prepared.projectBudgetUtilization,
+        attentionBudget,
       };
 
       try {
@@ -609,6 +746,82 @@ export function createTaskDispatchDefinition(
         };
       }
 
+      if (executed.action === "nursery-completed") {
+        const phaseGroup = executed.nurseryPhaseGroup!;
+        const nurseryResult = executed.nurseryResult!;
+
+        if (nurseryResult.graduated) {
+          acc.nurseryGraduatedPhases.add(phaseGroup);
+          acc.nurseryPendingPhases.delete(phaseGroup);
+          emit("nursery:graduate", {
+            phaseGroup,
+            scenariosExercised: nurseryResult.exercisedScenarios.length,
+            durationMs: nurseryResult.durationMs,
+            cycle: acc.nurseryCycles.get(phaseGroup) ?? 0,
+          });
+          log.info("Phase graduated from nursery", { phaseGroup });
+        } else {
+          // Findings exist — apply surgery proposals to insert fix tasks
+          for (const proposal of nurseryResult.surgeryProposals) {
+            const validation = validateProposal(proposal, acc.liveGraph, acc.completedTasks, null);
+            if (!validation.valid) {
+              log.warn("Nursery surgery proposal invalid", {
+                proposalId: proposal.id,
+                issues: validation.issues,
+              });
+              continue;
+            }
+
+            const surgeryResult = applySurgery(
+              proposal.id,
+              proposal.operations,
+              acc.liveGraph,
+              acc.completedTasks,
+            );
+
+            acc.liveGraph = surgeryResult.graph;
+
+            // Track fix tasks so we can re-trigger nursery when they complete
+            const fixTaskSet = acc.nurseryFixTasks.get(phaseGroup) ?? new Set<string>();
+            for (const insertedId of surgeryResult.insertedTaskIds) {
+              fixTaskSet.add(insertedId);
+              // Register in WM so task-dispatch can dispatch them
+              try { wm.addTask(insertedId, `[Nursery fix] ${phaseGroup}`); } catch { /* already added */ }
+
+              emit("nursery:fix-task-inserted", {
+                phaseGroup,
+                taskId: insertedId,
+              });
+            }
+            for (const reopenedId of surgeryResult.reopenedTaskIds) {
+              fixTaskSet.add(reopenedId);
+
+              emit("nursery:fix-task-inserted", {
+                phaseGroup,
+                taskId: reopenedId,
+              });
+            }
+            acc.nurseryFixTasks.set(phaseGroup, fixTaskSet);
+
+            log.info("Nursery surgery applied", {
+              phaseGroup,
+              inserted: surgeryResult.insertedTaskIds.length,
+              reopened: surgeryResult.reopenedTaskIds.length,
+            });
+          }
+        }
+
+        return {
+          allComplete: allTasksDone(
+            acc.liveGraph,
+            acc.completedTasks,
+            acc.escalatedTasks,
+          ),
+          completedTasks: [...acc.completedTasks],
+          escalatedTasks: [...acc.escalatedTasks],
+        };
+      }
+
       if (executed.action === "scheduler-escalated") {
         const pfcFlags = homeostasis.needsPfcIntervention();
         return {
@@ -656,6 +869,25 @@ export function createTaskDispatchDefinition(
           }
         }
 
+        // ── Nursery fix task tracking ──
+        // If this task was a nursery fix, track completion. When all fix
+        // tasks for a phase are done, the scheduler will re-dispatch gestate
+        // (nurseryPendingPhases still has the phase, so it re-enters nursery).
+        for (const [fixPhaseGroup, fixTasks] of acc.nurseryFixTasks) {
+          if (fixTasks.has(taskId)) {
+            fixTasks.delete(taskId);
+            if (fixTasks.size === 0) {
+              // All fix tasks done — nursery will re-exercise on next dispatch cycle
+              emit("nursery:re-exercise", {
+                phaseGroup: fixPhaseGroup,
+                cycle: acc.nurseryCycles.get(fixPhaseGroup) ?? 0,
+              });
+              log.info("All nursery fix tasks complete, re-exercise pending", { phaseGroup: fixPhaseGroup });
+            }
+            break;
+          }
+        }
+
         // Prospective preparation — read gestalt before clearing
         const completedGestalt = thalamus.getGestalt(taskId);
         const forwardBriefing = prepareForward({
@@ -680,7 +912,14 @@ export function createTaskDispatchDefinition(
             received: "empty array — dopamine signal will be zero",
           });
         }
-        const dopamine = await hooks.computeDopamineSignal(taskId, executed.taskResult.evaluations);
+        const budgetSnapshot = acc.lastAttentionBudget?.cycleRange;
+        const dopamine = await hooks.computeDopamineSignal(taskId, executed.taskResult.evaluations, {
+          outerCycles: executed.taskResult.outerCycles ?? executed.taskResult.cycles,
+          attentionBudget: budgetSnapshot
+            ? { floor: budgetSnapshot.floor, expected: budgetSnapshot.expected, ceiling: budgetSnapshot.ceiling }
+            : undefined,
+        });
+        acc.lastDopamine = dopamine;
         await hooks.recordEpisode(taskId, executed.taskResult, dopamine);
         await hooks.updateRoutines(taskId, dopamine);
 
@@ -691,6 +930,9 @@ export function createTaskDispatchDefinition(
 
         // Feed WM load to homeostasis (drives rest cycle triggers)
         homeostasis.update("workingMemoryLoad", wm.getLoad());
+
+        // Record NE exposure for rest sensitivity (cumulative fatigue)
+        homeostasis.recordTaskNE(acc.lastNELevel);
 
         // Rebuild Weltanschauung at rhythm boundary
         if (worldModel) {
@@ -793,12 +1035,30 @@ export function createTaskDispatchDefinition(
         // when it has direct access to the hippocampus instance.
         emit("dispatch:calibration-check", { taskId, confidence: executed.taskResult?.confidence ?? 0 });
 
+        // ── Exteroception batch processing ──────────────────────
+        let exteroceptiveSignalsProcessed = 0;
+        const exBatch = hooks.assembleExteroceptiveBatch();
+        if (exBatch && exBatch.signals.length > 0) {
+          // Stub: mark all as "noted" (no action).
+          // Future: PFC processes via Thalamus briefing.
+          const batchActions: import("../../types/exteroception.js").BatchAction[] =
+            exBatch.signals.map((s) => ({ kind: "noted" as const, signalId: s.id }));
+          hooks.recordExteroceptiveBatchOutcome(batchActions);
+          exteroceptiveSignalsProcessed = exBatch.signals.length;
+
+          emitInfo("exteroception:batch-processed-at-boundary", {
+            taskId,
+            signalCount: exteroceptiveSignalsProcessed,
+          });
+        }
+
         const betweenTasks: BetweenTasksFastPath = {
           taskId,
           dopamineSignal: dopamine,
           episodeRecorded: true,
           workingMemoryUpdated: true,
           routineUpdated: true,
+          exteroceptiveSignalsProcessed,
         };
 
         // ── Phase gate integration check ──────────────────────
@@ -881,6 +1141,11 @@ export function createTaskDispatchDefinition(
                   });
                 }
               }
+            }
+
+            // ── Nursery: register phase as pending graduation ──
+            if (phaseGateResult.passed && !acc.nurseryGraduatedPhases.has(phaseGroup)) {
+              acc.nurseryPendingPhases.add(phaseGroup);
             }
 
             // ── Proactive: simulation + deep synthesis (on pass) ──
@@ -968,7 +1233,10 @@ export function createTaskDispatchDefinition(
                       manifestedFuture: thalamus.getManifestedFuture() ?? undefined,
                     };
 
-                    const proposalConviction = runConvictionLoop(convictionCtx);
+                    const proposalConviction = runConvictionLoop(
+                      convictionCtx,
+                      modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, acc.lastNELevel),
+                    );
 
                     emit("conviction:plan-modification", {
                       proposalId: proposal.id,
@@ -1135,7 +1403,10 @@ export function createTaskDispatchDefinition(
         schedulerEscalation: schedulerEscalationSignal,
       };
 
-      const conviction = runConvictionLoop(convictionCtx);
+      const conviction = runConvictionLoop(
+        convictionCtx,
+        modulateThresholds(DEFAULT_CONVICTION_THRESHOLDS, acc.lastNELevel),
+      );
       acc.previousConviction = conviction;
 
       // Record to WM conviction ledger for triage/diagnostics trajectory
@@ -1190,7 +1461,7 @@ export function createTaskDispatchDefinition(
             : undefined,
           vitals: homeostasis.getVitals(),
           intent: state.initialContext.intent,
-        });
+        }, acc.lastNELevel);
 
         emit("flexibility:dispatch-assessment", {
           cycle: state.completedCycles + 1,

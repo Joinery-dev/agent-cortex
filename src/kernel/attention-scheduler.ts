@@ -48,6 +48,17 @@ export class AttentionScheduler {
   decide(signals: SchedulerSignals): SchedulerAction {
     // 1. All tasks done?
     if (this.isComplete(signals)) {
+      // 1a. Nursery check: any phases awaiting graduation?
+      const pendingNursery = this.getNextNurseryPhase(signals);
+      if (pendingNursery) {
+        this.emitDecision("dispatch-gestate", signals);
+        return {
+          action: "dispatch-gestate",
+          phaseGroup: pendingNursery,
+          reason: `Phase "${pendingNursery}" artifacts require runtime stress-testing before completion`,
+        };
+      }
+
       this.emitDecision("complete", signals);
       return { action: "complete" };
     }
@@ -100,6 +111,23 @@ export class AttentionScheduler {
     emit("scheduler:escalation", { reason: action.reason, type: "deadlock" });
     this.emitDecision("escalate", signals);
     return action;
+  }
+
+  // ─── Private: Nursery check ────────────────────────────────────
+
+  /**
+   * Returns the first phase group that needs nursery graduation, or null.
+   * A phase needs nursery if it's in pendingPhases but not in graduatedPhases.
+   */
+  private getNextNurseryPhase(signals: SchedulerSignals): string | null {
+    if (!signals.nurseryPendingPhases || signals.nurseryPendingPhases.size === 0) {
+      return null;
+    }
+    const graduated = signals.nurseryGraduatedPhases ?? new Set<string>();
+    for (const phase of signals.nurseryPendingPhases) {
+      if (!graduated.has(phase)) return phase;
+    }
+    return null;
   }
 
   // ─── Private: Completion check ──────────────────────────────────
@@ -246,6 +274,7 @@ export class AttentionScheduler {
         dependencyScore: score.dependency,
         trendResponseScore: score.trendResponse,
         prospectiveScore: score.prospective,
+        affinityScore: score.affinity,
         totalScore: score.total,
         selected: node === best.node,
       });
@@ -262,7 +291,7 @@ export class AttentionScheduler {
       taskId: best.node.task.id,
       neLevel: neResult.ne,
       mode,
-      reasoning: `Selected from ${readyTasks.length} ready tasks (score: ${best.score.total.toFixed(2)}). Factors: phase-group=${best.score.phaseGroup.toFixed(2)}, deps=${best.score.dependency.toFixed(2)}, trends=${best.score.trendResponse.toFixed(2)}${best.score.prospective > 0 ? `, pm=${best.score.prospective.toFixed(2)}` : ""}`,
+      reasoning: `Selected from ${readyTasks.length} ready tasks (score: ${best.score.total.toFixed(2)}). Factors: phase-group=${best.score.phaseGroup.toFixed(2)}, deps=${best.score.dependency.toFixed(2)}, trends=${best.score.trendResponse.toFixed(2)}${best.score.prospective > 0 ? `, pm=${best.score.prospective.toFixed(2)}` : ""}${best.score.affinity > 0 ? `, affinity=${best.score.affinity.toFixed(2)}` : ""}`,
       taskBudget: signals.taskBudgets?.get(best.node.task.id)?.allocated,
       riskSnapshot,
     };
@@ -271,18 +300,20 @@ export class AttentionScheduler {
   private scoreTask(
     node: TaskGraphNode,
     signals: SchedulerSignals,
-  ): { phaseGroup: number; dependency: number; trendResponse: number; prospective: number; total: number } {
+  ): { phaseGroup: number; dependency: number; trendResponse: number; prospective: number; affinity: number; total: number } {
     const phaseGroup = this.scorePhaseGroupCoherence(node, signals);
     const dependency = this.scoreDependencyUnblocking(node, signals);
     const trendResponse = this.scoreTrendResponse(node, signals);
     const prospective = this.scoreProspectiveTriggers(node, signals);
+    const affinity = this.scoreAffinityCoherence(node, signals);
 
     // Base weights unchanged. Phase 3 (Plasticity) makes these plastic.
     // PM bonus is additive — nudges priority without rebalancing existing weights.
+    // Affinity bonus is small (0.1) — tiebreaker for co-design cluster coherence.
     const base = phaseGroup * 0.3 + dependency * 0.4 + trendResponse * 0.3;
-    const total = base + prospective * 0.15;
+    const total = base + prospective * 0.15 + affinity * 0.1;
 
-    return { phaseGroup, dependency, trendResponse, prospective, total };
+    return { phaseGroup, dependency, trendResponse, prospective, affinity, total };
   }
 
   /**
@@ -315,6 +346,26 @@ export class AttentionScheduler {
     if (!lastCompletedNode?.phaseGroup) return 0;
 
     return node.phaseGroup === lastCompletedNode.phaseGroup ? 1.0 : 0;
+  }
+
+  /**
+   * Bonus for tasks in the same affinity group as the last completed task.
+   * Affinity groups are co-design clusters from the Graph Builder —
+   * tasks that share interfaces and should be built with mutual awareness.
+   * Falls back to 0 when affinityGroupId is absent (all pre-hierarchical plans).
+   */
+  private scoreAffinityCoherence(node: TaskGraphNode, signals: SchedulerSignals): number {
+    if (!node.affinityGroupId) return 0;
+
+    const completedIds = [...signals.completedTaskIds];
+    if (completedIds.length === 0) return 0;
+
+    const lastCompletedId = completedIds[completedIds.length - 1];
+    const lastCompletedNode = signals.taskGraph.find((n) => n.task.id === lastCompletedId);
+
+    if (!lastCompletedNode?.affinityGroupId) return 0;
+
+    return node.affinityGroupId === lastCompletedNode.affinityGroupId ? 1.0 : 0;
   }
 
   /**
@@ -380,6 +431,12 @@ export class AttentionScheduler {
       node.phaseGroup,
       dependsOnThisTask,
       signals,
+      {
+        dependencyCount: node.dependsOn.length,
+        descriptionLength: node.task.description.length,
+        highStakeSenseCount: 0, // Not available at dispatch time — enriched later by sensory-cortex
+        totalSenseCount: 0,
+      },
     );
 
     // Budget pressure: utilization^2 (quadratic — gentle at 50%, sharp at 80%+)
@@ -395,6 +452,7 @@ export class AttentionScheduler {
         // bestSimilarity: not available at dispatch time
         // convictionLevel: not available at dispatch time
         risk,
+        humanUrgency: signals.humanUrgency,
       },
       this.neWeights,
     );

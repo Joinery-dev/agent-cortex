@@ -109,7 +109,7 @@ The architecture is a brain metaphor taken seriously. See `ARCHITECTURE.md` for 
 - **Peripheral nervous system** — I/O boundary. What the system can perceive and do. Motor Cortex produces intentions, PNS translates to tool calls.
 - **Sensory cortex** — per-task loop. Senses (personas with internalized values) contain pathways containing receptors. Consult → explore → build → evaluate → resolve.
 - **Motor cortex** — the builder. Premotor plans, primary produces, proprioception self-corrects mid-build.
-- **Subcortical systems** — hippocampus (episodic memory + crystallization of episodes into principles), basal ganglia (learned routines + explore/exploit gate), amygdala (urgency override), cerebellum (prediction engine).
+- **Subcortical systems** — hippocampus (episodic memory + potentiation: episodes crystallized into principles), basal ganglia (learned routines + explore/leverage gate), amygdala (urgency override), cerebellum (prediction engine).
 - **Plasticity** — connections reshape with experience. Fixed connections (structural) vs. plastic connections (learned weights). This is how the system's identity forms.
 - **Dopamine** — reward prediction error (cerebellum predicted vs. actual). The learning gradient. Without it, the system records but doesn't learn.
 - **Norepinephrine** — arousal/thoroughness dial. High = more senses, lower thresholds. Low = fewer senses, fast-tracked.

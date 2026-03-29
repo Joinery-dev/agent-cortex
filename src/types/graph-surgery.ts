@@ -76,7 +76,7 @@ export interface GraphSurgeryReorder {
 export interface SurgeryProposal {
   id: string;
   /** Where this proposal originated. */
-  source: "quick-triage" | "deep-synthesis";
+  source: "quick-triage" | "deep-synthesis" | "nursery";
   /** Why this change is being proposed. */
   reasoning: string;
   /** The operations to apply. */

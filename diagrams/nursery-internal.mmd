@@ -1,0 +1,64 @@
+---
+title: "The Nursery — Internal Loop"
+scope: feature
+---
+flowchart TD
+    ENTER["ENTER NURSERY<br/>Phase gate passed,<br/>runtime surface detected"]
+
+    subgraph NURSERY["Nursery"]
+        direction TB
+
+        SCAN["SCAN ARTIFACTS<br/>What was built that runs?<br/>Heuristic file-content detection:<br/>servers, handlers, pipelines,<br/>stateful objects, I/O wiring"]
+
+        subgraph CONSULT["Sense Consultation"]
+            direction LR
+            Q["'What could kill this<br/>at runtime?'"]
+            CORR["Correctness:<br/>race conditions,<br/>ordering violations"]
+            PERF["Performance:<br/>memory leaks,<br/>resource exhaustion"]
+            REL["Reliability:<br/>failover, crashes<br/>under load"]
+            SEC["Security:<br/>injection under<br/>concurrency"]
+            Q --- CORR & PERF & REL & SEC
+        end
+
+        subgraph EXERCISE["Exercise + Observe"]
+            direction TB
+            OBS_TOOLS["OBSERVER activates<br/>Bash, Read, Glob, Grep, WebFetch<br/>Can start processes, can't modify artifacts"]
+            RUN["Start it. Feed it. Hammer it.<br/>Hit endpoints, send garbage,<br/>sustain load, check resources"]
+            INTERPRET["Senses interpret observations<br/>Not 'is this well-designed?'<br/>but 'what happened when it ran?'"]
+            OBS_TOOLS --> RUN --> INTERPRET
+        end
+
+        FINDINGS{Findings?}
+
+        SCAN --> CONSULT --> EXERCISE --> FINDINGS
+    end
+
+    GRADUATE["GRADUATE<br/>Absence of findings.<br/>Artifact survives reality."]
+
+    subgraph EXISTING["Existing System Loops"]
+        direction TB
+        SURGERY["GRAPH SURGERY<br/>Findings → rework / insert tasks<br/>source: 'nursery'"]
+        BUILD["NORMAL BUILD CYCLE<br/>Motor builds fix<br/>Senses evaluate<br/>Gate accepts/rejects<br/>Cognitive flexibility if stuck"]
+        SURGERY --> BUILD
+    end
+
+    REEXERCISE["RE-EXERCISE<br/>Fix tasks complete →<br/>nursery re-triggers<br/>with same + new scenarios"]
+
+    FINDINGS -->|"None"| GRADUATE
+    FINDINGS -->|"Runtime bugs found"| EXISTING
+    BUILD --> REEXERCISE
+    REEXERCISE --> EXERCISE
+
+    CONVICTION["Conviction loop catches<br/>stagnation → reshape / escalate<br/>No nursery-specific limit"]
+
+    EXISTING -.->|"If stuck"| CONVICTION
+
+    ENTER --> NURSERY
+
+    style NURSERY fill:#1a1d27,stroke:#f0aa6c,color:#e2e4ea
+    style CONSULT fill:#1e2233,stroke:#c084fc,color:#e2e4ea
+    style EXERCISE fill:#1e2233,stroke:#4ade80,color:#e2e4ea
+    style EXISTING fill:#1e2233,stroke:#60a5fa,color:#e2e4ea
+    style GRADUATE fill:#1a2e1a,stroke:#4ade80,color:#e2e4ea
+    style ENTER fill:#1a1d27,stroke:#c084fc,color:#e2e4ea
+    style CONVICTION fill:#1e2233,stroke:#f87171,color:#999

@@ -19,6 +19,7 @@ import type { Hippocampus } from "./hippocampus.js";
 import type { PlasticityStoreImpl } from "./plasticity-store.js";
 import type { BasalGanglia } from "../kernel/basal-ganglia.js";
 import type { Amygdala } from "./amygdala.js";
+import type { ExteroceptionSystem } from "./exteroception.js";
 import type { HomeostasisMonitor } from "../brainstem/homeostasis.js";
 import type { BuildCycleContext, BuildCycleResult } from "../types/brainstem.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
@@ -33,6 +34,7 @@ import type { ResolutionOutcome } from "../types/tension.js";
 import type { TaskGraphNode } from "../types/brainstem.js";
 import type { SimulatedScenario, SimulationTrigger } from "../types/hippocampal-simulation.js";
 import type { TerritoryObservation } from "../types/territory-observation.js";
+import type { ExteroceptiveBatch, BatchAction } from "../types/exteroception.js";
 import { TonicTracker } from "./tonic.js";
 import { computeProjections } from "./projections.js";
 import { createLogger } from "../util/logger.js";
@@ -50,6 +52,7 @@ export interface CompositeHooksSources {
   tonic?: TonicTracker;
   basalGanglia?: BasalGanglia;
   amygdala?: Amygdala;
+  exteroception?: ExteroceptionSystem;
   wm?: WorkingMemory;
 }
 
@@ -61,6 +64,7 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   private plasticity?: PlasticityStoreImpl;
   private basalGanglia?: BasalGanglia;
   private amygdala?: Amygdala;
+  private exteroception?: ExteroceptionSystem;
   private wm?: WorkingMemory;
   private tonic: TonicTracker;
 
@@ -78,6 +82,7 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     this.plasticity = sources.plasticity;
     this.basalGanglia = sources.basalGanglia;
     this.amygdala = sources.amygdala;
+    this.exteroception = sources.exteroception;
     this.wm = sources.wm;
     this.tonic = sources.tonic ?? new TonicTracker();
   }
@@ -140,8 +145,12 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
   async computeDopamineSignal(
     taskId: string,
     evaluations: SenseEvaluation[],
+    cycleData?: {
+      outerCycles: number;
+      attentionBudget?: { floor: number; expected: number; ceiling: number };
+    },
   ): Promise<number> {
-    const signal = this.cerebellum.recordOutcome(taskId, evaluations);
+    const signal = this.cerebellum.recordOutcome(taskId, evaluations, undefined, cycleData);
 
     // Feed prediction efficiency (ceiling-relative) to homeostasis.
     // Recalibration triggers when efficiency is low — meaning room to
@@ -272,7 +281,8 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
         `wm-promotion-${Date.now()}-${promoted}`,
         `Pattern promoted from working memory: ${description}`,
         {
-          status: "accepted",
+          taskId: `wm-promotion-${Date.now()}-${promoted}`,
+          status: "complete",
           confidence: 0.7,
           work: description,
           cycles: 0,
@@ -431,6 +441,12 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     return this.cerebellum.getAccuracy();
   }
 
+  predictCycleDistribution(
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/attention-budget.js").CyclePercentiles | null {
+    return this.cerebellum.predictCycleDistribution(fingerprint);
+  }
+
   // ── Basal Ganglia ────────────────────────────────────────────
 
   async decayRoutines(): Promise<{ decayed: number; pruned: number }> {
@@ -456,6 +472,18 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
 
   dismissSimulation(scenarioId: string, materialized: boolean): void {
     this.hippocampus.recordSimulationOutcome(scenarioId, materialized, 0);
+  }
+
+  // ── Exteroception ──────────────────────────────────────────────
+
+  assembleExteroceptiveBatch(): ExteroceptiveBatch | null {
+    if (!this.exteroception) return null;
+    return this.exteroception.assembleBatch();
+  }
+
+  recordExteroceptiveBatchOutcome(actions: BatchAction[]): void {
+    if (!this.exteroception) return;
+    this.exteroception.recordBatchOutcome(actions);
   }
 
   // ── Private: plasticity projection application ──────────────

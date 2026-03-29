@@ -34,15 +34,22 @@ import type {
   PlannerResult,
   ReplanContext,
   ReplanResult,
+  ShaelNode,
+  HierarchicalPlanResult,
+  DependencyWiringResult,
+  AffinityGroup,
 } from "../types/planner.js";
 import { DEFAULT_PLANNER_CONFIG } from "../types/planner.js";
-import type { PathReasoningInputs, ReplanReasoningInputs } from "../llm/prompts.js";
+import type { PathReasoningInputs, ReplanReasoningInputs, ShaelDecompositionInputs } from "../llm/prompts.js";
 import {
   pathReasoningSystem,
   pathReasoningUser,
   replanReasoningSystem,
   replanReasoningUser,
+  shaelDecompositionSystem,
+  shaelDecompositionUser,
 } from "../llm/prompts.js";
+import { GraphBuilder } from "./graph-builder.js";
 import { callStructured } from "../llm/structured.js";
 import { newId } from "../util/ids.js";
 import { createLogger } from "../util/logger.js";
@@ -75,6 +82,26 @@ const PathReasoningSchema = z.object({
   reasoning: z.string(),
   phases: z.array(ProposedPhaseSchema),
   tasks: z.array(ProposedTaskSchema),
+});
+
+// ─── Zod schemas for hierarchical Phase B.1 ─────────────────────
+
+const ShaelNodeSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  level: z.enum(["shael", "shana"]),
+  phaseGroup: z.string(),
+  parentId: z.string().nullable(),
+  gateCondition: z.string(),
+  necessity: z.string(),
+  formJustification: z.string(),
+  scopeJustification: z.string(),
+});
+
+const ShaelDecompositionSchema = z.object({
+  reasoning: z.string(),
+  phases: z.array(ProposedPhaseSchema),
+  nodes: z.array(ShaelNodeSchema),
 });
 
 // ─── Planner ────────────────────────────────────────────────────
@@ -190,6 +217,7 @@ export class Planner {
     taste: TasteProfile,
     maxims?: string[],
     capabilities?: string,
+    neLevel?: number,
   ): Promise<PlannerResult> {
     emit("planner:path-reasoning-start", {
       intentId: intent.id,
@@ -200,6 +228,7 @@ export class Planner {
     const inputs: PathReasoningInputs = {
       manifestedFuture: future.vision,
       senseContributions: future.senseContributions,
+      neLevel,
       intent: {
         summary: intent.summary,
         audience: intent.audience,
@@ -283,6 +312,208 @@ export class Planner {
     return result;
   }
 
+  // ── Hierarchical Planning (Phase B evolution) ──────────────
+
+  /**
+   * Reason backward hierarchically: produce shaels (questions) instead
+   * of flat tasks, then wire dependencies via Graph Builder (B.2).
+   *
+   * Pipeline:
+   *   B.1: Shael decomposition (LLM) — backward reasoning → shael tree
+   *   B.2: Dependency wiring (GraphBuilder.wire) — semantic map → algo → affinity
+   *
+   * The existing reasonBackward() is NOT modified. Both coexist.
+   * The project rhythm calls this when config.hierarchicalPlanning is true.
+   */
+  async reasonBackwardHierarchical(
+    future: ManifestedFuture,
+    intent: ProjectIntent,
+    taste: TasteProfile,
+    maxims?: string[],
+    capabilities?: string,
+    neLevel?: number,
+  ): Promise<HierarchicalPlanResult> {
+    emit("planner:hierarchical-start", {
+      intentId: intent.id,
+      maximCount: maxims?.length ?? 0,
+    });
+
+    // ── B.1: Shael Decomposition ──────────────────────────────
+
+    const inputs: ShaelDecompositionInputs = {
+      manifestedFuture: future.vision,
+      senseContributions: future.senseContributions,
+      intent: {
+        summary: intent.summary,
+        audience: intent.audience,
+        successCriteria: intent.successCriteria,
+        vision: intent.vision,
+        constraints: intent.constraints,
+      },
+      taste: {
+        visual: taste.visual,
+        decisionStyle: taste.decisionStyle,
+        patterns: taste.patterns,
+      },
+      maxims,
+      capabilities,
+      budget: intent.budget
+        ? { total: intent.budget.total, enforcement: intent.budget.enforcement }
+        : undefined,
+    };
+
+    const system = shaelDecompositionSystem();
+    const user = shaelDecompositionUser(inputs);
+
+    let raw: { reasoning: string; phases: ProposedPhase[]; nodes: ShaelNode[] };
+    try {
+      raw = await callStructured(
+        "planner",
+        this.model,
+        system,
+        user,
+        ShaelDecompositionSchema,
+        this.config.maxTokens,
+      );
+    } catch (err) {
+      log.error("Shael decomposition failed", { error: String(err) });
+      throw new Error(`Planner shael decomposition failed: ${String(err)}`);
+    }
+
+    log.info("Shael decomposition complete", {
+      phases: raw.phases.length,
+      nodes: raw.nodes.length,
+      shaels: raw.nodes.filter((n) => n.level === "shael").length,
+      shana: raw.nodes.filter((n) => n.level === "shana").length,
+    });
+
+    // ── Necessity Gates ──────────────────────────────────────
+
+    // ShaelNode has the same gate fields as ProposedTask — reuse the gate logic
+    const asProposed: ProposedTask[] = raw.nodes.map((n) => ({
+      id: n.id,
+      description: n.description,
+      dependsOn: [], // B.1 doesn't produce deps
+      phaseGroup: n.phaseGroup,
+      necessity: n.necessity,
+      formJustification: n.formJustification,
+      scopeJustification: n.scopeJustification,
+    }));
+
+    const { accepted, rejected } = this.applyNecessityGates(asProposed);
+    const acceptedIds = new Set(accepted.map((t) => t.id));
+    const acceptedShaels = raw.nodes.filter((n) => acceptedIds.has(n.id));
+
+    // Enforce max tasks
+    const clamped = acceptedShaels.slice(0, this.config.maxTasks);
+    if (acceptedShaels.length > this.config.maxTasks) {
+      log.warn("Shael count clamped", {
+        proposed: acceptedShaels.length,
+        max: this.config.maxTasks,
+        cut: acceptedShaels.length - this.config.maxTasks,
+      });
+    }
+
+    // ── B.2: Dependency Wiring ───────────────────────────────
+
+    const graphBuilderModel = this.config.graphBuilderModel ?? this.model;
+    const graphBuilder = new GraphBuilder(graphBuilderModel);
+    const wiring = await graphBuilder.wire(clamped, neLevel);
+
+    // ── Assemble result ──────────────────────────────────────
+
+    const result: HierarchicalPlanResult = {
+      manifestedFuture: future,
+      shaels: clamped,
+      wiring,
+      rejected,
+      reasoning: raw.reasoning,
+      phases: raw.phases,
+    };
+
+    emit("planner:hierarchical-complete", {
+      phases: raw.phases.length,
+      totalNodes: raw.nodes.length,
+      acceptedShaels: clamped.length,
+      rejectedNodes: rejected.length,
+      edges: wiring.dependencies.length,
+      affinityGroups: wiring.affinityGroups.length,
+    });
+
+    log.info("Hierarchical planning complete", {
+      phases: raw.phases.length,
+      shaels: clamped.length,
+      rejected: rejected.length,
+      edges: wiring.dependencies.length,
+      affinityGroups: wiring.affinityGroups.length,
+    });
+
+    return result;
+  }
+
+  // ── Build flat graph from shana (for JIT per-shael planning) ──
+
+  /**
+   * Convert shana (leaf tasks from JIT per-shael planning) into
+   * flat TaskGraphNode[] for the execution layer.
+   *
+   * Uses wiring.dependencies for dependsOn (not LLM suggestions).
+   * Sets affinityGroupId from wiring's affinity groups.
+   * Same ID-mapping pattern as buildGraph().
+   */
+  buildGraphFromShana(
+    shana: ShaelNode[],
+    wiring: DependencyWiringResult,
+    phases: ProposedPhase[],
+  ): TaskGraphNode[] {
+    // Map temporary IDs to real IDs
+    const idMap = new Map<string, string>();
+    for (const node of shana) {
+      idMap.set(node.id, `task-${newId()}`);
+    }
+
+    // Build affinity lookup: node ID → affinity group name
+    const affinityLookup = new Map<string, string>();
+    for (const group of wiring.affinityGroups) {
+      for (const shaelId of group.shaelIds) {
+        affinityLookup.set(shaelId, group.name);
+      }
+    }
+
+    // Build dependency lookup from wiring
+    const depsFor = new Map<string, string[]>();
+    for (const dep of wiring.dependencies) {
+      const deps = depsFor.get(dep.from) ?? [];
+      deps.push(dep.to);
+      depsFor.set(dep.from, deps);
+    }
+
+    const nodes: TaskGraphNode[] = [];
+
+    for (const node of shana) {
+      const realId = idMap.get(node.id)!;
+
+      // Resolve dependencies through ID map
+      const rawDeps = depsFor.get(node.id) ?? [];
+      const resolvedDeps = rawDeps
+        .map((dep) => idMap.get(dep))
+        .filter((id): id is string => id !== undefined);
+
+      nodes.push({
+        task: createTask(realId, node.description, {
+          phaseGroup: node.phaseGroup,
+          necessity: node.necessity,
+          plannedById: node.id,
+        }),
+        dependsOn: resolvedDeps,
+        phaseGroup: node.phaseGroup,
+        affinityGroupId: affinityLookup.get(node.id),
+      });
+    }
+
+    return nodes;
+  }
+
   // ── Replan ─────────────────────────────────────────────────
 
   /**
@@ -298,6 +529,7 @@ export class Planner {
     taste: TasteProfile,
     maxims?: string[],
     capabilities?: string,
+    neLevel?: number,
   ): Promise<ReplanResult> {
     emit("planner:replan-start", {
       intentId: intent.id,
@@ -310,6 +542,7 @@ export class Planner {
     const inputs: ReplanReasoningInputs = {
       manifestedFuture: context.manifestedFuture,
       senseContributions: {},  // Not available during replan — senses already consulted in Phase A
+      neLevel,
       intent: {
         summary: intent.summary,
         audience: intent.audience,

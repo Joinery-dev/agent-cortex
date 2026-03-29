@@ -39,6 +39,7 @@ const COMPONENT_REGION_MAP: Record<string, BrainRegion> = {
   norepinephrine: "norepinephrine",
   ne: "norepinephrine",
   plasticity: "plasticity",
+  exteroception: "exteroception",
   pns: "pns",
   brainstem: "brainstem",
   runner: "brainstem",

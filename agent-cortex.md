@@ -4,7 +4,7 @@
 
 ## The landscape (March 2026)
 
-Agent harnesses are 3 months old as a concept. The space has already converged on a few patterns: multi-agent role separation, git worktrees for isolation, state buses, eval-driven optimization. Our pipeline has most of these plus things nobody else has (QA/Resolve loop, interface contracts, design review, autoresearch).
+Agent harnesses are 3 months old as a concept. The space has already converged on a few patterns: multi-agent role separation, git worktrees for isolation, state buses, eval-driven optimization. Our pipeline has most of these plus things nobody else has (QA/Resolve loop, interface contracts, design review).
 
 But the current generation of harnesses — including ours — all share the same fundamental assumptions. The breakthroughs won't come from adding more features to the existing paradigm. They'll come from questioning the assumptions themselves.
 
@@ -48,15 +48,15 @@ The harness isn't a dev tool. It's a product delivery system where the exec agen
 
 Every harness treats code as the universe. None of them know why the code exists. A business model layer — "this is a service business, they charge by the hour, they have crews of 3-5" — should inform every decision. PM knows what features matter. Builder knows what data shapes to use. QA knows what workflows to test.
 
-### 3. Cross-project learning (meta-autoresearch)
+### 3. Cross-project learning
 
-Autoresearch improves protocols for one project. What if insights from 50 projects fed back into the harness?
+What if insights from 50 projects fed back into the harness?
 
 - "PM over-specifies footers on marketing sites"
 - "QA catches the same responsive bug in 80% of Next.js projects"
 - "First build attempt on API endpoints fails 60% of the time"
 
-A second optimization loop outside the project loop. The harness evolves based on fleet-level data.
+A learning loop outside the project loop. The harness evolves based on fleet-level data.
 
 ### 4. Agents that negotiate, not just pass/fail
 
@@ -76,32 +76,9 @@ Every piece of harness logic should be designed for deletion. The next model mig
 
 Instead of testing agent output with more AI, verify it with mathematical proofs. LLMs can write proofs in Lean and TLA+. Provable correctness for API contracts, data transformations, state machines.
 
-## Existing self-improvement landscape
+## Self-improvement landscape (historical research)
 
-### Frameworks
-- **DSPy** (Stanford): Bayesian prompt optimization. 46.2% → 64.0% accuracy. Prompt-only, not architecture.
-- **SICA** (Bristol): Agent edits its own source code. Invented AST-based tools autonomously. Gains plateau on reasoning-heavy tasks ("Agent Framework Saturation").
-- **OpenAI Self-Evolving Agents**: 4 graders score output, metaprompt agent rewrites on failure, up to 3 cycles.
-- **MASS**: Optimizes prompts AND agent topology simultaneously.
-- **STO (Self-Taught Optimizer)**: Applies itself to its own code. Rediscovered beam search and simulated annealing without guidance.
-
-### What works in self-improvement
-- Closed loops with strict eval gates and automatic revert
-- Single-variable experiments
-- Optimizing tooling/scaffolding (higher leverage than prompt rewording)
-- Real task benchmarks over synthetic ones
-
-### What doesn't work
-- Optimizing prompts for reasoning-heavy tasks (scaffolding saturates)
-- Multi-variable changes (can't attribute causation)
-- Self-improvement without history (repeats failed experiments)
-- Binary evals (no gradient for the optimizer)
-
-### How our autoresearch compares
-- Ahead of most: nightly benchmark-driven optimization with auto-revert
-- Optimizes protocol documents, not just prompts (higher leverage)
-- Benchmarks test real pipeline behavior, not synthetic tasks
-- Could improve: continuous metrics, cross-benchmark learning, trace-informed hypotheses, structural changes not just wording
+Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI Self-Evolving Agents, MASS, STO). Conclusion: these approaches require rebuilding the system around replay and config-overlay experimentation. Doesn't fit Agent Cortex's architecture. The system learns through its passive learning stack instead — episodes, potentiation, plasticity weights, and dopamine-driven gradients.
 
 ---
 
@@ -271,7 +248,7 @@ But we build toward that end state by building the intent layer *now* — becaus
 - Attention-proportional reporting in the sidebar GUI
 
 ### Phase 4: Learning system (ongoing)
-- Cross-project autoresearch (fleet-level pattern detection)
+- Cross-project learning (fleet-level pattern detection)
 - Failure taxonomy (structured data on *why* things fail, not just *that* they fail)
 - Taste profile refinement from human reactions
 - Adaptive autonomy thresholds

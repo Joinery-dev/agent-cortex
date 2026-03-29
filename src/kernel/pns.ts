@@ -40,7 +40,7 @@ const log = createLogger("pns");
  * Passed in from other brain regions at execution time.
  */
 /** Who is consuming the tools — shapes which capabilities are activated. */
-export type ToolConsumer = "builder" | "evaluator";
+export type ToolConsumer = "builder" | "evaluator" | "observer";
 
 export interface NeurotransmitterSignals {
   /** Norepinephrine: arousal/thoroughness level [0-1] */
@@ -170,6 +170,34 @@ export class PeripheralNervousSystem {
       // Evaluator auto-allows: read-only always, Bash at medium+
       const readOnly = ["Read", "Glob", "Grep"];
       allowedTools = neLevel >= 0.3 ? [...readOnly, "Bash"] : readOnly;
+    } else if (consumer === "observer") {
+      // ── Observer activation: can start processes + perceive, but NEVER modify artifacts. ──
+      // The nursery's runtime exercise mode. Bash is always available (must start servers,
+      // run load tests, check resource usage). Write/Edit/NotebookEdit/Agent/WebSearch forbidden.
+      const forbiddenForObserver = new Set(["Write", "Edit", "NotebookEdit", "Agent", "WebSearch"]);
+      const observerBound = bound.filter(
+        (c) => !forbiddenForObserver.has(c.toolBinding!.toolName),
+      );
+
+      if (neLevel < 0.3) {
+        // Low NE: file-reading + Bash + escalation. No web.
+        activated = observerBound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output" && !c.name.startsWith("Web"))
+          || c.toolBinding!.toolName === "Bash"
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      } else {
+        // Medium/High NE: file-reading + Bash + WebFetch + escalation.
+        // WebFetch lets the observer hit HTTP endpoints under test.
+        activated = observerBound.filter((c) =>
+          (c.direction === "afferent" && c.category === "tool_output")
+          || c.toolBinding!.toolName === "Bash"
+          || alwaysAvailable.has(c.toolBinding!.toolName),
+        );
+      }
+
+      // Observer auto-allows: read-only + Bash always (essential for starting/stopping processes)
+      allowedTools = ["Read", "Glob", "Grep", "Bash"];
     } else {
       // ── Builder activation: full read+write. ──
       // Agent only at high NE (spawning sub-agents is expensive).
@@ -218,7 +246,9 @@ export class PeripheralNervousSystem {
       lines.push("You can act: " + efferent.map((c) => c.name).join(", "));
     }
     if (consumer === "evaluator") {
-      lines.push("You MUST NOT modify any files — you are an observer");
+      lines.push("You MUST NOT modify any files — you are an evaluator");
+    } else if (consumer === "observer") {
+      lines.push("You can start and exercise processes but MUST NOT modify any artifacts — you are a nursery observer");
     }
     const systemContext = lines.join(". ") + ".";
 

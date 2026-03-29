@@ -49,6 +49,31 @@ export const DEFAULT_CONVICTION_THRESHOLDS: ConvictionThresholds = {
   tonicLowThreshold: 0.25,
 };
 
+/**
+ * Compute NE-modulated conviction thresholds.
+ * High NE → lower thresholds (escalate/reshape sooner).
+ * Low NE → higher thresholds (push through more).
+ *
+ * Formula: effectiveThreshold = baseThreshold * (1 - sensitivity * neLevel)
+ * At NE=1.0 with default sensitivity, thresholds drop by 40%.
+ *
+ * Only modulates escalateThreshold and reshapeThreshold — SoL thresholds
+ * and tonicLowThreshold are about physics and project health, not arousal.
+ */
+export function modulateThresholds(
+  base: ConvictionThresholds,
+  neLevel?: number,
+  sensitivity = 0.4,
+): ConvictionThresholds {
+  if (neLevel === undefined) return base;
+  const factor = 1 - sensitivity * Math.max(0, Math.min(1, neLevel));
+  return {
+    ...base,
+    escalateThreshold: base.escalateThreshold * factor,
+    reshapeThreshold: base.reshapeThreshold * factor,
+  };
+}
+
 /** Default conviction when no prior exists. */
 const NEUTRAL_PRIOR = 0.5;
 

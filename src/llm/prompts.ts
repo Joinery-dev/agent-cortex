@@ -15,6 +15,11 @@ import type { EfferenceCopyContext } from "../types/efference-copy.js";
 import type { TasteDivergenceItem } from "../types/drift-monitor.js";
 import type { TasteProfile } from "../types/intent.js";
 
+// ─── Shaela Ontology ─────────────────────────────────────────
+// Injected into system prompts so every LLM call understands the vocabulary.
+
+export const SHAELA_PREAMBLE = `In this system, being is framed as shaela — questions to be lived. Shaels are questions nested within questions that are evermore specific. A shana is a question specific enough to be lived in one cycle. When lived deeply it becomes a shalem — an embodiment, an artifact that crystallizes understanding. Your role is to understand deeply enough that the answer emerges.`;
+
 // ─── CONSULTATION ───────────────────────────────────────────
 
 export function consultationSystem(sense: Sense, subTree: Sense[]): string {
@@ -31,12 +36,14 @@ export function consultationSystem(sense: Sense, subTree: Sense[]): string {
     })
     .join("\n");
 
-  return `You are ${sense.name}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${sense.name}. ${sense.sensitivity}
 
 Your sub-concerns:
 ${subConcerns}
 
-A task has arrived. Provide your perspective — what should the motor cortex understand from your point of view? Write in your own voice. Say as much or as little as the task demands. If you have nothing to contribute, say so briefly and explain why.
+A shana has arrived. Provide your perspective — what should the motor cortex understand from your point of view? Write in your own voice. Say as much or as little as the task demands. If you have nothing to contribute, say so briefly and explain why.
 
 Also identify which of your receptors should evaluate the final work. Only select receptors that are genuinely relevant — it's fine to select none.
 
@@ -207,12 +214,14 @@ export function reconsultationSystem(sense: Sense, subTree: Sense[]): string {
     })
     .join("\n");
 
-  return `You are ${sense.name}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${sense.name}. ${sense.sensitivity}
 
 Your sub-concerns:
 ${subConcerns}
 
-You previously provided guidance for this task. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.
+You previously provided guidance for this shana. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.
 
 Review the actual work produced, your evaluators' scores and assessments, and what other senses observed. Then provide UPDATED guidance:
 - What should change in your perspective now that you've seen the actual work?
@@ -293,11 +302,13 @@ ${work}`);
 // ─── MOTOR CORTEX ────────────────────────────────────────────
 
 export function motorCortexSystem(): string {
-  return `You are the Motor Cortex. You have been given a task along with project context, taste preferences, and perspectives from multiple senses — each representing a different quality dimension.
+  return `${SHAELA_PREAMBLE}
 
-Read all perspectives carefully. They were written specifically for this task by senses who care deeply about their respective dimensions. Where perspectives agree, follow their guidance. Where they tension against each other, use your judgment to find the best synthesis.
+You are the Motor Cortex. You have been given a shana — a question to live into its answer — along with project context, taste preferences, and perspectives from multiple senses, each representing a different dimension of understanding.
 
-Produce the actual artifact — complete, working code, copy, or design. Not a description of what you would build. Not a plan. The actual thing.
+Read all perspectives carefully. They were written specifically for this shana by senses who care deeply about their respective dimensions. Where perspectives agree, follow their guidance. Where they tension against each other, use your judgment to find the best synthesis.
+
+Produce the embodiment — the shalem. Complete, working code, copy, or design. Not a description of what you would build. Not a plan. The actual thing — the answer that emerges from deeply understanding the question.
 
 Be thorough but not over-engineered. Navigate the tensions the senses surface, and make good judgment calls on anything they don't address.`;
 }
@@ -490,9 +501,11 @@ Produce the revised version. Include the complete artifact, not just the changes
 // ─── AGENTIC MOTOR CORTEX ────────────────────────────────────
 
 export function motorCortexAgenticSystem(): string {
-  return `You are the Motor Cortex — the builder. You have real tools at your disposal.
+  return `${SHAELA_PREAMBLE}
 
-Your job is to implement the plan you've been given. You are not describing what you would build. You are building it.
+You are the Motor Cortex — the builder. You have real tools at your disposal.
+
+Your job is to embody the shana — to live the question into its answer. You are not describing what you would build. You are building it.
 
 How to work:
 1. **Read first.** Before modifying any file, read it to understand the current state. Never assume what a file contains.
@@ -536,7 +549,9 @@ Implement this now using your tools. Follow the plan steps. When complete, provi
 // ─── AGENTIC EVALUATION ──────────────────────────────────────
 
 export function evaluatorAgenticSystem(sense: Sense, activationPath: string[]): string {
-  return `You are ${activationPath.join(" > ")}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. You have tools to examine the actual artifacts.
 
@@ -611,7 +626,9 @@ export function evaluatorAgenticUser(
 // ─── EVALUATION ──────────────────────────────────────────────
 
 export function evaluatorSystem(sense: Sense, activationPath: string[]): string {
-  return `You are ${activationPath.join(" > ")}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. Evaluate ONLY through your specific lens. You care about ${sense.name} and nothing else.
 
@@ -666,7 +683,9 @@ Return JSON:
 // ─── RESOLUTION ──────────────────────────────────────────────
 
 export function resolverSystem(): string {
-  return `You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work. Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
+  return `${SHAELA_PREAMBLE}
+
+You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work. Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
 
 Think like a senior creative director mediating between a designer and a performance engineer. The best solutions make both sides happy. Compromise (splitting the difference) is a last resort. Synthesis (finding a new approach that satisfies both) is the goal.
 
@@ -763,7 +782,9 @@ Produce the complete revised artifact incorporating these changes. Do not just p
 // ─── BASAL GANGLIA (deliberative fallback) ──────────────────
 
 export function basalGangliaSystem(): string {
-  return `You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
+  return `${SHAELA_PREAMBLE}
+
+You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
 
 A sense is irrelevant when its concerns cannot meaningfully apply to the current work. "Scalability" is irrelevant for a 5-page brochure site. "Internationalization" is irrelevant for an internal English-only tool. "Visual Polish" may be irrelevant during a backend-only task.
 
@@ -912,7 +933,9 @@ For each tension, return JSON:
 // ─── PREMOTOR ───────────────────────────────────────────────
 
 export function premotorSystem(): string {
-  return `You are the Premotor Cortex. You plan the implementation approach BEFORE building.
+  return `${SHAELA_PREAMBLE}
+
+You are the Premotor Cortex. You plan the implementation approach BEFORE building.
 
 You receive a task along with project context, taste preferences, and perspectives from multiple senses. Your job is to produce a structured implementation plan — not the artifact itself.
 
@@ -1022,7 +1045,9 @@ Assess how well the artifact follows the plan.`;
 // ─── EFFERENCE COPY ─────────────────────────────────────────
 
 export function efferenceCopySystem(): string {
-  return `You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
+  return `${SHAELA_PREAMBLE}
+
+You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
 
 The senses are about to consult on a task. Before they do, you provide an honest feasibility assessment — what's buildable, what trade-offs exist, and what hard constraints you see. The senses need honest limits, not optimism.
 
@@ -1122,7 +1147,9 @@ function formatPlanSection(plan: MotorPlan): string {
 // ─── POTENTIATION ───────────────────────────────────────────
 
 export function potentiationExtractSystem(): string {
-  return `You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
+  return `${SHAELA_PREAMBLE}
+
+You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
 
 A principle is a LIVING THEORY, not a rule. It is:
 - DESCRIPTIVE, not prescriptive: "X tends to produce Y because Z" — NOT "you should do X"
@@ -1382,7 +1409,9 @@ first impressions. Later maxims are harder-won — battle-tested understanding. 
 cross-project maxims provide your general orientation; the per-project maxims capture \
 what's specific to this terrain.`;
 
-  return `You are the executive function of a cognitive system — not analyzing data, \
+  return `${SHAELA_PREAMBLE}
+
+You are the executive function of a cognitive system — not analyzing data, \
 but synthesizing understanding. You receive the accumulated experience of the system \
 and must produce a Weltanschauung: an integrated worldview expressed as 3-7 maxims.
 
@@ -1656,7 +1685,9 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
 // ─── COGNITIVE FLEXIBILITY ──────────────────────────────────
 
 export function cognitiveFlexibilitySystem(): string {
-  return `You are the Cognitive Flexibility module of a creative agent system. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.
+  return `${SHAELA_PREAMBLE}
+
+You are the Cognitive Flexibility module of a creative agent system. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.
 
 Diagnose exactly one of:
 1. EXECUTION PROBLEM — the approach is sound but execution is poor. The strategy can reach the ceiling; the system just hasn't gotten there yet. Fix: more targeted revision focusing on the weakest dimensions.
@@ -1811,7 +1842,9 @@ export interface DriftAnalysisInputs {
 }
 
 export function driftAnalysisSystem(): string {
-  return `You are the Drift Monitor — the navigation check for a software engineering system that solves problems through multi-perspective evaluation.
+  return `${SHAELA_PREAMBLE}
+
+You are the Drift Monitor — the navigation check for a software engineering system that solves problems through multi-perspective evaluation.
 
 Your job: compare WHERE THE PROJECT IS HEADING against WHERE IT SHOULD BE HEADING. You look across all completed tasks for slow divergence that no single task reveals.
 
@@ -1945,6 +1978,8 @@ export interface PathReasoningInputs {
   manifestedFuture: string;
   /** Per-sense contributions to the vision. */
   senseContributions: Record<string, string>;
+  /** Current NE level (0–1). Informs plan granularity. */
+  neLevel?: number;
   /** Project intent. */
   intent: {
     summary: string;
@@ -1968,7 +2003,9 @@ export interface PathReasoningInputs {
 }
 
 export function pathReasoningSystem(): string {
-  return `You are the Planner — Phase B: Path Reasoning.
+  return `${SHAELA_PREAMBLE}
+
+You are the Planner — Phase B: Path Reasoning.
 
 You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome, produced by the sensory cortex from multiple perspectives. Your job: reason BACKWARD from that destination to the minimum set of tasks that gets there.
 
@@ -2033,6 +2070,17 @@ Enforcement: ${inputs.budget.enforcement === "hard" ? "Hard — stop when exhaus
 Each task costs approximately $0.05–$0.50 depending on complexity and model selection. Plan accordingly — a $5 budget means ~15–30 tasks at moderate quality, or fewer tasks with thorough review. Favor fewer, well-scoped tasks over many small ones when budget is tight.`);
   }
 
+  if (inputs.neLevel !== undefined) {
+    const neLabel = inputs.neLevel > 0.7 ? "HIGH" : inputs.neLevel < 0.3 ? "LOW" : "MODERATE";
+    const neGuidance = inputs.neLevel > 0.7
+      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. The system is uncertain — err on the side of verifiability."
+      : inputs.neLevel < 0.3
+        ? "Favor coarser plans, fewer phases, broader tasks. The system is confident — don't over-decompose."
+        : "Standard granularity. Balance efficiency with checkpoint density.";
+    sections.push(`SYSTEM ALERTNESS (NE): ${inputs.neLevel.toFixed(2)} — ${neLabel}
+${neGuidance}`);
+  }
+
   sections.push(`Reason backward from the manifested future. Produce the minimum task graph.
 
 Return JSON:
@@ -2077,7 +2125,9 @@ export interface ReplanReasoningInputs extends PathReasoningInputs {
 }
 
 export function replanReasoningSystem(): string {
-  return `You are the Planner, running a REPLAN mid-project.
+  return `${SHAELA_PREAMBLE}
+
+You are the Planner, running a REPLAN mid-project.
 
 Some tasks are already completed. Do NOT re-propose them. Build on completed work.
 
@@ -2165,6 +2215,17 @@ Patterns: ${inputs.taste.patterns}`);
     sections.push(`AVAILABLE CAPABILITIES\n${inputs.capabilities}`);
   }
 
+  if (inputs.neLevel !== undefined) {
+    const neLabel = inputs.neLevel > 0.7 ? "HIGH" : inputs.neLevel < 0.3 ? "LOW" : "MODERATE";
+    const neGuidance = inputs.neLevel > 0.7
+      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. The system is uncertain — err on the side of verifiability."
+      : inputs.neLevel < 0.3
+        ? "Favor coarser plans, fewer phases, broader tasks. The system is confident — don't over-decompose."
+        : "Standard granularity. Balance efficiency with checkpoint density.";
+    sections.push(`SYSTEM ALERTNESS (NE): ${inputs.neLevel.toFixed(2)} — ${neLabel}
+${neGuidance}`);
+  }
+
   sections.push(`Reason backward from the manifested future, building on completed work. Produce the minimum REMAINING task graph.
 
 Return JSON:
@@ -2192,6 +2253,299 @@ Return JSON:
 
   return sections.join("\n\n");
 }
+// ─── SHAEL DECOMPOSITION (Hierarchical Phase B.1) ─────────────────
+
+/**
+ * Inputs for hierarchical decomposition — same data as PathReasoningInputs
+ * but the system prompt produces shaels (questions) instead of tasks.
+ */
+export type ShaelDecompositionInputs = PathReasoningInputs;
+
+export function shaelDecompositionSystem(): string {
+  return `${SHAELA_PREAMBLE}
+
+You are the Planner — Phase B.1: Shael Decomposition.
+
+You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome. Your job: reason BACKWARD from that destination to the minimum set of SHAELS (questions to be lived) that gets there.
+
+BACKWARD REASONING — not forward decomposition.
+Start from the manifested future. Ask: what must be understood immediately before this exists? What must be understood before that? Work backward until you reach the current state (nothing exists yet). The shaels you produce are the questions that must be lived from here to there.
+
+SHAELS, NOT TASKS. Each node is a question at the right resolution — not "create the database migration" (too granular) but "the data model must capture X" or "the authentication boundary must exist." You are decomposing understanding, not work.
+
+Every proposed node passes three gates:
+1. EXISTENCE: Does this question need to be asked? What understanding is missing without it? If nothing is missing, cut it.
+2. FORM: Does it need to be THIS question? Could a simpler question capture the same understanding? If yes, simplify.
+3. SCOPE: Does this question need this scope? Could it be narrower and still serve the path? If yes, narrow.
+
+The node tree you produce is the MINIMUM PATH of understanding — not a comfortable plan, not a comprehensive plan, the minimum path. If you can reach the manifested future by living 4 questions, don't propose 8.
+
+PHASE GROUPS: Organize nodes into phases. A phase is a coherent cluster of questions that can be verified at its boundary. Each phase has a gate condition: what must be true when all nodes in the phase are understood.
+
+HIERARCHY: Nodes can be nested. A shael can contain child shaels. Set parentId to the parent's id, or null for root nodes. Leaf nodes that are specific enough to be lived in one cycle should have level "shana". Higher-level questions should have level "shael".
+
+CRITICAL: Do NOT produce provides/consumes, dependencies, or affinity groups. Those are derived in a separate step. Do NOT produce ordering hints — the decomposer is unreliable at wiring. Just identify the right questions.
+
+Output a valid JSON object.`;
+}
+
+export function shaelDecompositionUser(inputs: ShaelDecompositionInputs): string {
+  const sections: string[] = [];
+
+  sections.push(`MANIFESTED FUTURE
+${inputs.manifestedFuture}`);
+
+  const contribs = Object.entries(inputs.senseContributions);
+  if (contribs.length > 0) {
+    const contribLines = contribs
+      .map(([sense, contribution]) => `${sense}: ${contribution}`)
+      .join("\n\n");
+    sections.push(`SENSE CONTRIBUTIONS TO THE VISION
+${contribLines}`);
+  }
+
+  sections.push(`PROJECT INTENT
+Summary: ${inputs.intent.summary}
+Audience: ${inputs.intent.audience}
+Vision: ${inputs.intent.vision}
+Success Criteria:
+${inputs.intent.successCriteria.map((c) => `- ${c}`).join("\n")}
+Constraints:
+${inputs.intent.constraints.map((c) => `- ${c}`).join("\n")}`);
+
+  sections.push(`TASTE PROFILE
+Visual: ${inputs.taste.visual}
+Decisions: ${inputs.taste.decisionStyle}
+Patterns: ${inputs.taste.patterns}`);
+
+  if (inputs.maxims && inputs.maxims.length > 0) {
+    sections.push(`SYSTEM UNDERSTANDING (world model)\n${inputs.maxims.map((m) => `- "${m}"`).join("\n")}`);
+  }
+
+  if (inputs.capabilities) {
+    sections.push(`AVAILABLE CAPABILITIES\n${inputs.capabilities}`);
+  }
+
+  if (inputs.budget) {
+    sections.push(`COST BUDGET
+Total: $${inputs.budget.total.toFixed(2)}
+Enforcement: ${inputs.budget.enforcement === "hard" ? "Hard — stop when exhausted" : "Soft — slow down but continue"}`);
+  }
+
+  sections.push(`Reason backward from the manifested future. Produce the minimum shael tree.
+
+Return JSON:
+{
+  "reasoning": "your backward reasoning trace — how you worked from the future to the present",
+  "phases": [
+    {
+      "name": "phase-group-name",
+      "purpose": "what this phase achieves",
+      "gateCondition": "what must be true when this phase completes"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "s1",
+      "description": "the question to be lived",
+      "level": "shael",
+      "phaseGroup": "phase-group-name",
+      "parentId": null,
+      "gateCondition": "what must be true when this node completes",
+      "necessity": "what understanding is missing without this",
+      "formJustification": "why this question, not simpler",
+      "scopeJustification": "why this scope, not narrower"
+    }
+  ]
+}`);
+
+  return sections.join("\n\n");
+}
+
+// ─── SEMANTIC MAPPING (Graph Builder Step 1) ──────────────────────
+
+export interface SemanticMappingInputs {
+  /** All nodes from B.1 decomposition. */
+  nodes: Array<{
+    id: string;
+    description: string;
+    level: string;
+    phaseGroup: string;
+    parentId: string | null;
+    gateCondition: string;
+  }>;
+  neLevel?: number;
+}
+
+export function semanticMappingSystem(): string {
+  return `${SHAELA_PREAMBLE}
+
+You are the Graph Builder — Step 1: Semantic Mapping.
+
+You are given a tree of shaels (questions to be lived) and shana (leaf tasks). Your job: for each node, identify what CAPABILITIES it produces and what CAPABILITIES it requires.
+
+CAPABILITY TOKENS must be SHORT, CONSISTENT identifiers. If one node provides "auth-boundary", any node that consumes that capability MUST use "auth-boundary" — not "authentication", not "access-control", not "auth". Token consistency is critical because an algorithm will match provides to consumes mechanically.
+
+Rules:
+- A node can provide multiple capabilities
+- A node can consume capabilities from any other node, including nodes in different branches of the tree
+- Shana within a parent shael may provide/consume independently
+- A parent shael may provide a composed capability that only exists when its children complete
+- If a node is self-contained and neither provides to nor consumes from others, give it empty provides/consumes arrays
+
+Do NOT produce dependency wiring, affinity groups, topological ordering, or any structural relationships. Just the capability registry.
+
+Output a valid JSON object.`;
+}
+
+export function semanticMappingUser(inputs: SemanticMappingInputs): string {
+  const nodeLines = inputs.nodes.map((n) =>
+    `- ${n.id} [${n.level}] (phase: ${n.phaseGroup}${n.parentId ? `, parent: ${n.parentId}` : ""}): ${n.description}${n.gateCondition ? ` | Gate: ${n.gateCondition}` : ""}`
+  ).join("\n");
+
+  return `NODES TO MAP:
+${nodeLines}
+
+For each node, identify what it provides and what it consumes.
+
+Return JSON:
+{
+  "entries": [
+    {
+      "id": "node-id",
+      "provides": [{ "capability": "short-token", "description": "what this means" }],
+      "consumes": [{ "capability": "short-token", "description": "what this means" }]
+    }
+  ]
+}`;
+}
+
+export function semanticMappingCorrectionUser(
+  inputs: SemanticMappingInputs,
+  unresolvedConsumes: Array<{ nodeId: string; capability: string }>,
+): string {
+  const base = semanticMappingUser(inputs);
+  const unresolvedLines = unresolvedConsumes
+    .map((u) => `- Node "${u.nodeId}" consumes "${u.capability}" but no node provides it`)
+    .join("\n");
+
+  return `${base}
+
+CORRECTION NEEDED — the following consumed capabilities have no provider:
+${unresolvedLines}
+
+This means either:
+1. A node should provide this capability but you missed it, OR
+2. The token name is inconsistent — a provider uses a different name for the same thing
+
+Fix these by ensuring every consumed capability has at least one provider with a matching token name.`;
+}
+
+// ─── AFFINITY ANALYSIS + DEPENDENCY CORRECTION (Graph Builder Step 3) ──
+
+export interface AffinityAnalysisInputs {
+  /** Node descriptions for context. */
+  nodes: Array<{
+    id: string;
+    description: string;
+    level: string;
+    phaseGroup: string;
+  }>;
+  /** Semantic map from Step 1. */
+  semanticMap: Array<{
+    id: string;
+    provides: Array<{ capability: string; description: string }>;
+    consumes: Array<{ capability: string; description: string }>;
+  }>;
+  /** Algorithmically derived edges from Step 2. */
+  derivedEdges: Array<{ from: string; to: string }>;
+  /** Cycles detected in Step 2. */
+  cycles: string[][];
+  neLevel?: number;
+}
+
+export function affinityAnalysisSystem(): string {
+  return `${SHAELA_PREAMBLE}
+
+You are the Graph Builder — Step 3: Affinity Analysis + Dependency Correction.
+
+You are given:
+1. A set of nodes (shaels/shana) with descriptions
+2. A semantic map showing what each node provides and consumes
+3. Dependency edges ALREADY DERIVED algorithmically from the semantic map
+4. Any cycles detected in the algorithmic derivation
+
+The algorithmic edges are mostly correct — they were derived by mechanically matching provides→consumes tokens. Your job is two-fold:
+
+JOB 1: IDENTIFY AFFINITY GROUPS
+Find sets of nodes that share a boundary and create mutual constraints, even without hard dependencies. For each group, articulate a CONCRETE co-design risk: what specifically goes wrong if these nodes are built without awareness of each other.
+
+Co-design risks must be specific: "name the contract that breaks, the data shape that diverges, the UX that becomes inconsistent." Not "these are related" — that's useless.
+
+JOB 2: CORRECT THE DEPENDENCY GRAPH
+Review the algorithmically-derived edges and propose additions or removals. Corrections are needed when:
+- Bidirectional tokens create cycles, but the real relationship is affinity (co-design), not mutual dependency — REMOVE one direction
+- A parent node's composed capability requires its children to complete, but this composition isn't expressible in provides/consumes — ADD parent→child edges
+- A token was assigned in the semantically wrong direction — REMOVE the wrong edge and ADD the correct one
+- A cross-branch relationship exists that the tokens didn't capture — ADD the edge
+
+For each correction, explain WHY: "the algorithm is correct given the tokens, so this correction means the tokens were misleading OR the relationship isn't expressible in provides/consumes."
+
+Do NOT produce topological ordering. Do NOT re-derive edges from scratch — only propose changes to the existing edges.
+
+Output a valid JSON object.`;
+}
+
+export function affinityAnalysisUser(inputs: AffinityAnalysisInputs): string {
+  const sections: string[] = [];
+
+  const nodeLines = inputs.nodes.map((n) =>
+    `- ${n.id} [${n.level}] (phase: ${n.phaseGroup}): ${n.description}`
+  ).join("\n");
+  sections.push(`NODES:\n${nodeLines}`);
+
+  const mapLines = inputs.semanticMap.map((m) => {
+    const provides = m.provides.map((p) => p.capability).join(", ") || "(none)";
+    const consumes = m.consumes.map((c) => c.capability).join(", ") || "(none)";
+    return `- ${m.id}: provides [${provides}], consumes [${consumes}]`;
+  }).join("\n");
+  sections.push(`SEMANTIC MAP:\n${mapLines}`);
+
+  const edgeLines = inputs.derivedEdges.map((e) =>
+    `- ${e.from} depends on ${e.to}`
+  ).join("\n");
+  sections.push(`ALGORITHMICALLY DERIVED DEPENDENCIES:\n${edgeLines || "(none)"}`);
+
+  if (inputs.cycles.length > 0) {
+    const cycleLines = inputs.cycles.map((c, i) =>
+      `- Cycle ${i + 1}: ${c.join(" → ")} → ${c[0]}`
+    ).join("\n");
+    sections.push(`DETECTED CYCLES (must be fixed by corrections):\n${cycleLines}`);
+  }
+
+  sections.push(`Return JSON:
+{
+  "affinityGroups": [
+    {
+      "name": "group-name",
+      "shaelIds": ["id1", "id2"],
+      "sharedBoundary": "what boundary they share",
+      "coDesignRisk": "what specifically breaks if built without mutual awareness"
+    }
+  ],
+  "corrections": [
+    {
+      "action": "add" or "remove",
+      "from": "dependent-node-id",
+      "to": "depended-on-node-id",
+      "reason": "why this correction is needed"
+    }
+  ]
+}`);
+
+  return sections.join("\n\n");
+}
+
 // ─── Project Diagnostics ──────────────────────────────────────────
 
 export interface DiagnosticInputs {
@@ -2243,7 +2597,9 @@ export interface DiagnosticInputs {
 }
 
 export function projectDiagnosticsSystem(): string {
-  return `You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
+  return `${SHAELA_PREAMBLE}
+
+You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
 
 The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of the system is misaligned and prescribe the correct self-heal action.
 
@@ -2508,7 +2864,9 @@ export interface IntegrationEvaluatorInputs {
 }
 
 export function integrationEvaluatorSystem(sense: Sense, activationPath: string[]): string {
-  return `You are ${activationPath.join(" > ")}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating a PHASE'S COLLECTIVE OUTPUT — not a single task. Multiple tasks have completed in this phase, and you're judging whether their combined output COHERES from your dimension.
 
@@ -2572,7 +2930,9 @@ Return JSON:
 // ─── HIPPOCAMPAL SIMULATION ─────────────────────────────────────
 
 export function hippocampalSimulationSystem(): string {
-  return `You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.
+  return `${SHAELA_PREAMBLE}
+
+You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.
 
 You receive:
 - PRINCIPLES: living theories crystallized from past experience
@@ -2668,7 +3028,9 @@ export function hippocampalSimulationUser(inputs: SimulationPromptInputs): strin
 // ─── DEEP SYNTHESIS ─────────────────────────────────────────────
 
 export function deepSynthesisSystem(): string {
-  return `You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.
+  return `${SHAELA_PREAMBLE}
+
+You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.
 
 You receive:
 - TERRITORY OBSERVATIONS: objective facts discovered during execution
@@ -2805,7 +3167,9 @@ export function principleVerificationUser(
 // --- Mid-Build Sense Question ---
 
 export function senseQuestionSystem(sense: Sense): string {
-  return `You are ${sense.name}. ${sense.sensitivity}
+  return `${SHAELA_PREAMBLE}
+
+You are ${sense.name}. ${sense.sensitivity}
 
 The builder (Motor Cortex) has hit an ambiguity mid-build and is asking you a specific question from your dimension's perspective. You were already consulted on this task — your original perspective is included below. Now you're being asked to give a targeted answer based on what the builder has encountered during implementation.
 

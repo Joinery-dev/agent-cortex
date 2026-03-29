@@ -23,10 +23,11 @@ import { emit } from "../events.js";
 // ─── Defaults ────────────────────────────────────────────────────
 
 export const DEFAULT_NE_WEIGHTS: NEWeights = {
-  maturity: 0.30,   // Biggest factor early on, shrinks as system matures
-  risk: 0.25,       // Steady contribution from task risk factors
-  novelty: 0.25,    // Dominates for novel tasks even in a mature system
-  conviction: 0.20, // Conviction erosion raises NE noticeably
+  maturity: 0.27,   // Biggest factor early on, shrinks as system matures
+  risk: 0.23,       // Steady contribution from task risk factors
+  novelty: 0.23,    // Dominates for novel tasks even in a mature system
+  conviction: 0.17, // Conviction erosion raises NE noticeably
+  urgency: 0.10,    // Human-declared urgency — the human → NE path
 };
 
 /**
@@ -46,6 +47,7 @@ const AVG_BLEND = 1.0 - MAX_BLEND;
  *   cerebellumAccuracy → 0.5 (unknown, not the Cerebellum's optimistic 0.8)
  *   bestSimilarity     → 0   (maximum novelty — no match found)
  *   convictionLevel    → 0.5 (neutral — conviction hasn't run yet)
+ *   humanUrgency       → 0.25 (normal — no urgency declared)
  *   risk               → all zeros (no risk factors present)
  *   amygdalaOverride   → false
  */
@@ -62,6 +64,7 @@ export function computeNE(
         riskComponent: 0,
         noveltyComponent: 0,
         convictionComponent: 0,
+        urgencyComponent: 0,
         amygdalaOverride: true,
       },
     };
@@ -82,6 +85,10 @@ export function computeNE(
     rf.wmPressure ?? 0,
     rf.weightVolatility ?? 0,
     rf.budgetPressure ?? 0,
+    rf.observationPressure ?? 0,
+    rf.exteroceptivePressure ?? 0,
+    rf.recentFailure ?? 0,
+    rf.taskComplexity ?? 0,
   ];
   const riskComponent = Math.max(...riskSignals, 0);
 
@@ -93,18 +100,24 @@ export function computeNE(
   //    Low conviction → high component → NE rises.
   const convictionComponent = 1.0 - (inputs.convictionLevel ?? 0.5);
 
+  // 5. Urgency component: direct mapping from human urgency.
+  //    Absent → 0.25 (normal urgency).
+  const urgencyComponent = inputs.humanUrgency ?? 0.25;
+
   // Max-blend: weighted average + strongest single signal
   const weightedAvg =
     weights.maturity * maturityComponent +
     weights.risk * riskComponent +
     weights.novelty * noveltyComponent +
-    weights.conviction * convictionComponent;
+    weights.conviction * convictionComponent +
+    weights.urgency * urgencyComponent;
 
   const maxComponent = Math.max(
     maturityComponent,
     riskComponent,
     noveltyComponent,
     convictionComponent,
+    urgencyComponent,
   );
 
   const ne = Math.min(1.0, Math.max(0.0, AVG_BLEND * weightedAvg + MAX_BLEND * maxComponent));
@@ -114,10 +127,53 @@ export function computeNE(
     riskComponent,
     noveltyComponent,
     convictionComponent,
+    urgencyComponent,
     amygdalaOverride: false,
   };
 
   return { ne, components };
+}
+
+// ─── Urgency mapping ────────────────────────────────────────────
+
+/** Map ProjectIntent.urgency to a 0–1 NE input. */
+export function mapUrgencyToNE(urgency?: "low" | "normal" | "high" | "critical"): number {
+  switch (urgency) {
+    case "low": return 0.0;
+    case "normal": return 0.25;
+    case "high": return 0.65;
+    case "critical": return 1.0;
+    default: return 0.25;
+  }
+}
+
+// ─── Task complexity ────────────────────────────────────────────
+
+/**
+ * Compute task complexity from structural signals.
+ *
+ * @param dependencyCount  Number of tasks this depends on (integration surface)
+ * @param descriptionLength  Character count of task description (scope proxy)
+ * @param highStakeSenseCount  Senses with stake > 0.7 for this task
+ * @param totalSenseCount  Total active senses
+ * @returns 0–1 where higher = more complex
+ */
+export function computeTaskComplexity(
+  dependencyCount: number,
+  descriptionLength: number,
+  highStakeSenseCount: number,
+  totalSenseCount: number,
+): number {
+  // Dependency factor: more deps = more integration surface (caps at 5)
+  const depFactor = Math.min(1, dependencyCount / 5);
+  // Scope factor: long descriptions suggest broad scope (caps at 500 chars)
+  const scopeFactor = Math.min(1, descriptionLength / 500);
+  // Stake factor: proportion of high-stake senses
+  const stakeFactor = totalSenseCount > 0
+    ? highStakeSenseCount / totalSenseCount
+    : 0;
+  // Weighted combination (not max — complexity is additive)
+  return Math.min(1, 0.3 * depFactor + 0.3 * scopeFactor + 0.4 * stakeFactor);
 }
 
 // ─── Risk factor extraction helpers ──────────────────────────────
@@ -140,6 +196,13 @@ export function extractRiskFromSchedulerSignals(
     };
     vitals: { weightVolatility: number };
     observationPressure?: number;
+    lastTaskDopamine?: number;
+  },
+  taskMetadata?: {
+    dependencyCount: number;
+    descriptionLength: number;
+    highStakeSenseCount: number;
+    totalSenseCount: number;
   },
 ): import("../types/norepinephrine.js").RiskFactors {
   const done = new Set([...signals.completedTaskIds, ...signals.escalatedTaskIds]);
@@ -161,6 +224,12 @@ export function extractRiskFromSchedulerSignals(
   const downCount = senseTrends.filter((t) => t.direction === "down").length;
   const decliningTrends = senseTrends.length > 0 ? downCount / senseTrends.length : 0;
 
+  // Recency of failure: negative dopamine from the last task = heightened risk
+  const lastDop = signals.lastTaskDopamine;
+  const recentFailure = lastDop !== undefined && lastDop < 0
+    ? Math.min(1, Math.abs(lastDop))
+    : 0;
+
   return {
     phaseGateProximity,
     dependencyFanOut,
@@ -168,5 +237,14 @@ export function extractRiskFromSchedulerSignals(
     wmPressure: signals.wmSnapshot.load,
     weightVolatility: signals.vitals.weightVolatility,
     observationPressure: signals.observationPressure,
+    recentFailure,
+    taskComplexity: taskMetadata
+      ? computeTaskComplexity(
+          taskMetadata.dependencyCount,
+          taskMetadata.descriptionLength,
+          taskMetadata.highStakeSenseCount,
+          taskMetadata.totalSenseCount,
+        )
+      : undefined,
   };
 }

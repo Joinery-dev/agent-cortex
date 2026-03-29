@@ -141,7 +141,7 @@ export class CognitiveFlexibility {
    *   tension-evasion    → system is avoiding a dimension
    *   irreconcilable     → needs human information to proceed
    */
-  assessDispatch(context: DispatchFlexibilityContext): FlexibilityAssessment {
+  assessDispatch(context: DispatchFlexibilityContext, neLevel?: number): FlexibilityAssessment {
     const {
       taskGraph, completedTaskIds, escalatedTaskIds,
       senseTrends, schedulerEscalation,
@@ -151,8 +151,15 @@ export class CognitiveFlexibility {
     const escalated = escalatedTaskIds.size;
     const escalationRate = total > 0 ? escalated / total : 0;
 
+    // NE-modulated escalation rate threshold: high NE → escalate sooner
+    const baseEscalationRate = 0.4;
+    const sensitivity = 0.4;
+    const effectiveEscalationRate = neLevel !== undefined
+      ? baseEscalationRate * (1 - sensitivity * Math.max(0, Math.min(1, neLevel)))
+      : baseEscalationRate;
+
     // Heuristic 1: High escalation rate → strategy-limited
-    if (escalationRate > 0.4) {
+    if (escalationRate > effectiveEscalationRate) {
       log.info("Dispatch flexibility: high escalation rate", { escalationRate: escalationRate.toFixed(2) });
       return {
         diagnosis: "strategy-limited",

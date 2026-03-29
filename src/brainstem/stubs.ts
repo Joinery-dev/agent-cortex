@@ -17,6 +17,7 @@ import type { SensoryCortex } from "../senses/cortex.js";
 import type { ResolutionOutcome } from "../types/tension.js";
 import type { SimulatedScenario, SimulationTrigger } from "../types/hippocampal-simulation.js";
 import type { TerritoryObservation } from "../types/territory-observation.js";
+import type { ExteroceptiveBatch, BatchAction } from "../types/exteroception.js";
 import { createLogger } from "../util/logger.js";
 
 const log = createLogger("subcortical-hooks");
@@ -64,6 +65,10 @@ export interface SubcorticalHooks {
   computeDopamineSignal(
     taskId: string,
     evaluations: SenseEvaluation[],
+    cycleData?: {
+      outerCycles: number;
+      attentionBudget?: { floor: number; expected: number; ceiling: number };
+    },
   ): Promise<number>;
 
   /** Hippocampus: record a full task episode with its dopamine signal. */
@@ -119,6 +124,16 @@ export interface SubcorticalHooks {
   getCerebellumAccuracy(): number;
 
   /**
+   * Cerebellum: predict outer cycle distribution from similar episodes.
+   * Requires a TaskFingerprint (available after consultation).
+   * Returns null on cold start (insufficient episodes with cycle data).
+   * Called during sensory-cortex prepare to refine the attention budget.
+   */
+  predictCycleDistribution(
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/attention-budget.js").CyclePercentiles | null;
+
+  /**
    * Hippocampus: constructive episodic simulation.
    * Recombines principles + episodes + world model to imagine
    * future failure scenarios. Called at phase gates, after
@@ -136,6 +151,18 @@ export interface SubcorticalHooks {
    * Optional — no-op when hippocampus isn't wired.
    */
   dismissSimulation?(scenarioId: string, materialized: boolean): void;
+
+  /**
+   * Exteroception: assemble batch of accumulated external signals for processing.
+   * Returns null when no pending signals exist.
+   */
+  assembleExteroceptiveBatch(): ExteroceptiveBatch | null;
+
+  /**
+   * Exteroception: record the outcome of batch processing (closes feedback loop).
+   * Per-signal action/no-action feeds back to the mini cerebellum for cadence learning.
+   */
+  recordExteroceptiveBatchOutcome(actions: BatchAction[]): void;
 }
 
 /**
@@ -179,6 +206,10 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
   async computeDopamineSignal(
     taskId: string,
     _evaluations: SenseEvaluation[],
+    _cycleData?: {
+      outerCycles: number;
+      attentionBudget?: { floor: number; expected: number; ceiling: number };
+    },
   ): Promise<number> {
     log.debug("[stub] computeDopamineSignal", { taskId });
     return 0;
@@ -246,6 +277,13 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
     return 0.5; // Conservative unknown
   }
 
+  predictCycleDistribution(
+    _fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/attention-budget.js").CyclePercentiles | null {
+    log.debug("[stub] predictCycleDistribution");
+    return null;
+  }
+
   async simulate(
     _trigger: SimulationTrigger,
     _remainingTasks: TaskGraphNode[],
@@ -254,5 +292,14 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
   ): Promise<SimulatedScenario[]> {
     log.debug("[stub] simulate");
     return [];
+  }
+
+  assembleExteroceptiveBatch(): ExteroceptiveBatch | null {
+    log.debug("[stub] assembleExteroceptiveBatch");
+    return null;
+  }
+
+  recordExteroceptiveBatchOutcome(actions: BatchAction[]): void {
+    log.debug("[stub] recordExteroceptiveBatchOutcome", { count: actions.length });
   }
 }
