@@ -23,6 +23,7 @@ import { createLogger } from "../util/logger.js";
 import { emit, emitError, emitCritical, bus } from "../events.js";
 import type { RhythmContext, EventDiagnosticContext } from "../events.js";
 import { EscalationError, RhythmAbortedError } from "./errors.js";
+import { getStepBarrier } from "../trace/step-barrier.js";
 
 const log = createLogger("rhythm-runner");
 
@@ -216,6 +217,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
       // ── Prepare ─────────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "prepare");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:prepare`);
 
       const prepared = await this.runPhase(
         "prepare", state, undefined,
@@ -225,6 +227,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
       // ── Execute ─────────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "execute");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:execute`);
 
       const executed = await this.runPhase(
         "execute", state, prepared,
@@ -234,6 +237,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
       // ── Integrate ───────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "integrate");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:integrate`);
 
       const integrated = await this.runPhase(
         "integrate", state, executed,
@@ -242,6 +246,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
 
       // ── Gate ────────────────────────────────────────────
       this.transitionPhase(state, "gate");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:gate`);
 
       const decision: GateDecision<TRes> = await this.runPhase(
         "gate", state, integrated,

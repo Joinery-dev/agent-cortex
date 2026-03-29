@@ -11,6 +11,8 @@ import { getTraceCollector } from "./collector.js";
 import { getContentStore } from "./content-store.js";
 import { TraceStepper } from "./stepper.js";
 import { narrate, narrateAll } from "./narrator.js";
+import { getExecutionController } from "./execution-controller.js";
+import { getStepBarrier } from "./step-barrier.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -119,6 +121,14 @@ function notFound(res: ServerResponse, message = "Not found"): void {
   json(res, { error: message }, 404);
 }
 
+async function readBody(req: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) {
+    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
+  }
+  return Buffer.concat(chunks).toString("utf-8");
+}
+
 // ─── Route handler ──────────────────────────────────────────────
 
 export function handleTraceRequest(req: IncomingMessage, res: ServerResponse): boolean {
@@ -141,7 +151,7 @@ export function handleTraceRequest(req: IncomingMessage, res: ServerResponse): b
   // ── HTML page ─────────────────────────────────────────────────
   if (url === "/trace" || url === "/trace/") {
     try {
-      const html = readFileSync(join(__dirname, "..", "..", "src", "trace", "trace.html"), "utf-8");
+      const html = readFileSync(join(__dirname, "..", "..", "src", "dashboard", "trace.html"), "utf-8");
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(html);
     } catch {
@@ -452,6 +462,86 @@ export function handleTraceRequest(req: IncomingMessage, res: ServerResponse): b
       }
       json(res, stepper.getState());
     });
+    return true;
+  }
+
+  // ── Execution control endpoints ─────────────────────────────
+
+  if (url === "/trace/api/exec/status") {
+    const ctrl = getExecutionController();
+    if (!ctrl) {
+      json(res, { mode: "live", label: "", isPaused: false, replay: { active: false, served: 0, total: 0, remaining: 0 } });
+    } else {
+      json(res, ctrl.getStatus());
+    }
+    return true;
+  }
+
+  if (url === "/trace/api/exec/pause" && method === "POST") {
+    const ctrl = getExecutionController();
+    if (ctrl) ctrl.pause();
+    else getStepBarrier().enable();
+    json(res, { ok: true, ...(ctrl?.getStatus() ?? { mode: "paused" }) });
+    return true;
+  }
+
+  if (url === "/trace/api/exec/step" && method === "POST") {
+    const ctrl = getExecutionController();
+    if (ctrl) ctrl.step();
+    else getStepBarrier().release();
+    json(res, { ok: true, ...(ctrl?.getStatus() ?? {}) });
+    return true;
+  }
+
+  if (url === "/trace/api/exec/resume" && method === "POST") {
+    const ctrl = getExecutionController();
+    if (ctrl) ctrl.resume();
+    else getStepBarrier().disable();
+    json(res, { ok: true, ...(ctrl?.getStatus() ?? { mode: "live" }) });
+    return true;
+  }
+
+  if (url === "/trace/api/exec/replay-from" && method === "POST") {
+    const ctrl = getExecutionController();
+    if (!ctrl) {
+      json(res, { error: "No execution controller registered" }, 400);
+      return true;
+    }
+    readBody(req).then((body) => {
+      const data = JSON.parse(body || "{}");
+      const contentId = data.contentId;
+      if (typeof contentId !== "number") {
+        json(res, { error: "contentId required" }, 400);
+        return;
+      }
+      ctrl.replayFrom(contentId).catch(() => {});
+      json(res, { ok: true, replayingFrom: contentId, ...(ctrl.getStatus()) });
+    }).catch(() => {
+      json(res, { error: "Invalid request body" }, 400);
+    });
+    return true;
+  }
+
+  if (url === "/trace/exec-stream") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    // Send initial state
+    const ctrl = getExecutionController();
+    const state = ctrl?.getStatus() ?? { mode: "live", label: "", isPaused: false };
+    res.write(`data: ${JSON.stringify(state)}\n\n`);
+
+    // Subscribe to barrier changes
+    const unsub = getStepBarrier().onChange((mode, label) => {
+      const status = ctrl?.getStatus() ?? { mode, label, isPaused: getStepBarrier().isPaused };
+      res.write(`data: ${JSON.stringify(status)}\n\n`);
+    });
+
+    req.on("close", () => unsub());
     return true;
   }
 

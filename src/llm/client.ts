@@ -4,6 +4,8 @@ import { emitInfo, emitWarn, emitError } from "../events.js";
 import { computeCallCost } from "../types/cost.js";
 import type { CostRecord } from "../types/cost.js";
 import { getContentStore, contentBlock } from "../trace/content-store.js";
+import { getStepBarrier } from "../trace/step-barrier.js";
+import { checkReplayInterceptor } from "./replay-interceptor.js";
 
 const log = createLogger("llm-client");
 
@@ -115,6 +117,32 @@ export async function call(
   _maxTokens?: number,
   signal?: AbortSignal
 ): Promise<CallResult> {
+  // Step barrier — blocks if step-by-step mode is active
+  await getStepBarrier().checkpoint(`llm:${purpose}`);
+
+  // Replay interceptor — return cached response if available
+  const cached = checkReplayInterceptor(purpose, system, userMessage);
+  if (cached) {
+    const usage: TokenUsage = { inputTokens: cached.tokens.input, outputTokens: cached.tokens.output };
+    totalUsage[purpose].inputTokens += usage.inputTokens;
+    totalUsage[purpose].outputTokens += usage.outputTokens;
+    // Record to content store even during replay (for trace continuity)
+    getContentStore().record({
+      eventSeq: null,
+      kind: "llm-call",
+      timestamp: new Date().toISOString(),
+      component: purpose,
+      taskId: currentTaskId,
+      inputs: [contentBlock("System prompt", system), contentBlock("User message", userMessage)],
+      outputs: [contentBlock("LLM response", cached.text)],
+      purpose,
+      model: cached.model,
+      tokens: { input: usage.inputTokens, output: usage.outputTokens },
+      costDollars: 0, // replay is free
+    });
+    return { text: cached.text, usage, model: cached.model, costDollars: 0 };
+  }
+
   const sdkModel = resolveModel(model);
 
   log.debug(`${purpose} call via Agent SDK (${sdkModel})`, {
@@ -333,6 +361,41 @@ export async function agenticCall(
   toolSet: ActivatedToolSet,
   opts?: AgenticCallOpts,
 ): Promise<AgenticMotorResult> {
+  // Step barrier — blocks if step-by-step mode is active
+  await getStepBarrier().checkpoint(`llm:${purpose} (agentic)`);
+
+  // Replay interceptor — return cached response if available
+  const cached = checkReplayInterceptor(purpose, system, userMessage);
+  if (cached) {
+    const usage: TokenUsage = { inputTokens: cached.tokens.input, outputTokens: cached.tokens.output };
+    totalUsage[purpose].inputTokens += usage.inputTokens;
+    totalUsage[purpose].outputTokens += usage.outputTokens;
+    getContentStore().record({
+      eventSeq: null,
+      kind: "llm-call",
+      timestamp: new Date().toISOString(),
+      component: purpose,
+      taskId: currentTaskId,
+      inputs: [contentBlock("System prompt", system), contentBlock("User message", userMessage)],
+      outputs: [
+        contentBlock("LLM response", cached.text),
+        ...(cached.toolTraceText ? [contentBlock("Tool trace", cached.toolTraceText)] : []),
+      ],
+      purpose,
+      model: cached.model,
+      tokens: { input: usage.inputTokens, output: usage.outputTokens },
+      costDollars: 0,
+    });
+    return {
+      summary: cached.text,
+      toolTrace: [], // tools don't re-execute during replay
+      turns: 1,
+      usage,
+      costDollars: 0,
+      durationMs: 0,
+    };
+  }
+
   const sdkModel = resolveModel(model);
   const maxTurns = opts?.maxTurns ?? 15;
   const startTime = Date.now();
