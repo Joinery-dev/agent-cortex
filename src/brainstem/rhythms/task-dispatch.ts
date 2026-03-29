@@ -57,13 +57,14 @@ import { setCostTaskId } from "../../llm/client.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { reallocateBudget } from "../../kernel/budget-allocator.js";
 import { computeAttentionBudget } from "../../kernel/attention-budget.js";
+import { simulationRelevanceThreshold } from "../../types/territory-observation.js";
 
 const log = createLogger("task-dispatch");
 
 // ─── Intermediate types ─────────────────────────────────────────
 
 interface PreparedDispatch {
-  action: "run-task" | "run-rest" | "run-nursery" | "done" | "escalate" | "replan";
+  action: "run-task" | "run-rest" | "run-nursery" | "run-observe" | "done" | "escalate" | "replan";
   task?: TaskGraphNode;
   restContext?: RestCycleContext;
   /** NE level from Scheduler — passed through to sensory-cortex context. */
@@ -85,7 +86,7 @@ interface PreparedDispatch {
 }
 
 interface ExecutedDispatch {
-  action: "task-completed" | "task-escalated" | "rested" | "done" | "scheduler-escalated" | "replan-requested" | "nursery-completed";
+  action: "task-completed" | "task-escalated" | "rested" | "done" | "scheduler-escalated" | "replan-requested" | "nursery-completed" | "observed";
   taskId?: string;
   taskResult?: SensoryCortexResult;
   restResult?: RestCycleResult;
@@ -97,6 +98,10 @@ interface ExecutedDispatch {
   nurseryResult?: import("../../types/nursery.js").NurseryResult;
   /** Phase group that was nursed. */
   nurseryPhaseGroup?: string;
+  /** Quick triage result from observe action. */
+  observeTriageResult?: import("../../kernel/quick-triage.js").QuickTriageResult;
+  /** Deep synthesis result from observe (only when NE high or pressure critical). */
+  observeSynthesisResult?: import("../../kernel/deep-synthesis.js").DeepSynthesisResult;
 }
 
 interface IntegratedDispatch {
@@ -109,7 +114,7 @@ interface IntegratedDispatch {
   /** Non-null when the Scheduler wants to replan. */
   replanRequest?: string;
   /** PFC intervention flags from homeostasis, for gate-level processing. */
-  pfcFlags?: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }>;
+  pfcFlags?: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed" | "weight-displacement-high"; reason: string }>;
   /** Present when a phase gate fired during this integration. */
   phaseGateResult?: PhaseGateResult;
   /** Quick triage flagged deep synthesis should run early. */
@@ -118,6 +123,8 @@ interface IntegratedDispatch {
   appliedSurgery?: SurgeryResult;
   /** Deep synthesis determined blast radius too high → replan instead. */
   synthesisReplanRequired?: boolean;
+  /** Non-null when nursery fix cycles exceeded the max — escalate to human. */
+  nurseryStuck?: { phaseGroup: string; cycle: number; findingCount: number };
 }
 
 // ─── Accumulator ────────────────────────────────────────────────
@@ -286,6 +293,8 @@ function assembleSignals(
       : undefined,
     // Proactive Discovery: territory observation pressure
     observationPressure: wm.getObservationPressure() > 0 ? wm.getObservationPressure() : undefined,
+    // Exteroception: signal pressure for NE risk computation
+    exteroceptivePressure: hooks.getExteroceptivePressure() > 0 ? hooks.getExteroceptivePressure() : undefined,
     // Homeostasis PFC flags — cognitive-level problems that rest can't fix
     pfcFlags: (() => {
       const flags = homeostasis.needsPfcIntervention();
@@ -296,6 +305,8 @@ function assembleSignals(
     budgetExhausted: costTracker?.isExhausted() || undefined,
     // NE recency-of-failure: last task's aggregate dopamine
     lastTaskDopamine: acc.lastDopamine,
+    // NE ambient level: last dispatched task's NE (for observe threshold)
+    lastNELevel: acc.lastNELevel,
     // NE human urgency: mapped from ProjectIntent.urgency
     humanUrgency: mapUrgencyToNE(context.intent.urgency),
     taskBudgets: costTracker ? (() => {
@@ -525,6 +536,13 @@ export function createTaskDispatchDefinition(
           };
         }
 
+        case "observe":
+          log.info("Scheduler requested observe", {
+            reason: decision.reason,
+            neLevel: decision.neLevel,
+          });
+          return { action: "run-observe", neLevel: decision.neLevel };
+
         case "escalate":
           log.info("Scheduler escalating", { reason: decision.reason, escalationType: decision.escalationType });
           return {
@@ -573,6 +591,145 @@ export function createTaskDispatchDefinition(
           state.id,
         );
         return { action: "rested", restResult };
+      }
+
+      if (prepared.action === "run-observe") {
+        const acc = getAcc(state);
+        const neLevel = prepared.neLevel ?? acc.lastNELevel;
+
+        // 1. Quick triage — focused session on accumulated observations
+        const triageResult = quickTriage(
+          wm, acc.liveGraph, acc.completedTasks, acc.escalatedTasks, neLevel,
+        );
+
+        // Apply amend proposals from triage (same pattern as between-tasks)
+        for (const proposal of triageResult.proposals) {
+          const validation = validateProposal(
+            proposal, acc.liveGraph, acc.completedTasks, wm.getCurrentTaskId(),
+          );
+          if (validation.valid) {
+            const result = applySurgery(proposal.id, proposal.operations, acc.liveGraph, acc.completedTasks);
+            acc.liveGraph = result.graph;
+            for (const insertedId of result.insertedTaskIds) {
+              const node = acc.liveGraph.find((n) => n.task.id === insertedId);
+              if (node) {
+                try { wm.addTask(insertedId, node.task.description); } catch { /* already added */ }
+              }
+            }
+          } else {
+            emitWarn("observe:triage-proposal-dropped", {
+              proposalId: proposal.id,
+              issues: validation.issues,
+            }, {
+              component: "observe",
+              expected: "valid proposal",
+              received: `invalid: ${validation.issues.join("; ")}`,
+            });
+            for (const obsId of proposal.grounding) {
+              wm.unmarkObservationTriaged(obsId);
+            }
+          }
+        }
+
+        // 2. Check if deep synthesis should run
+        const postTriagePressure = wm.getObservationPressure();
+        const shouldDeepSynthesize = neLevel > 0.7 || postTriagePressure > 0.85;
+
+        // 3. Anti-loop guard: if triage produced nothing and no deep synthesis will run,
+        //    mark remaining "new" observations as "triaged" to prevent re-triggering.
+        //    They remain available for deep synthesis at the next phase gate.
+        if (triageResult.proposals.length === 0 && !shouldDeepSynthesize) {
+          for (const obs of wm.getNewObservations()) {
+            wm.markObservationTriaged(obs.id);
+          }
+        }
+
+        // 4. Conditional deep synthesis: NE high or pressure critical
+        let synthesisResult: import("../../kernel/deep-synthesis.js").DeepSynthesisResult | undefined;
+        if (shouldDeepSynthesize) {
+          const harvest = thalamus.harvestObservations({ neLevel });
+          const allObs = harvest.observations;
+          const remainingTasks = acc.liveGraph.filter(
+            (n) => !acc.completedTasks.has(n.task.id) && !acc.escalatedTasks.has(n.task.id),
+          );
+
+          if (allObs.length > 0 && remainingTasks.length > 0) {
+            const recentCompletedId = [...acc.completedTasks].slice(-1)[0];
+            const recentNode = acc.liveGraph.find((n) => n.task.id === recentCompletedId);
+            const phaseGroup = recentNode?.phaseGroup ?? "observe";
+
+            synthesisResult = await deepSynthesis(
+              {
+                observations: allObs,
+                simulations: [], // Observe processes what exists; simulation is phase-gate's job
+                maxims: worldModel?.getMaximsForBriefing() ?? [],
+                drift: driftMonitor?.getAssessment() ?? null,
+                remainingTasks,
+                completedTaskIds: acc.completedTasks,
+                manifestedFuture: thalamus.getManifestedFuture() ?? "",
+                phaseGroup,
+              },
+              config.models.consultation,
+              acc.discoveryCounter,
+            );
+
+            // Mark observations as synthesized
+            for (const obs of allObs) {
+              wm.markObservationSynthesized(obs.id, "observe-synthesis");
+            }
+
+            // 5. Apply valid surgery proposals (no conviction — observe is the pressure valve)
+            if (!synthesisResult.shouldReplan) {
+              for (const proposal of synthesisResult.proposals) {
+                const validation = validateProposal(
+                  proposal, acc.liveGraph, acc.completedTasks, null,
+                );
+                if (validation.valid) {
+                  const result = applySurgery(
+                    proposal.id, proposal.operations, acc.liveGraph, acc.completedTasks,
+                  );
+                  acc.liveGraph = result.graph;
+                  acc.discoveryCounter += result.insertedTaskIds.length;
+
+                  for (const insertedId of result.insertedTaskIds) {
+                    const node = acc.liveGraph.find((n) => n.task.id === insertedId);
+                    if (node) {
+                      try { wm.addTask(insertedId, node.task.description); } catch { /* already added */ }
+                    }
+                  }
+                  for (const reopenedId of result.reopenedTaskIds) {
+                    try {
+                      wm.reopenTask(reopenedId, `Rework via observe synthesis ${proposal.id}`);
+                    } catch {
+                      log.warn("Could not reopen task in WM", { taskId: reopenedId });
+                    }
+                  }
+                } else {
+                  log.warn("Observe surgery proposal validation failed", {
+                    proposalId: proposal.id,
+                    issues: validation.issues,
+                  });
+                }
+              }
+            }
+          }
+        }
+
+        emit("observe:complete", {
+          triaged: triageResult.observationsTriaged,
+          proposals: triageResult.proposals.length,
+          deepSynthesis: !!synthesisResult,
+          shouldReplan: synthesisResult?.shouldReplan,
+          surgeryProposals: synthesisResult?.proposals.length ?? 0,
+          neLevel,
+          pressure: postTriagePressure,
+        });
+
+        return {
+          action: "observed",
+          observeTriageResult: triageResult,
+          observeSynthesisResult: synthesisResult,
+        };
       }
 
       if (prepared.action === "run-nursery" && prepared.nurseryPhaseGroup) {
@@ -746,6 +903,21 @@ export function createTaskDispatchDefinition(
         };
       }
 
+      // Observe completed — re-evaluate from scratch
+      if (executed.action === "observed") {
+        emit("dispatch:observed", {
+          triaged: executed.observeTriageResult?.observationsTriaged ?? 0,
+          deepSynthesis: !!executed.observeSynthesisResult,
+          shouldReplan: executed.observeSynthesisResult?.shouldReplan,
+        });
+        return {
+          allComplete: allTasksDone(acc.liveGraph, acc.completedTasks, acc.escalatedTasks),
+          completedTasks: [...acc.completedTasks],
+          escalatedTasks: [...acc.escalatedTasks],
+          synthesisReplanRequired: executed.observeSynthesisResult?.shouldReplan,
+        };
+      }
+
       if (executed.action === "nursery-completed") {
         const phaseGroup = executed.nurseryPhaseGroup!;
         const nurseryResult = executed.nurseryResult!;
@@ -761,6 +933,39 @@ export function createTaskDispatchDefinition(
           });
           log.info("Phase graduated from nursery", { phaseGroup });
         } else {
+          // Nursery cycle cap: if fixes keep failing, escalate instead of looping forever.
+          const nurseryCycle = acc.nurseryCycles.get(phaseGroup) ?? 0;
+          const maxNurseryCycles = 3;
+          if (nurseryCycle >= maxNurseryCycles) {
+            log.warn("Nursery cycle cap reached — escalating", {
+              phaseGroup,
+              cycle: nurseryCycle,
+              findingCount: nurseryResult.findings.length,
+            });
+
+            emitWarn("nursery:stuck", {
+              phaseGroup,
+              cycle: nurseryCycle,
+              findingCount: nurseryResult.findings.length,
+              findings: nurseryResult.findings.map((f) => f.description).slice(0, 5),
+            }, {
+              component: "nursery",
+              expected: `graduation within ${maxNurseryCycles} cycles`,
+              received: `${nurseryCycle} cycles with ${nurseryResult.findings.length} remaining finding(s)`,
+            });
+
+            return {
+              allComplete: false,
+              completedTasks: [...acc.completedTasks],
+              escalatedTasks: [...acc.escalatedTasks],
+              nurseryStuck: {
+                phaseGroup,
+                cycle: nurseryCycle,
+                findingCount: nurseryResult.findings.length,
+              },
+            };
+          }
+
           // Findings exist — apply surgery proposals to insert fix tasks
           for (const proposal of nurseryResult.surgeryProposals) {
             const validation = validateProposal(proposal, acc.liveGraph, acc.completedTasks, null);
@@ -1017,8 +1222,9 @@ export function createTaskDispatchDefinition(
               (n) => !acc.completedTasks.has(n.task.id) && !acc.escalatedTasks.has(n.task.id),
             );
             if (remainingForSim.length > 0) {
-              // Find the observation that triggered the flag
-              const highRelObs = wm.getNewObservations().find((o) => o.relevance > 0.8);
+              // Find the observation that triggered the flag (NE-modulated threshold)
+              const simThreshold = simulationRelevanceThreshold(acc.lastNELevel);
+              const highRelObs = wm.getNewObservations().find((o) => o.relevance > simThreshold);
               await hooks.simulate(
                 { type: "high-relevance-observation", observationId: highRelObs?.id ?? "unknown" },
                 remainingForSim,
@@ -1037,18 +1243,41 @@ export function createTaskDispatchDefinition(
 
         // ── Exteroception batch processing ──────────────────────
         let exteroceptiveSignalsProcessed = 0;
+        let exteroceptiveHighUrgencyCount = 0;
         const exBatch = hooks.assembleExteroceptiveBatch();
         if (exBatch && exBatch.signals.length > 0) {
-          // Stub: mark all as "noted" (no action).
-          // Future: PFC processes via Thalamus briefing.
+          // Differentiate high-urgency signals from low:
+          // High → alert (feeds diagnostic load via emitWarn), Low → noted.
+          // Future: PFC processes all via Thalamus briefing.
           const batchActions: import("../../types/exteroception.js").BatchAction[] =
-            exBatch.signals.map((s) => ({ kind: "noted" as const, signalId: s.id }));
+            exBatch.signals.map((s) => {
+              if (s.urgency === "high") {
+                exteroceptiveHighUrgencyCount++;
+                return { kind: "alert" as const, signalId: s.id, message: s.summary };
+              }
+              return { kind: "noted" as const, signalId: s.id };
+            });
           hooks.recordExteroceptiveBatchOutcome(batchActions);
           exteroceptiveSignalsProcessed = exBatch.signals.length;
+
+          if (exteroceptiveHighUrgencyCount > 0) {
+            const highSignals = exBatch.signals.filter((s) => s.urgency === "high");
+            emitWarn("exteroception:high-urgency-batch", {
+              taskId,
+              highUrgencyCount: exteroceptiveHighUrgencyCount,
+              summaries: highSignals.map((s) => s.summary).slice(0, 5),
+              monitorIds: [...new Set(highSignals.map((s) => s.monitorId))],
+            }, {
+              component: "exteroception",
+              expected: "signals acted upon or dismissed with reason",
+              received: `${exteroceptiveHighUrgencyCount} high-urgency signal(s) surfaced as alerts`,
+            });
+          }
 
           emitInfo("exteroception:batch-processed-at-boundary", {
             taskId,
             signalCount: exteroceptiveSignalsProcessed,
+            highUrgencyCount: exteroceptiveHighUrgencyCount,
           });
         }
 
@@ -1176,7 +1405,8 @@ export function createTaskDispatchDefinition(
                 );
 
                 // 3. Deep synthesis
-                const allObs = [...wm.getObservations("new"), ...wm.getObservations("triaged")];
+                const phaseHarvest = thalamus.harvestObservations({ neLevel: acc.lastNELevel });
+                const allObs = phaseHarvest.observations;
                 if (allObs.length > 0 || simulations.length > 0) {
                   const synthesisResult = await deepSynthesis(
                     {
@@ -1384,6 +1614,15 @@ export function createTaskDispatchDefinition(
           type: pfcFlags[0].type === "tonic-dopamine-crashed" ? "cratering" : "drift",
           reason: pfcFlags.map((f) => f.reason).join("; "),
           severity: 0.5,
+        };
+      }
+
+      // Nursery stuck: fix cycles exhausted, runtime issues persist — high severity
+      if (!schedulerEscalationSignal && integrated.nurseryStuck) {
+        schedulerEscalationSignal = {
+          type: "perseveration",
+          reason: `Nursery stuck on phase "${integrated.nurseryStuck.phaseGroup}": ${integrated.nurseryStuck.findingCount} finding(s) persist after ${integrated.nurseryStuck.cycle} fix cycles`,
+          severity: 0.85,
         };
       }
 

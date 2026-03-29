@@ -50,6 +50,12 @@ export interface ConvictionContext {
   degradedEvaluationCount?: number;
   /** Whether approach classification failed for this build cycle (speed-of-light less informative). */
   approachClassificationFailed?: boolean;
+  /** Evaluation integrity (0–1): fraction of senses that produced genuine evaluations. */
+  evaluationIntegrity?: number;
+  /** Proprioception confidence (0–1): builder's self-assessed confidence in the artifact. */
+  proprioceptionConfidence?: number;
+  /** How close to the attention budget ceiling (0–1). 1.0 = at ceiling. */
+  budgetProximity?: number;
 
   // ── Task-dispatch signals ────────────────────────────────────
 
@@ -131,6 +137,9 @@ export interface ConvictionEvidence {
     | "previous-conviction"
     | "escalation-rate"
     | "degraded-evaluation"
+    | "evaluation-blind"
+    | "proprioception-uncertain"
+    | "budget-exhausted"
     | "approach-classification-missing"
     | "scheduler-escalation";
   /** Human-readable explanation. */

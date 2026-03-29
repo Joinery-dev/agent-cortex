@@ -400,11 +400,52 @@ function testBuildCycleConviction(ctx: ConvictionContext, t: ConvictionThreshold
     scoreSignal *= 0.7;
   }
 
+  // Evaluation integrity circuit breaker: when most senses failed/degraded,
+  // the composite score is unreliable. Critically low integrity (< 0.3) adds
+  // strong undermining evidence that can tip conviction toward escalate.
+  if (ctx.evaluationIntegrity !== undefined && ctx.evaluationIntegrity < 0.3) {
+    evidence.push({
+      source: "evaluation-blind",
+      description: `Evaluation integrity critically low (${(ctx.evaluationIntegrity * 100).toFixed(0)}%) — most senses failed or degraded. Scores are unreliable.`,
+      magnitude: 1 - ctx.evaluationIntegrity,
+      valence: "undermines",
+    });
+    // Severely degrade the score signal — proportional to blindness
+    scoreSignal *= ctx.evaluationIntegrity;
+  }
+
   if (ctx.approachClassificationFailed) {
     evidence.push({
       source: "approach-classification-missing",
       description: "Approach classification failed — speed-of-light analysis is running without approach-specific ceiling.",
       magnitude: 0.3,
+      valence: "undermines",
+    });
+  }
+
+  // Proprioception confidence: when the builder itself isn't confident,
+  // that's a reliability signal evaluators can't see. Low confidence
+  // undermines conviction proportional to the gap from confident (0.7).
+  if (ctx.proprioceptionConfidence !== undefined && ctx.proprioceptionConfidence < 0.4) {
+    evidence.push({
+      source: "proprioception-uncertain",
+      description: `Builder confidence low (${(ctx.proprioceptionConfidence * 100).toFixed(0)}%) — the motor cortex is uncertain about its own output.`,
+      magnitude: 0.4 - ctx.proprioceptionConfidence,
+      valence: "undermines",
+    });
+    // Degrade score signal — builder knows things evaluators don't
+    scoreSignal *= 0.5 + ctx.proprioceptionConfidence;
+  }
+
+  // Budget exhaustion: when the task is near/past the attention budget
+  // ceiling, continued iteration isn't free. Conviction should reflect
+  // that the system is running out of runway.
+  if (ctx.budgetProximity !== undefined && ctx.budgetProximity > 0.8) {
+    const severity = (ctx.budgetProximity - 0.8) / 0.2; // 0 at 80%, 1 at 100%
+    evidence.push({
+      source: "budget-exhausted",
+      description: `Attention budget ${(ctx.budgetProximity * 100).toFixed(0)}% consumed — ${ctx.budgetProximity >= 1 ? "at ceiling" : "approaching ceiling"}.`,
+      magnitude: severity,
       valence: "undermines",
     });
   }

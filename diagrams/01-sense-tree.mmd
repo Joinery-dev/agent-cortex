@@ -12,42 +12,42 @@ flowchart LR
 
     subgraph CRAFT["Craft & Form"]
         DESIGN["DESIGN<br/>Visual identity, layout,<br/>UX, interaction, motion,<br/>emotional resonance,<br/>accessibility"]
-        CONTENT["CONTENT CRAFT<br/>Voice, readability,<br/>structure, editing,<br/>audience calibration"]
+        CONTENT["CONTENT CRAFT<br/>Voice, readability,<br/>structure, editing,<br/>audience, discoverability,<br/>social reach, global content"]
         DX["DEV EXPERIENCE<br/>API design, error messages,<br/>documentation, defaults,<br/>migration, SDK ergonomics"]
     end
 
     subgraph INTEGRITY["Integrity & Trust"]
         CORRECT["CORRECTNESS<br/>Functional, data integrity,<br/>concurrency, API contracts,<br/>error recovery"]
         SECURITY["SECURITY<br/>Input safety, data protection,<br/>auth, client-side, infra,<br/>supply chain"]
-        RELIABLE["RELIABILITY<br/>Uptime, failover, monitoring,<br/>alerting, disaster recovery,<br/>health checks"]
+        COMPLIANCE["COMPLIANCE & PRIVACY<br/>GDPR, CCPA, accessibility<br/>law, cookie consent,<br/>data processing, age gates"]
     end
 
-    subgraph PURPOSE["Purpose & Reach"]
-        INTENT["INTENT ALIGNMENT<br/>Value proposition,<br/>audience fit, scope,<br/>conversion, stakeholder"]
-        SEO["SEO & DISCOVERY<br/>Meta tags, structured data,<br/>crawlability, social sharing,<br/>speed signals"]
-        I18N["INTERNATIONALIZATION<br/>Language support, RTL,<br/>formatting, cultural<br/>adaptation, translation"]
-    end
-
-    subgraph ENGINE["Engine & Efficiency"]
-        PERF["PERFORMANCE<br/>Page load, assets, runtime,<br/>network, perceived,<br/>mobile, constrained"]
+    subgraph OPS["Systems & Operations"]
+        SYSTEMS["SYSTEMS<br/>Load performance, assets,<br/>runtime, network & caching,<br/>resilience, incidents,<br/>scaling, data architecture,<br/>async & flow control"]
+        OBSERVE["OBSERVABILITY<br/>Logging, metrics, tracing,<br/>error tracking, alerting,<br/>dashboards"]
         MAINTAIN["MAINTAINABILITY<br/>Code quality, architecture,<br/>naming, documentation,<br/>dependency hygiene,<br/>technical debt"]
+    end
+
+    subgraph PURPOSE["Purpose & Inclusion"]
+        INTENT["INTENT ALIGNMENT<br/>Value proposition,<br/>audience fit, scope,<br/>conversion, stakeholder"]
+        ACCESS["ACCESSIBILITY<br/>Visual, non-visual,<br/>keyboard & input,<br/>cognitive, assistive tech,<br/>inclusive process"]
     end
 
     ROOT --> CRAFT
     ROOT --> INTEGRITY
+    ROOT --> OPS
     ROOT --> PURPOSE
-    ROOT --> ENGINE
 
     CRAFT -.-> TENSION
     INTEGRITY -.-> TENSION
+    OPS -.-> TENSION
     PURPOSE -.-> TENSION
-    ENGINE -.-> TENSION
 
     TENSION(("TENSIONS arise<br/>when senses disagree<br/>→ resolved by<br/>SYNTHESIS<br/>not averaging"))
 
     style CRAFT fill:#fce7f3,stroke:#f472b6,color:#1a1a2e
     style INTEGRITY fill:#fef2f2,stroke:#f87171,color:#1a1a2e
+    style OPS fill:#d1fae5,stroke:#4ade80,color:#1a1a2e
     style PURPOSE fill:#bfdbfe,stroke:#60a5fa,color:#1a1a2e
-    style ENGINE fill:#d1fae5,stroke:#4ade80,color:#1a1a2e
     style TENSION fill:#fef9c3,stroke:#ca8a04,color:#1a1a2e
     style ROOT fill:#e8e0f0,stroke:#7c6af0,color:#1a1a2e

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mike's Painting | Columbus, Ohio Residential Painting</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --rust: #B8441E;
+      --rust-dark: #9A3718;
+      --green: #3D5C3A;
+      --cream: #F7F2E8;
+      --cream-dark: #E8DFC8;
+      --warm-gray: #7A756E;
+      --dark: #2A2018;
+      --text: #3C3028;
+    }
+
+    html { font-size: 16px; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── NAV ── */
+    .nav {
+      background: var(--cream);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--cream-dark);
+    }
+
+    .nav-logo {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--dark);
+      letter-spacing: -0.01em;
+      text-decoration: none;
+    }
+
+    .nav-logo span { color: var(--rust); }
+
+    .nav-phone {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--green);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.15s;
+    }
+
+    .nav-phone:hover { color: var(--rust); }
+
+    /* ── HERO ── */
+    .hero {
+      display: grid;
+      grid-template-columns: 55% 45%;
+      min-height: calc(100vh - 53px);
+      max-height: 720px;
+    }
+
+    /* Image side */
+    .hero-image {
+      position: relative;
+      overflow: hidden;
+      background-color: #7A5535;
+      background: linear-gradient(165deg, #9C6B40 0%, #7A5030 35%, #52341A 70%, #3A2210 100%);
+    }
+
+    .hero-image svg {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .hero-image-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to right, transparent 50%, rgba(247,242,232,0.12) 100%);
+      pointer-events: none;
+    }
+
+    .photo-label {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      background: rgba(42, 32, 24, 0.65);
+      backdrop-filter: blur(4px);
+      color: rgba(247, 242, 232, 0.85);
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      padding: 5px 12px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    /* Content side */
+    .hero-content {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 56px 52px;
+      background-color: var(--cream);
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 18px;
+    }
+
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 22px;
+      height: 2px;
+      background: var(--green);
+      border-radius: 1px;
+      flex-shrink: 0;
+    }
+
+    .hero-headline {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: clamp(1.85rem, 3.2vw, 2.75rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--dark);
+      margin-bottom: 18px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero-headline em {
+      color: var(--rust);
+      font-style: normal;
+    }
+
+    .hero-subhead {
+      font-size: clamp(0.95rem, 1.4vw, 1.0625rem);
+      line-height: 1.7;
+      color: var(--warm-gray);
+      margin-bottom: 34px;
+      max-width: 400px;
+    }
+
+    .cta-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: flex-start;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background-color: var(--rust);
+      color: #fff;
+      font-size: 1.0625rem;
+      font-weight: 600;
+      padding: 16px 30px;
+      border-radius: 10px;
+      text-decoration: none;
+      transition: background-color 0.18s ease, transform 0.1s ease;
+      white-space: nowrap;
+      box-shadow: 0 2px 12px rgba(184, 68, 30, 0.28);
+    }
+
+    .btn-primary:hover { background-color: var(--rust-dark); }
+    .btn-primary:active { transform: scale(0.98); }
+
+    .cta-phone-line {
+      font-size: 0.875rem;
+      color: var(--warm-gray);
+    }
+
+    .cta-phone-line a {
+      color: var(--green);
+      font-weight: 600;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.15s;
+    }
+
+    .cta-phone-line a:hover {
+      border-color: var(--green);
+    }
+
+    /* Trust bar */
+    .trust-bar {
+      display: flex;
+      gap: 28px;
+      margin-top: 44px;
+      padding-top: 30px;
+      border-top: 1px solid var(--cream-dark);
+      flex-wrap: wrap;
+    }
+
+    .trust-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .trust-number {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--dark);
+      line-height: 1;
+    }
+
+    .trust-label {
+      font-size: 0.75rem;
+      color: var(--warm-gray);
+      letter-spacing: 0.03em;
+    }
+
+    /* ── MOBILE ── */
+    @media (max-width: 768px) {
+      .hero {
+        grid-template-columns: 1fr;
+        grid-template-rows: 240px auto;
+        min-height: unset;
+        max-height: unset;
+      }
+
+      .hero-content {
+        padding: 32px 22px 44px;
+      }
+
+      .hero-subhead {
+        max-width: 100%;
+      }
+
+      .btn-primary {
+        width: 100%;
+        justify-content: center;
+        padding: 18px 24px;
+        font-size: 1.0625rem;
+        border-radius: 10px;
+      }
+
+      .cta-stack {
+        align-items: stretch;
+      }
+
+      .cta-phone-line {
+        text-align: center;
+      }
+
+      .trust-bar {
+        gap: 22px;
+      }
+
+      .nav {
+        padding: 12px 20px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .hero-headline {
+        font-size: 1.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="nav" aria-label="Site navigation">
+    <a href="/" class="nav-logo">Mike's <span>Painting</span></a>
+    <a href="tel:+16145550123" class="nav-phone" aria-label="Call Mike's Painting">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+      (614) 555-0123
+    </a>
+  </nav>
+
+  <section class="hero" aria-label="Welcome to Mike's Painting">
+
+    <!-- Photo / placeholder side -->
+    <div class="hero-image" role="img" aria-label="A freshly painted Columbus home exterior — photo coming soon">
+      <svg viewBox="0 0 560 680" fill="none" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+        <defs>
+          <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#D4905A" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#7A5030" stop-opacity="0.08"/>
+          </linearGradient>
+          <linearGradient id="houseWall" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#EDD5A8" stop-opacity="0.82"/>
+            <stop offset="100%" stop-color="#D4B87A" stop-opacity="0.72"/>
+          </linearGradient>
+          <linearGradient id="roofGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#52341A"/>
+            <stop offset="100%" stop-color="#3A2210"/>
+          </linearGradient>
+          <linearGradient id="groundGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#4A6741" stop-opacity="0.55"/>
+            <stop offset="100%" stop-color="#2A3E20" stop-opacity="0.7"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Sky wash -->
+        <rect width="560" height="680" fill="url(#skyGrad)"/>
+
+        <!-- Warm brushstroke accents in sky -->
+        <path d="M 380 80 Q 420 65 470 85 Q 495 72 530 80" stroke="#E8C08A" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.25"/>
+        <path d="M 40 110 Q 90 95 140 118" stroke="#E8C08A" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.2"/>
+        <path d="M 180 50 Q 230 38 280 55 Q 310 44 360 52" stroke="#E8C08A" stroke-width="1.5" stroke-linecap="round" fill="none" opacity="0.15"/>
+
+        <!-- Ground -->
+        <rect x="0" y="608" width="560" height="72" fill="url(#groundGrad)"/>
+        <ellipse cx="280" cy="614" rx="300" ry="24" fill="#2A3E20" opacity="0.3"/>
+
+        <!-- Bushes along foundation -->
+        <ellipse cx="155" cy="612" rx="45" ry="30" fill="#3D5C3A" opacity="0.55"/>
+        <ellipse cx="200" cy="608" rx="32" ry="24" fill="#4A6B44" opacity="0.45"/>
+        <ellipse cx="360" cy="612" rx="40" ry="28" fill="#3D5C3A" opacity="0.5"/>
+        <ellipse cx="400" cy="608" rx="28" ry="22" fill="#4A6B44" opacity="0.4"/>
+
+        <!-- Tree far left -->
+        <rect x="52" y="340" width="16" height="220" rx="4" fill="#3A2510" opacity="0.55"/>
+        <ellipse cx="60" cy="295" rx="52" ry="82" fill="#3D5C3A" opacity="0.45"/>
+        <ellipse cx="60" cy="252" rx="40" ry="65" fill="#4A6B44" opacity="0.38"/>
+        <ellipse cx="60" cy="218" rx="28" ry="48" fill="#527544" opacity="0.3"/>
+
+        <!-- Tree right -->
+        <rect x="488" y="378" width="13" height="190" rx="3" fill="#3A2510" opacity="0.45"/>
+        <ellipse cx="494" cy="338" rx="44" ry="70" fill="#3D5C3A" opacity="0.38"/>
+        <ellipse cx="494" cy="300" rx="32" ry="52" fill="#4A6B44" opacity="0.3"/>
+
+        <!-- House body -->
+        <rect x="130" y="305" width="300" height="308" rx="3" fill="url(#houseWall)"/>
+
+        <!-- Painted siding lines -->
+        <g stroke="#B89050" stroke-width="0.8" opacity="0.28">
+          <line x1="130" y1="323" x2="430" y2="323"/>
+          <line x1="130" y1="341" x2="430" y2="341"/>
+          <line x1="130" y1="359" x2="430" y2="359"/>
+          <line x1="130" y1="377" x2="430" y2="377"/>
+          <line x1="130" y1="395" x2="430" y2="395"/>
+          <line x1="130" y1="413" x2="430" y2="413"/>
+          <line x1="130" y1="431" x2="430" y2="431"/>
+          <line x1="130" y1="449" x2="430" y2="449"/>
+          <line x1="130" y1="467" x2="430" y2="467"/>
+          <line x1="130" y1="485" x2="430" y2="485"/>
+          <line x1="130" y1="503" x2="430" y2="503"/>
+          <line x1="130" y1="521" x2="430" y2="521"/>
+          <line x1="130" y1="539" x2="430" y2="539"/>
+          <line x1="130" y1="557" x2="430" y2="557"/>
+          <line x1="130" y1="575" x2="430" y2="575"/>
+          <line x1="130" y1="593" x2="430" y2="593"/>
+        </g>
+
+        <!-- White trim top of wall -->
+        <rect x="127" y="302" width="306" height="7" rx="2" fill="#F0E8D4" opacity="0.75"/>
+
+        <!-- Belt course trim -->
+        <rect x="127" y="445" width="306" height="5" rx="1" fill="#F0E8D4" opacity="0.55"/>
+
+        <!-- Roof -->
+        <polygon points="100,308 280,148 460,308" fill="url(#roofGrad)" opacity="0.92"/>
+        <!-- Roof ridge cap -->
+        <polygon points="100,308 118,308 280,163 442,308 460,308 280,145" fill="#5A3A20" opacity="0.4"/>
+
+        <!-- Soffit / fascia -->
+        <path d="M 100 308 L 460 308" stroke="#F0E8D4" stroke-width="6" opacity="0.5"/>
+
+        <!-- Chimney -->
+        <rect x="366" y="182" width="32" height="74" rx="2" fill="#4A3020" opacity="0.82"/>
+        <rect x="362" y="178" width="40" height="9" rx="2" fill="#5A3828" opacity="0.8"/>
+
+        <!-- Left window -->
+        <rect x="156" y="342" width="86" height="75" rx="6" fill="#C8DFF0" opacity="0.55"/>
+        <rect x="156" y="342" width="86" height="75" rx="6" stroke="#E0CC98" stroke-width="4.5" fill="none"/>
+        <line x1="199" y1="342" x2="199" y2="417" stroke="#E0CC98" stroke-width="3"/>
+        <line x1="156" y1="378" x2="242" y2="378" stroke="#E0CC98" stroke-width="3"/>
+        <!-- Window reflection -->
+        <path d="M 162 348 L 168 354" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+
+        <!-- Right window -->
+        <rect x="318" y="342" width="86" height="75" rx="6" fill="#C8DFF0" opacity="0.55"/>
+        <rect x="318" y="342" width="86" height="75" rx="6" stroke="#E0CC98" stroke-width="4.5" fill="none"/>
+        <line x1="361" y1="342" x2="361" y2="417" stroke="#E0CC98" stroke-width="3"/>
+        <line x1="318" y1="378" x2="404" y2="378" stroke="#E0CC98" stroke-width="3"/>
+        <path d="M 324 348 L 330 354" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+
+        <!-- Door -->
+        <rect x="237" y="450" width="86" height="163" rx="8" fill="#7A4E28" opacity="0.92"/>
+        <!-- Door arch top -->
+        <path d="M 237 464 Q 280 440 323 464" fill="#8A5E32" opacity="0.7"/>
+        <!-- Door panels -->
+        <rect x="247" y="466" width="30" height="42" rx="3" fill="#9A6838" opacity="0.5"/>
+        <rect x="283" y="466" width="30" height="42" rx="3" fill="#9A6838" opacity="0.5"/>
+        <rect x="247" y="516" width="30" height="74" rx="3" fill="#9A6838" opacity="0.5"/>
+        <rect x="283" y="516" width="30" height="74" rx="3" fill="#9A6838" opacity="0.5"/>
+        <!-- Knob -->
+        <circle cx="275" cy="540" r="5" fill="#D4A848" opacity="0.9"/>
+        <!-- Kick plate -->
+        <rect x="244" y="598" width="72" height="10" rx="2" fill="#C09840" opacity="0.4"/>
+
+        <!-- Porch steps -->
+        <rect x="210" y="613" width="140" height="12" rx="3" fill="#DEC488" opacity="0.5"/>
+        <rect x="200" y="623" width="160" height="10" rx="3" fill="#C8B070" opacity="0.4"/>
+
+        <!-- Mike's truck (simplified, parked in driveway) -->
+        <rect x="80" y="570" width="95" height="46" rx="5" fill="#3D5C3A" opacity="0.7"/>
+        <rect x="110" y="555" width="58" height="22" rx="6" fill="#4A6B44" opacity="0.7"/>
+        <circle cx="96" cy="618" r="10" fill="#2A2018" opacity="0.7"/>
+        <circle cx="96" cy="618" r="5" fill="#5A5248" opacity="0.6"/>
+        <circle cx="158" cy="618" r="10" fill="#2A2018" opacity="0.7"/>
+        <circle cx="158" cy="618" r="5" fill="#5A5248" opacity="0.6"/>
+        <!-- Truck text (tiny) -->
+        <text x="100" y="596" font-size="6" fill="#F7F2E8" opacity="0.6" font-family="sans-serif" font-weight="700">MIKE'S</text>
+        <text x="98" y="604" font-size="5" fill="#F7F2E8" opacity="0.5" font-family="sans-serif">PAINTING</text>
+        <!-- Window -->
+        <rect x="112" y="557" width="52" height="16" rx="4" fill="#C8DFF0" opacity="0.4"/>
+      </svg>
+
+      <div class="hero-image-overlay"></div>
+      <div class="photo-label">Photo coming soon &#8212; Mike&#8217;s portfolio</div>
+    </div>
+
+    <!-- Content side -->
+    <div class="hero-content">
+      <div class="hero-eyebrow">Columbus, Ohio &nbsp;&middot;&nbsp; Est. 2009</div>
+
+      <h1 class="hero-headline">
+        Columbus Homes,<br>
+        Painted Right.<br>
+        <em>15 Years Running.</em>
+      </h1>
+
+      <p class="hero-subhead">
+        Most of our work comes from referrals &#8212; neighbors who&#8217;ve seen our trucks in the driveway and asked for a card. We&#8217;d like to earn yours.
+      </p>
+
+      <div class="cta-stack">
+        <a href="tel:+16145550123" class="btn-primary">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+          Get a Free Estimate
+        </a>
+        <p class="cta-phone-line">Or call us directly: <a href="tel:+16145550123">(614) 555-0123</a></p>
+      </div>
+
+      <div class="trust-bar">
+        <div class="trust-item">
+          <span class="trust-number">15</span>
+          <span class="trust-label">Years in Business</span>
+        </div>
+        <div class="trust-item">
+          <span class="trust-number">500+</span>
+          <span class="trust-label">Columbus Homes</span>
+        </div>
+        <div class="trust-item">
+          <span class="trust-number">5.0 &#9733;</span>
+          <span class="trust-label">Google Rating</span>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+</body>
+</html>

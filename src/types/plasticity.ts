@@ -215,6 +215,12 @@ export interface PlasticityStore {
 
   /** Number of registered weights. */
   readonly size: number;
+
+  /**
+   * Compute overall weight displacement (0–1).
+   * Mean normalized distance of each weight from its default value.
+   */
+  getDisplacement(): number;
 }
 
 // ─── Fixed Connections ──────────────────────────────────────────

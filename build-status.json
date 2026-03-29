@@ -402,7 +402,7 @@
             {
               "name": "Define Thalamus types",
               "status": "complete",
-              "detail": "src/types/thalamus.ts — ThalamusSources, BriefingMeta, ConsultationBriefing, MotorBriefing, EvaluationBriefing, SchedulingBriefing, ProjectContext, AccumulatedContext, CapabilityContext, AccumulatedContextOpts. Briefings have core (task+intent+taste) + enrichment (WM data) + meta."
+              "detail": "src/types/thalamus.ts — ThalamusSources, BriefingMeta, ConsultationBriefing, MotorBriefing, EvaluationBriefing, SchedulingBriefing, ProjectContext, AccumulatedContext, CapabilityContext, AccumulatedContextOpts, ObservationHarvestOpts, ObservationHarvest. Briefings have core (task+intent+taste) + enrichment (WM data) + meta."
             },
             {
               "name": "Build Thalamus class with categorical getters",
@@ -468,6 +468,11 @@
               "name": "Wire PFC forward briefing into Thalamus",
               "status": "complete",
               "detail": "src/kernel/thalamus.ts — setForwardBriefing()/clearForwardBriefing(). Gestalt includes forwardBriefing. Consumer methods dissolve: consultation gets predictedTensions + convictionNotes, motor gets predictedCycles + approachNotes + bottleneckSenses, evaluation gets isBottleneck. Implemented as part of Features #32 + #33."
+            },
+            {
+              "name": "Observation harvest (C6)",
+              "status": "complete",
+              "detail": "src/types/thalamus.ts — ObservationHarvestOpts, ObservationHarvest types. src/kernel/thalamus.ts — harvestObservations() Layer 1 getter: source credibility filtering (≥70% dismissal rate, min 3 obs), NE re-filtering at harvest time, relevance sort, BriefingMeta. Wired in task-dispatch.ts observe-action deep synthesis + phase-gate deep synthesis. System health observations bypass both filters."
             }
           ]
         },
@@ -482,12 +487,12 @@
             {
               "name": "Define Scheduler types",
               "status": "complete",
-              "detail": "src/types/attention-scheduler.ts — SchedulerAction (5 variants: dispatch-task, escalate, rest, replan, complete), SchedulerSignals (WM snapshot + vitals + optional drift/perseverating/prospectiveTriggers/routineMatches), SchedulerConfig + DEFAULT_SCHEDULER_CONFIG"
+              "detail": "src/types/attention-scheduler.ts — SchedulerAction (7 variants: dispatch-task, dispatch-gestate, observe, escalate, rest, replan, complete), SchedulerObserve interface, SchedulerSignals (WM snapshot + vitals + optional drift/perseverating/prospectiveTriggers/routineMatches + lastNELevel for observe threshold), SchedulerConfig + DEFAULT_SCHEDULER_CONFIG"
             },
             {
               "name": "Build AttentionScheduler class",
               "status": "complete",
-              "detail": "src/kernel/attention-scheduler.ts — decide(signals): SchedulerAction. Priority cascade (9 levels), task selection scoring (phase-group 0.3, dependency-unblocking 0.4, trend-response 0.3), NE computation (baseline + risk boosts, capped at 1.0), explore/exploit from routineMatches"
+              "detail": "src/kernel/attention-scheduler.ts — decide(signals): SchedulerAction. Priority cascade (11 steps), task selection scoring (phase-group 0.3, dependency-unblocking 0.4, trend-response 0.3), NE computation (baseline + risk boosts, capped at 1.0), explore/exploit from routineMatches. Observe action: NE-modulated threshold (0.9 - 0.5 * NE), fires between rest and dispatch."
             },
             {
               "name": "Smoke test",
@@ -497,7 +502,7 @@
             {
               "name": "Wire into task-dispatch rhythm",
               "status": "complete",
-              "detail": "src/brainstem/rhythms/task-dispatch.ts — replaced nextReadyTask() with scheduler.decide(). assembleSignals() builds SchedulerSignals from WM + homeostasis. PreparedDispatch gained escalate/replan actions + neLevel/mode. Execute/integrate/gate handle scheduler-escalated and replan-requested flows. Gate returns GateEscalate with severity medium (escalation) or high (replan)"
+              "detail": "src/brainstem/rhythms/task-dispatch.ts — replaced nextReadyTask() with scheduler.decide(). assembleSignals() builds SchedulerSignals from WM + homeostasis + lastNELevel. PreparedDispatch gained escalate/replan/run-observe actions + neLevel/mode. Execute handles observe: quick triage → apply amend proposals → anti-loop guard → conditional deep synthesis (NE > 0.7 or pressure > 0.85) → apply surgery. Integrate propagates synthesisReplanRequired. Gate returns continue → scheduler re-decides."
             },
             {
               "name": "Thread through project rhythm",
@@ -667,6 +672,11 @@
               "name": "Feed routine state to Scheduler + Gate",
               "status": "complete",
               "detail": "src/brainstem/rhythms/task-dispatch.ts — assembleSignals() populates signals.routineMatches from basalGanglia.getRoutineMatches(). Scheduler's determineMode() already reads this. src/brainstem/rhythms/build-cycle.ts — routineConfidence slot in SignalLandscape (undefined for now, populated when threaded through context)."
+            },
+            {
+              "name": "Cross-session persistence + PlasticityStore integration",
+              "status": "complete",
+              "detail": "src/subcortical/basal-ganglia-store.ts — BasalGangliaStore: file-based JSON under ~/.agent-cortex/basal-ganglia/ (routines.json, candidates.json, meta.json). Atomic writes, Date serialization, cross-project scope. src/kernel/basal-ganglia.ts — load() at startup, save() after promote/reinforce/decay. Routine confidence mirrored as basal-ganglia.routine.{id} plastic weights (routine-strength category). Brainstem passes store + PlasticityStore to BG constructor, calls load() in runTask/runProject."
             }
           ]
         },
@@ -905,6 +915,51 @@
               "name": "Update type exports",
               "status": "complete",
               "detail": "src/types/index.ts — exports Consultation. Council type removed."
+            }
+          ]
+        },
+        {
+          "id": 44,
+          "name": "Sense Roster Restructure",
+          "region": "Sensory Cortex",
+          "status": "complete",
+          "description": "Restructure 14 senses to 11 based on March 2026 persona prompting research (PRISM, MAJ-Eval). Collapse Performance+Reliability+Scalability into SYSTEMS. Add ACCESSIBILITY as new top-level sense. Demote SEO and Internationalization into Content Craft pathways. Add conceptual parallax to Design, Intent Alignment, Content Craft, and Systems identities.",
+          "notes": "Informed by PRISM paper (arXiv:2603.18507): values-based personas improve evaluative judgment, instruction-based ones degrade accuracy. MAJ-Eval: diverse personas mandatory for multi-persona evaluation. Key insight: Performance/Reliability/Scalability pulled in the same direction (no productive tension), while Accessibility was a glaring omission that creates genuine tension with Design, Systems, Content Craft, and DX.\n[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask.",
+          "subtasks": [
+            {
+              "name": "Create SYSTEMS sense (merge Perf+Rel+Scale)",
+              "status": "complete",
+              "detail": "src/senses/personas/systems.ts — 9 pathways, 38 receptors curated from 17 pathways / 73 receptors. SRE/distributed-systems conceptual parallax."
+            },
+            {
+              "name": "Create ACCESSIBILITY sense",
+              "status": "complete",
+              "detail": "src/senses/personas/accessibility.ts — 6 pathways, 24 receptors. WCAG POUR principles as values, curb-cut effect, disability justice tradition."
+            },
+            {
+              "name": "Expand Content Craft (absorb SEO + i18n)",
+              "status": "complete",
+              "detail": "src/senses/personas/content-craft.ts — 3 new pathways (Discoverability & Metadata, Social Reach, Global Content) with 12 receptors. Strunk/Orwell conceptual parallax."
+            },
+            {
+              "name": "Add conceptual parallax to Design and Intent Alignment",
+              "status": "complete",
+              "detail": "design.ts: Tufte/Rams/Bauhaus. intent-alignment.ts: Cagan/Torres/JTBD."
+            },
+            {
+              "name": "Update cortex.ts registry",
+              "status": "complete",
+              "detail": "src/senses/cortex.ts — 11 trees registered, 5 old imports removed, 2 new imports added."
+            },
+            {
+              "name": "Delete old persona files",
+              "status": "complete",
+              "detail": "Deleted: performance.ts, reliability.ts, scalability.ts, seo-discoverability.ts, internationalization.ts"
+            },
+            {
+              "name": "Update diagrams",
+              "status": "complete",
+              "detail": "diagrams/01-sense-tree.mmd (flowchart with 4 new groupings), diagrams/sensory-cortex.mmd (full mindmap of 11 sense trees)"
             }
           ]
         }
@@ -1239,7 +1294,7 @@
           "region": "Prefrontal Cortex",
           "status": "in-progress",
           "description": "PFC's integrated representation of reality — where we are, not where we're going. Integrates WM + Hippocampus + Cerebellum + task graph + PNS + project context + system health into a single coherent picture. Rebuilt at rhythm boundaries. The conviction loop runs against this. Wave 9 — depends on all Phase 3 learning systems being complete.",
-          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.",
+          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.\n[Reconciled] src/types/worldview.ts exists but isn't referenced in any subtask.",
           "subtasks": [
             {
               "name": "Types",
@@ -1566,6 +1621,21 @@
               "description": "Planner.replan() — mid-project replanning with completed task awareness",
               "status": "in-progress",
               "detail": "src/types/planner.ts — ReplanContext, ReplanResult types added"
+            },
+            {
+              "name": "Hierarchical stubs (B6 audit)",
+              "status": "complete",
+              "detail": "src/types/planner.ts — HierarchyAssessment, PlannedPhase, PhasePlanResult types. src/kernel/planner.ts — assessHierarchyDepth() evaluates coherence pressure on shael tree, planPhase() runs JIT per-shael B.1'/B.2' pipeline."
+            },
+            {
+              "name": "Generative Completion (B7 audit)",
+              "status": "complete",
+              "detail": "src/types/planner.ts — GenerativeQuestion, GenerativeCompletionResult types. src/llm/prompts.ts — generativeCompletionSystem(), generativeCompletionUser(), GenerativeCompletionInputs. src/kernel/planner.ts — Planner.generateCompletionQuestions(). src/brainstem/rhythms/project.ts — integrate phase calls after world model rebuild, adds to ProjectResult.generativeQuestions. src/types/brainstem.ts — ProjectResult.generativeQuestions field. Non-fatal on failure."
+            },
+            {
+              "name": "PFC Review — Phase B.3 (B4 audit)",
+              "status": "complete",
+              "detail": "src/types/planner.ts — PlanWarning, DependencyPatch, PfcReviewResult types. src/llm/prompts.ts — pfcReviewSystem(), pfcReviewUser(), PfcReviewInputs. src/kernel/planner.ts — Planner.reviewPlan(): mechanical checks (gap detection from unresolved consumes, orphan detection) always run; LLM review (semantic gap/redundancy/affinity/correction validation + dependency patches) when NE ≥ 0.7. Patches applied to wiring with topo re-sort. src/brainstem/rhythms/project.ts — B.3 runs between reasonBackwardHierarchical() and shael dispatch loop; dispatch uses reviewed shaels/wiring."
             }
           ]
         },
@@ -1735,7 +1805,7 @@
               "detail": "examples/amygdala-smoke.ts — 15 sections, 72 assertions: detectors, scanning, alarms, human escalation, response protocol, modulation, learned detectors, state"
             }
           ],
-          "notes": "Alarm receiver interface ready for Feature #23 (Escalation Pathways). registerDetector() API ready for hippocampus-to-amygdala detector installation. Scope violation detector is placeholder until scope tracking exists."
+          "notes": "Alarm receiver interface ready for Feature #23 (Escalation Pathways). registerDetector() API ready for hippocampus-to-amygdala detector installation. Scope violation detector is placeholder until scope tracking exists. Amygdala now instantiated in Brainstem and wired to CompositeSubcorticalHooks + ExteroceptionSystem."
         },
         {
           "id": 29,
@@ -2300,7 +2370,6 @@
       "[Reconciled] src/types/intent.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/task.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/tension.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/orchestrator.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/resolver.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/sandbox.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/integration-check.ts exists but isn't referenced in any subtask.",
@@ -2314,10 +2383,13 @@
       "[Reconciled] src/kernel/budget-allocator.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/sense-questioner.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/collapse.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/types/exteroception.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/exteroception.ts — types referenced by ExteroceptionSystem (src/subcortical/exteroception.ts), now wired into Brainstem + CompositeSubcorticalHooks + NE risk factors.",
       "[Reconciled] src/types/nursery.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/nursery-consul.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/nursery-scanner.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/nursery-scanner.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/exteroception.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/visual-capture.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/visual-capture.ts exists but isn't referenced in any subtask."
     ]
   }
 }

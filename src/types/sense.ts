@@ -69,7 +69,7 @@ export interface TensionFlag {
 
 export interface EvaluatorObservation {
   /** What kind of observation this is. */
-  kind: "file-read" | "search-result" | "lint-output" | "test-output" | "runtime-check" | "other";
+  kind: "file-read" | "search-result" | "lint-output" | "test-output" | "runtime-check" | "screenshot" | "web-vitals" | "other";
   /** What was examined (file path, search query, command, URL). */
   target: string;
   /** What was found — the raw evidence. */

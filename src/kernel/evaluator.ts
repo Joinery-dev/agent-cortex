@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { SenseEvaluation, ObservationLevel } from "../types/sense.js";
+import type { VisualCaptureResult } from "../types/visual-capture.js";
 import type { Consultation } from "../types/consultation.js";
 import type { Task } from "../types/task.js";
 import type { CortexConfig } from "../types/orchestrator.js";
@@ -21,7 +22,7 @@ import { getContentStore, contentBlock } from "../trace/content-store.js";
 const log = createLogger("evaluator");
 
 const EvaluationObservationSchema = z.object({
-  kind: z.enum(["file-read", "search-result", "lint-output", "test-output", "runtime-check", "other"]),
+  kind: z.enum(["file-read", "search-result", "lint-output", "test-output", "runtime-check", "screenshot", "web-vitals", "other"]),
   target: z.string(),
   finding: z.string(),
   interpretation: z.string(),
@@ -64,6 +65,8 @@ export interface EvaluationContext {
   sandboxCwd?: string;
   /** URL of running dev server, if available. */
   runtimeUrl?: string;
+  /** Visual captures from Playwright (screenshots + Web Vitals). */
+  visualCaptures?: VisualCaptureResult;
 }
 
 /**

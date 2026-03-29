@@ -9,9 +9,6 @@
  *   Proprioception  — self-checks plan adherence after building (callStructured → SelfAssessment)
  *
  * Single entry point: execute(briefing, opts?) → MotorCortexResult
- *
- * The old build() function is preserved for backward compatibility with
- * the deprecated orchestrator.ts.
  */
 
 import { z } from "zod";
@@ -596,35 +593,3 @@ export class MotorCortex {
   }
 }
 
-// ── Backward compatibility ────────────────────────────────────
-// The deprecated orchestrator.ts still imports this function.
-// It's a thin wrapper that doesn't use the MotorCortex class.
-
-export async function build(
-  prompt: string,
-  config: CortexConfig,
-  previousWork?: string,
-): Promise<string> {
-  emit("motor:start", { isRevision: !!previousWork });
-
-  log.info("Motor cortex starting (legacy)", {
-    promptWords: prompt.split(/\s+/).length,
-    isRevision: !!previousWork,
-  });
-
-  const result = await call(
-    "motorCortex",
-    config.models.motorCortex,
-    motorCortexSystem(),
-    motorCortexUser(prompt, previousWork),
-    8192,
-  );
-
-  emit("motor:complete", { outputLength: result.text.length, work: result.text });
-
-  log.info("Motor cortex complete (legacy)", {
-    outputLength: result.text.length,
-  });
-
-  return result.text;
-}

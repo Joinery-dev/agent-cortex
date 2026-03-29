@@ -1,18 +1,15 @@
 import type { Sense } from "../types/sense.js";
 import { DESIGN_TREE } from "./personas/design.js";
 import { CORRECTNESS_TREE } from "./personas/correctness.js";
-import { PERFORMANCE_TREE } from "./personas/performance.js";
+import { SYSTEMS_TREE } from "./personas/systems.js";
 import { INTENT_ALIGNMENT_TREE } from "./personas/intent-alignment.js";
 import { SECURITY_TREE } from "./personas/security.js";
 import { MAINTAINABILITY_TREE } from "./personas/maintainability.js";
 import { DEVELOPER_EXPERIENCE_TREE } from "./personas/developer-experience.js";
-import { SEO_DISCOVERABILITY_TREE } from "./personas/seo-discoverability.js";
-import { RELIABILITY_TREE } from "./personas/reliability.js";
-import { INTERNATIONALIZATION_TREE } from "./personas/internationalization.js";
 import { CONTENT_CRAFT_TREE } from "./personas/content-craft.js";
 import { OBSERVABILITY_TREE } from "./personas/observability.js";
-import { SCALABILITY_TREE } from "./personas/scalability.js";
 import { COMPLIANCE_PRIVACY_TREE } from "./personas/compliance-privacy.js";
+import { ACCESSIBILITY_TREE } from "./personas/accessibility.js";
 
 export class SensoryCortex {
   private senses: Map<string, Sense> = new Map();
@@ -29,18 +26,15 @@ export class SensoryCortex {
     return new SensoryCortex([
       DESIGN_TREE,
       CORRECTNESS_TREE,
-      PERFORMANCE_TREE,
+      SYSTEMS_TREE,
       INTENT_ALIGNMENT_TREE,
       SECURITY_TREE,
       MAINTAINABILITY_TREE,
       DEVELOPER_EXPERIENCE_TREE,
-      SEO_DISCOVERABILITY_TREE,
-      RELIABILITY_TREE,
-      INTERNATIONALIZATION_TREE,
       CONTENT_CRAFT_TREE,
       OBSERVABILITY_TREE,
-      SCALABILITY_TREE,
       COMPLIANCE_PRIVACY_TREE,
+      ACCESSIBILITY_TREE,
     ]);
   }
 

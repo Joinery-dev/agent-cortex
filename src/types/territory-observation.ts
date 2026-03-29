@@ -123,6 +123,18 @@ export function relevanceThreshold(neLevel: number): number {
 }
 
 /**
+ * Relevance threshold for triggering hippocampal simulation.
+ * Higher bar than storage (simulation is expensive), but still NE-modulated:
+ *   NE 0 → 0.85 (routine: only simulate the most important)
+ *   NE 1 → 0.55 (novel: simulate more to learn)
+ * Always above relevanceThreshold() at the same NE level.
+ */
+export function simulationRelevanceThreshold(neLevel: number): number {
+  const clamped = Math.min(1, Math.max(0, neLevel));
+  return 0.85 - 0.3 * clamped;
+}
+
+/**
  * Whether a proposed observation should be stored in WM.
  *
  * System health proposals always pass — the system must notice its own

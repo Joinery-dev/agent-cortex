@@ -1,7 +1,6 @@
 /**
  * Build-Cycle Rhythm — the innermost loop.
  *
- * Lifts the current orchestrator's inner while-loop into a rhythm:
  *   prepare:   assemble motor briefing (or revision context)
  *   execute:   motor cortex runs premotor → primary → proprioception
  *   integrate: evaluate work → weigh by stake → compute composite → detect tensions → oscillation check
@@ -30,6 +29,7 @@ import { evaluate } from "../../kernel/evaluator.js";
 import type { EvaluationContext, EvaluationOutcome } from "../../kernel/evaluator.js";
 import type { RuntimeInstance } from "../../types/runtime.js";
 import { startAllRuntimes, stopAllRuntimes } from "../../kernel/runtime-manager.js";
+import { captureVisuals, buildCaptureConfig } from "../../kernel/visual-capture.js";
 import { detectTensions, resolve } from "../../kernel/resolver.js";
 import { weighEvaluations, computeComposite } from "../../kernel/evaluation-weighter.js";
 import { revisionPrompt } from "../../llm/prompts.js";
@@ -136,6 +136,10 @@ interface BuildCycleAccumulator {
   approachClassificationFailed?: boolean;
   /** Count of degraded evaluations from the latest cycle. Feeds conviction + homeostasis. */
   lastDegradedCount?: number;
+  /** Evaluation integrity (0–1) from the latest cycle. Feeds conviction circuit breaker. */
+  lastEvaluationIntegrity?: number;
+  /** Proprioception confidence from the latest cycle. Feeds conviction as reliability signal. */
+  lastProprioceptionConfidence?: number;
   /** Git sandbox for the current task (created on first cycle). */
   sandbox: Sandbox | null;
   /** Running runtime instances (started before evaluation, stopped after). */
@@ -356,6 +360,7 @@ export function createBuildCycleDefinition(
 
       acc.lastWork = result.work;
       acc.lastPlan = result.plan;
+      acc.lastProprioceptionConfidence = result.selfAssessment?.confidence;
 
       // Track approach for Cognitive Flexibility history
       if (result.plan?.approach) {
@@ -549,11 +554,29 @@ export function createBuildCycleDefinition(
 
           // Inject runtime URL into evaluation context
           const readyInstance = instances.find((r) => r.ready);
-          if (readyInstance && evalContext) {
+          if (readyInstance) {
+            if (!evalContext) evalContext = {};
             evalContext.runtimeUrl = readyInstance.url;
           }
         } catch (err) {
           log.warn("Runtime start failed, evaluating without runtime", { error: String(err) });
+        }
+      }
+
+      // ── Visual Capture: screenshot + Web Vitals from running instance ──
+      if (evalContext?.runtimeUrl) {
+        try {
+          const captureConfig = buildCaptureConfig(currentNE);
+          const visualResult = await captureVisuals(evalContext.runtimeUrl, captureConfig);
+          evalContext.visualCaptures = visualResult;
+          if (!visualResult.degraded) {
+            log.info("Visual captures attached to evaluation context", {
+              captures: visualResult.captures.length,
+              vitals: visualResult.webVitals.length,
+            });
+          }
+        } catch (err) {
+          log.warn("Visual capture failed, evaluating without screenshots", { error: String(err) });
         }
       }
 
@@ -589,6 +612,7 @@ export function createBuildCycleDefinition(
       const totalSenses = evaluations.length + skippedSenses.length;
       const normalEvals = evaluations.filter((e) => !e.degraded).length;
       const integrity = totalSenses > 0 ? normalEvals / totalSenses : 1.0;
+      acc.lastEvaluationIntegrity = integrity;
       if (integrity < 0.7) {
         emitWarn(
           "evaluation:low-integrity",
@@ -743,6 +767,9 @@ export function createBuildCycleDefinition(
         // Reliability signals — route failures into the conviction loop
         degradedEvaluationCount: acc.lastDegradedCount ?? 0,
         approachClassificationFailed: acc.approachClassificationFailed ?? false,
+        evaluationIntegrity: acc.lastEvaluationIntegrity,
+        proprioceptionConfidence: acc.lastProprioceptionConfidence,
+        budgetProximity: ctx.budgetProximity,
       };
 
       const conviction = runConvictionLoop(

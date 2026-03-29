@@ -410,6 +410,7 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
 
     if (applied > 0) {
       this.homeostasis.update("weightVolatility", this.plasticity.getVolatility());
+      this.homeostasis.update("weightDisplacement", this.plasticity.getDisplacement());
 
       emit("resolution:learning-applied", {
         taskId,
@@ -486,6 +487,11 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     this.exteroception.recordBatchOutcome(actions);
   }
 
+  getExteroceptivePressure(): number {
+    if (!this.exteroception) return 0;
+    return this.exteroception.getSignalPressure();
+  }
+
   // ── Private: plasticity projection application ──────────────
 
   /**
@@ -514,15 +520,18 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
       }
     }
 
-    // Feed updated volatility to homeostasis
+    // Feed updated volatility + displacement to homeostasis
     const volatility = this.plasticity.getVolatility();
+    const displacement = this.plasticity.getDisplacement();
     this.homeostasis.update("weightVolatility", volatility);
+    this.homeostasis.update("weightDisplacement", displacement);
 
     emitInfo("learning:plasticity-applied", {
       taskId: projections.taskId,
       learningRate,
       receptorsUpdated: perReceptor.length,
       weightVolatility: volatility,
+      weightDisplacement: displacement,
     });
 
     log.debug("Plasticity projection applied", {

@@ -46,6 +46,8 @@ import type {
   HippocampusSource,
   WorldModelSource,
   PrincipleSummary,
+  ObservationHarvestOpts,
+  ObservationHarvest,
 } from "../types/thalamus.js";
 import type { BuildQuestion } from "../types/motor-cortex.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
@@ -69,6 +71,8 @@ import type {
   GestaltGraphPosition,
   GestaltAssemblyContext,
 } from "../types/task-gestalt.js";
+import type { TerritoryObservation } from "../types/territory-observation.js";
+import { relevanceThreshold } from "../types/territory-observation.js";
 import type { WorkingMemory } from "./working-memory.js";
 import type { PeripheralNervousSystem } from "./pns.js";
 import type { SensoryCortex } from "../senses/cortex.js";
@@ -671,6 +675,70 @@ export class Thalamus {
     });
 
     return active;
+  }
+
+  // ── Observation Harvest ───────────────────────────────────────────
+
+  /**
+   * Layer 1 getter: harvest territory observations with Thalamus shaping.
+   *
+   * Three filtering layers that raw WM access lacks:
+   *   1. Source credibility — deprioritize components with ≥70% dismissal rate
+   *   2. NE re-filtering — re-apply current NE threshold at harvest time
+   *   3. Meta tracking — BriefingMeta with what was filtered and why
+   */
+  harvestObservations(opts: ObservationHarvestOpts): ObservationHarvest {
+    const statuses = opts.statuses ?? ["new", "triaged"];
+
+    // 1. Read from WM
+    let observations: TerritoryObservation[] = [];
+    for (const status of statuses) {
+      observations.push(...this.wm.getObservations(status));
+    }
+    const total = observations.length;
+
+    // 2. Source credibility filtering
+    //    WM tracks dismissal rates per component. A source with ≥70%
+    //    dismissal rate (min 3 observations) is producing noise.
+    const dismissalRates = this.wm.getDismissalRates();
+    observations = observations.filter((obs) => {
+      if (obs.systemHealth) return true;
+      const rate = dismissalRates.get(obs.source.component);
+      return !rate || rate.total < 3 || rate.rate < 0.7;
+    });
+    const afterCredibility = observations.length;
+
+    // 3. NE re-filtering at harvest time
+    //    Observations stored during high NE may be irrelevant at low NE.
+    const threshold = relevanceThreshold(opts.neLevel);
+    observations = observations.filter((obs) => {
+      if (obs.systemHealth) return true;
+      return obs.relevance >= threshold;
+    });
+
+    // Sort by relevance descending — most important first
+    observations.sort((a, b) => b.relevance - a.relevance);
+
+    // Meta
+    const sources = ["working-memory"];
+    const counts: Record<string, number> = {
+      observations: observations.length,
+      filteredByCredibility: total - afterCredibility,
+      filteredByNE: afterCredibility - observations.length,
+    };
+
+    emit("thalamus:observation-harvest", {
+      neLevel: opts.neLevel,
+      threshold,
+      total,
+      afterCredibility,
+      surviving: observations.length,
+    });
+
+    return {
+      observations,
+      meta: this.meta("observation-harvest", undefined, sources, counts),
+    };
   }
 
   // ── Layer 2: Convenience Composers ──────────────────────────────

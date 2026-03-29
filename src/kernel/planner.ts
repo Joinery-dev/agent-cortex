@@ -38,9 +38,16 @@ import type {
   HierarchicalPlanResult,
   DependencyWiringResult,
   AffinityGroup,
+  HierarchyAssessment,
+  PlannedPhase,
+  PhasePlanResult,
+  GenerativeCompletionResult,
+  PfcReviewResult,
+  PlanWarning,
+  DependencyPatch,
 } from "../types/planner.js";
 import { DEFAULT_PLANNER_CONFIG } from "../types/planner.js";
-import type { PathReasoningInputs, ReplanReasoningInputs, ShaelDecompositionInputs } from "../llm/prompts.js";
+import type { PathReasoningInputs, ReplanReasoningInputs, ShaelDecompositionInputs, GenerativeCompletionInputs, PfcReviewInputs } from "../llm/prompts.js";
 import {
   pathReasoningSystem,
   pathReasoningUser,
@@ -48,6 +55,10 @@ import {
   replanReasoningUser,
   shaelDecompositionSystem,
   shaelDecompositionUser,
+  generativeCompletionSystem,
+  generativeCompletionUser,
+  pfcReviewSystem,
+  pfcReviewUser,
 } from "../llm/prompts.js";
 import { GraphBuilder } from "./graph-builder.js";
 import { callStructured } from "../llm/structured.js";
@@ -57,6 +68,7 @@ import { emit } from "../events.js";
 import { computeCallCost } from "../types/cost.js";
 import type { ProjectCostEstimate } from "../types/cost.js";
 import type { CortexConfig } from "../types/orchestrator.js";
+import type { Worldview } from "../types/worldview.js";
 
 const log = createLogger("planner");
 
@@ -109,10 +121,17 @@ const ShaelDecompositionSchema = z.object({
 export class Planner {
   private config: PlannerConfig;
   private model: string;
+  private worldview?: Worldview;
 
-  constructor(model: string, config?: Partial<PlannerConfig>) {
+  constructor(model: string, config?: Partial<PlannerConfig>, worldview?: Worldview) {
     this.model = model;
     this.config = { ...DEFAULT_PLANNER_CONFIG, ...config };
+    this.worldview = worldview;
+  }
+
+  /** Create a GraphBuilder that inherits this Planner's worldview. */
+  createGraphBuilder(model?: string, config?: Partial<import("./graph-builder.js").GraphBuilderConfig>): GraphBuilder {
+    return new GraphBuilder(model ?? this.model, config, this.worldview);
   }
 
   // ── Phase A: Manifestation ──────────────────────────────────
@@ -248,7 +267,7 @@ export class Planner {
         : undefined,
     };
 
-    const system = pathReasoningSystem();
+    const system = pathReasoningSystem(this.worldview);
     const user = pathReasoningUser(inputs);
 
     let raw: PathReasoningRaw;
@@ -322,8 +341,8 @@ export class Planner {
    *   B.1: Shael decomposition (LLM) — backward reasoning → shael tree
    *   B.2: Dependency wiring (GraphBuilder.wire) — semantic map → algo → affinity
    *
-   * The existing reasonBackward() is NOT modified. Both coexist.
-   * The project rhythm calls this when config.hierarchicalPlanning is true.
+   * The existing reasonBackward() is still used for per-shael JIT planning.
+   * The project rhythm calls this for project-level planning.
    */
   async reasonBackwardHierarchical(
     future: ManifestedFuture,
@@ -362,8 +381,8 @@ export class Planner {
         : undefined,
     };
 
-    const system = shaelDecompositionSystem();
-    const user = shaelDecompositionUser(inputs);
+    const system = shaelDecompositionSystem(this.worldview);
+    const user = shaelDecompositionUser(inputs, this.worldview);
 
     let raw: { reasoning: string; phases: ProposedPhase[]; nodes: ShaelNode[] };
     try {
@@ -417,7 +436,7 @@ export class Planner {
     // ── B.2: Dependency Wiring ───────────────────────────────
 
     const graphBuilderModel = this.config.graphBuilderModel ?? this.model;
-    const graphBuilder = new GraphBuilder(graphBuilderModel);
+    const graphBuilder = this.createGraphBuilder(graphBuilderModel);
     const wiring = await graphBuilder.wire(clamped, neLevel);
 
     // ── Assemble result ──────────────────────────────────────
@@ -446,6 +465,206 @@ export class Planner {
       rejected: rejected.length,
       edges: wiring.dependencies.length,
       affinityGroups: wiring.affinityGroups.length,
+    });
+
+    return result;
+  }
+
+  // ── Hierarchical Depth Assessment ──────────────────────────────
+
+  /**
+   * Assess whether the hierarchy depth of a shael decomposition is appropriate.
+   *
+   * Evaluates coherence pressure: if a shael produced too many shana (>= config
+   * threshold), it should have been decomposed into sub-shaels first. Necessity
+   * gates apply to the hierarchy structure itself — does this level of nesting
+   * need to exist?
+   *
+   * Called after B.1 decomposition to decide whether to re-decompose
+   * overloaded shaels before proceeding to B.2 wiring.
+   */
+  assessHierarchyDepth(
+    shaels: ShaelNode[],
+    coherenceCeiling?: number,
+  ): HierarchyAssessment {
+    const shanaThreshold = this.config.jitWiringThreshold ?? 5;
+    // Double the JIT threshold signals a shael that's too large to be a leaf question
+    const overloadThreshold = shanaThreshold * 3;
+
+    // Group shana by parent shael
+    const shanaPerShael = new Map<string, number>();
+    for (const node of shaels) {
+      if (node.level === "shana" && node.parentId) {
+        shanaPerShael.set(node.parentId, (shanaPerShael.get(node.parentId) ?? 0) + 1);
+      }
+    }
+
+    // Find overloaded shaels
+    const overloadedShaels: HierarchyAssessment["overloadedShaels"] = [];
+    for (const [shaelId, count] of shanaPerShael) {
+      if (count >= overloadThreshold) {
+        // Recommend splitting into sub-shaels of ~shanaThreshold size
+        const recommendedSubShaels = Math.ceil(count / shanaThreshold);
+        overloadedShaels.push({
+          shaelId,
+          shanaCount: count,
+          recommendedSubShaels,
+          reason: `${count} shana exceeds coherence threshold (${overloadThreshold}). ` +
+            `Decompose into ${recommendedSubShaels} sub-shaels first.`,
+        });
+      }
+    }
+
+    // Compute current max depth
+    const depthOf = (id: string): number => {
+      const node = shaels.find((n) => n.id === id);
+      if (!node?.parentId) return 0;
+      return 1 + depthOf(node.parentId);
+    };
+    const currentDepth = shaels.reduce((max, n) => Math.max(max, depthOf(n.id)), 0);
+
+    const assessment: HierarchyAssessment = {
+      appropriate: overloadedShaels.length === 0 && currentDepth <= this.config.maxPhaseDepth,
+      overloadedShaels,
+      currentDepth,
+      maxAllowedDepth: this.config.maxPhaseDepth,
+      coherenceCeiling,
+    };
+
+    if (!assessment.appropriate) {
+      log.info("Hierarchy depth assessment: adjustment needed", {
+        overloaded: overloadedShaels.length,
+        currentDepth,
+        maxAllowed: this.config.maxPhaseDepth,
+      });
+    }
+
+    return assessment;
+  }
+
+  // ── Per-Shael Just-in-Time Planning ───────────────────────────
+
+  /**
+   * Plan a single shael just-in-time: decompose into shana and wire dependencies.
+   *
+   * Runs the per-shael planning cycle from the design doc (Section 6):
+   *   B.1': Shael → shana decomposition (via reasonBackward at shael scope)
+   *   B.2': Dependency wiring (if ≥ jitWiringThreshold shana or NE ≥ jitWiringNEThreshold)
+   *
+   * Phase A' (shael manifestation) and B.3' (PFC review) are handled by the
+   * project rhythm — this method covers the decomposition and wiring steps.
+   */
+  async planPhase(
+    phase: PlannedPhase,
+    intent: ProjectIntent,
+    taste: TasteProfile,
+    neLevel?: number,
+  ): Promise<PhasePlanResult> {
+    emit("planner:plan-phase-start", {
+      shaelId: phase.shael.id,
+      description: phase.shael.description,
+      priorContextCount: phase.priorContext.length,
+    });
+
+    // ── B.1': Decompose shael into shana ─────────────────────
+
+    // Build context from prior shaels for grounded planning
+    const priorSummary = phase.priorContext
+      .map((p) => `- ${p.description}: ${p.outcome}`)
+      .join("\n");
+
+    const inputs: ShaelDecompositionInputs = {
+      manifestedFuture: phase.manifestedFuture.vision,
+      senseContributions: phase.manifestedFuture.senseContributions,
+      intent: {
+        summary: intent.summary,
+        audience: intent.audience,
+        successCriteria: intent.successCriteria,
+        vision: intent.vision,
+        constraints: intent.constraints,
+      },
+      taste: {
+        visual: taste.visual,
+        decisionStyle: taste.decisionStyle,
+        patterns: taste.patterns,
+      },
+      capabilities: priorSummary || undefined,
+      budget: intent.budget
+        ? { total: intent.budget.total, enforcement: intent.budget.enforcement }
+        : undefined,
+    };
+
+    const system = shaelDecompositionSystem(this.worldview);
+    const user = shaelDecompositionUser(inputs, this.worldview);
+
+    let raw: { reasoning: string; phases: ProposedPhase[]; nodes: ShaelNode[] };
+    try {
+      raw = await callStructured(
+        "planner",
+        this.model,
+        system,
+        user,
+        ShaelDecompositionSchema,
+        this.config.maxTokens,
+      );
+    } catch (err) {
+      log.error("Phase planning decomposition failed", {
+        shaelId: phase.shael.id,
+        error: String(err),
+      });
+      throw new Error(`planPhase decomposition failed for ${phase.shael.id}: ${String(err)}`);
+    }
+
+    // Filter to shana only (JIT planning produces leaf tasks, not sub-shaels)
+    const shana = raw.nodes.filter((n) => n.level === "shana");
+
+    // ── Necessity Gates ──────────────────────────────────────
+    const asProposed: ProposedTask[] = shana.map((n) => ({
+      id: n.id,
+      description: n.description,
+      dependsOn: [],
+      phaseGroup: n.phaseGroup,
+      necessity: n.necessity,
+      formJustification: n.formJustification,
+      scopeJustification: n.scopeJustification,
+    }));
+
+    const { accepted, rejected } = this.applyNecessityGates(asProposed);
+    const acceptedIds = new Set(accepted.map((t) => t.id));
+    const acceptedShana = shana.filter((n) => acceptedIds.has(n.id));
+
+    // ── B.2': Dependency Wiring (conditional) ────────────────
+    const wiringThreshold = this.config.jitWiringThreshold ?? 5;
+    const neThreshold = this.config.jitWiringNEThreshold ?? 0.5;
+    const shouldWire = acceptedShana.length >= wiringThreshold || (neLevel ?? 0) >= neThreshold;
+
+    let wiring: DependencyWiringResult | null = null;
+    if (shouldWire) {
+      const graphBuilderModel = this.config.graphBuilderModel ?? this.model;
+      const graphBuilder = this.createGraphBuilder(graphBuilderModel);
+      wiring = await graphBuilder.wire(acceptedShana, neLevel);
+    }
+
+    const result: PhasePlanResult = {
+      shaelId: phase.shael.id,
+      shana: acceptedShana,
+      wiring,
+      rejected,
+      reasoning: raw.reasoning,
+    };
+
+    emit("planner:plan-phase-complete", {
+      shaelId: phase.shael.id,
+      shanaCount: acceptedShana.length,
+      rejectedCount: rejected.length,
+      wiringTriggered: shouldWire,
+    });
+
+    log.info("Phase planning complete", {
+      shaelId: phase.shael.id,
+      shana: acceptedShana.length,
+      rejected: rejected.length,
+      wired: shouldWire,
     });
 
     return result;
@@ -569,7 +788,7 @@ export class Planner {
       diagnosticDirective: context.diagnosticDirective,
     };
 
-    const system = replanReasoningSystem();
+    const system = replanReasoningSystem(this.worldview);
     const user = replanReasoningUser(inputs);
 
     let raw: PathReasoningRaw;
@@ -782,6 +1001,346 @@ export class Planner {
     }
 
     return nodes;
+  }
+
+  // ── PFC Review (Phase B.3) ──────────────────────────────────
+
+  /**
+   * Validate the plan's structural integrity against the manifested future.
+   *
+   * Two tracks:
+   *   Mechanical (always): gap detection from unresolved consumes, orphan detection
+   *   LLM (NE ≥ 0.7): semantic gap/redundancy/affinity/correction validation + patches
+   *
+   * Applies patches to wiring and re-sorts. Returns the validated plan.
+   */
+  async reviewPlan(
+    shaels: ShaelNode[],
+    wiring: DependencyWiringResult,
+    future: ManifestedFuture,
+    intent: ProjectIntent,
+    neLevel: number,
+  ): Promise<PfcReviewResult> {
+    emit("planner:pfc-review-start", { shaelCount: shaels.length, neLevel });
+
+    const warnings: PlanWarning[] = [];
+    let patches: DependencyPatch[] = [];
+
+    // ── Mechanical checks (always run) ─────────────────────────
+
+    // 1. Gap detection: unresolved consumes from semantic map
+    const allProvided = new Set<string>();
+    for (const entry of wiring.semanticMap) {
+      for (const token of entry.provides) {
+        allProvided.add(token.capability);
+      }
+    }
+
+    const unresolvedConsumes: Array<{ nodeId: string; capability: string }> = [];
+    for (const entry of wiring.semanticMap) {
+      for (const token of entry.consumes) {
+        if (!allProvided.has(token.capability)) {
+          unresolvedConsumes.push({ nodeId: entry.id, capability: token.capability });
+        }
+      }
+    }
+
+    if (unresolvedConsumes.length > 0) {
+      // Group by capability for clearer warnings
+      const byCap = new Map<string, string[]>();
+      for (const u of unresolvedConsumes) {
+        const nodes = byCap.get(u.capability) ?? [];
+        nodes.push(u.nodeId);
+        byCap.set(u.capability, nodes);
+      }
+
+      for (const [capability, nodeIds] of byCap) {
+        warnings.push({
+          kind: "gap",
+          severity: "warning",
+          description: `Capability "${capability}" is consumed but no node provides it. Node(s) ${nodeIds.join(", ")} may be blocked.`,
+          affectedNodeIds: nodeIds,
+        });
+      }
+    }
+
+    // 2. Orphan detection: nodes with no deps and no dependents
+    const shaelIds = new Set(shaels.map((s) => s.id));
+    const hasIncoming = new Set<string>();
+    const hasOutgoing = new Set<string>();
+    for (const dep of wiring.dependencies) {
+      if (shaelIds.has(dep.from)) hasOutgoing.add(dep.from);
+      if (shaelIds.has(dep.to)) hasIncoming.add(dep.to);
+    }
+
+    // Orphans = nodes that neither depend on anything nor are depended upon
+    // (only flag if there are 2+ nodes — a single-node plan is fine)
+    if (shaels.length > 1) {
+      for (const shael of shaels) {
+        if (!hasIncoming.has(shael.id) && !hasOutgoing.has(shael.id)) {
+          warnings.push({
+            kind: "gap",
+            severity: "info",
+            description: `Node "${shael.id}" is isolated — no dependencies in or out. May indicate a missing connection.`,
+            affectedNodeIds: [shael.id],
+          });
+        }
+      }
+    }
+
+    log.info("Mechanical review complete", {
+      unresolvedConsumes: unresolvedConsumes.length,
+      warningsFromMechanical: warnings.length,
+    });
+
+    // ── LLM review (NE ≥ 0.7 only) ────────────────────────────
+
+    const thoroughReview = neLevel >= 0.7;
+
+    if (thoroughReview) {
+      log.info("Running thorough PFC review (LLM)", { neLevel });
+
+      const inputs: PfcReviewInputs = {
+        manifestedFuture: future.vision,
+        senseContributions: future.senseContributions,
+        nodes: shaels.map((s) => ({
+          id: s.id,
+          description: s.description,
+          level: s.level,
+          phaseGroup: s.phaseGroup,
+          gateCondition: s.gateCondition,
+        })),
+        semanticMap: wiring.semanticMap,
+        dependencies: wiring.dependencies,
+        affinityGroups: wiring.affinityGroups,
+        corrections: wiring.corrections,
+        unresolvedConsumes,
+      };
+
+      const PlanWarningSchema = z.object({
+        kind: z.enum(["gap", "redundancy", "affinity", "correction"]),
+        severity: z.enum(["info", "warning", "critical"]),
+        description: z.string(),
+        affectedNodeIds: z.array(z.string()),
+      });
+
+      const DependencyPatchSchema = z.object({
+        action: z.enum(["add", "remove"]),
+        from: z.string(),
+        to: z.string(),
+        reason: z.string(),
+      });
+
+      const PfcReviewSchema = z.object({
+        warnings: z.array(PlanWarningSchema),
+        patches: z.array(DependencyPatchSchema),
+      });
+
+      try {
+        const system = pfcReviewSystem(this.worldview);
+        const user = pfcReviewUser(inputs);
+
+        const raw = await callStructured<{
+          warnings: PlanWarning[];
+          patches: DependencyPatch[];
+        }>(
+          "planner",
+          this.model,
+          system,
+          user,
+          PfcReviewSchema,
+          this.config.maxTokens,
+        );
+
+        // Merge LLM warnings with mechanical warnings (dedup by description)
+        const existingDescs = new Set(warnings.map((w) => w.description));
+        for (const w of raw.warnings) {
+          if (!existingDescs.has(w.description)) {
+            warnings.push(w);
+          }
+        }
+
+        // Validate patches reference real node IDs
+        patches = raw.patches.filter((p) => {
+          const fromExists = shaelIds.has(p.from);
+          const toExists = shaelIds.has(p.to);
+          if (!fromExists || !toExists) {
+            log.warn("Discarding patch with unknown node ID", {
+              from: p.from,
+              to: p.to,
+              fromExists,
+              toExists,
+            });
+          }
+          return fromExists && toExists;
+        });
+
+        log.info("LLM review complete", {
+          llmWarnings: raw.warnings.length,
+          llmPatches: raw.patches.length,
+          validPatches: patches.length,
+        });
+      } catch (err) {
+        // Non-fatal — mechanical checks already ran. Log and continue.
+        log.warn("PFC review LLM call failed — continuing with mechanical results", {
+          error: String(err),
+        });
+      }
+    }
+
+    // ── Apply patches to wiring ────────────────────────────────
+
+    let reviewedWiring = wiring;
+
+    if (patches.length > 0) {
+      // Start from existing deps
+      let patchedDeps = [...wiring.dependencies];
+
+      for (const patch of patches) {
+        if (patch.action === "add") {
+          // Only add if not already present
+          const exists = patchedDeps.some(
+            (d) => d.from === patch.from && d.to === patch.to,
+          );
+          if (!exists) {
+            patchedDeps.push({
+              from: patch.from,
+              to: patch.to,
+              source: "correction" as const,
+              reason: `[B.3 patch] ${patch.reason}`,
+            });
+          }
+        } else {
+          // Remove matching edge
+          patchedDeps = patchedDeps.filter(
+            (d) => !(d.from === patch.from && d.to === patch.to),
+          );
+        }
+      }
+
+      // Re-sort topologically with patched deps
+      const graphBuilder = this.createGraphBuilder();
+      const nodeIds = shaels.map((s) => s.id);
+      const topologicalOrder = graphBuilder.topologicalSort(nodeIds, patchedDeps);
+
+      reviewedWiring = {
+        ...wiring,
+        dependencies: patchedDeps,
+        topologicalOrder,
+      };
+
+      log.info("Patches applied to wiring", {
+        patchCount: patches.length,
+        depsBefore: wiring.dependencies.length,
+        depsAfter: patchedDeps.length,
+      });
+    }
+
+    const result: PfcReviewResult = {
+      warnings,
+      patches,
+      shaels, // Unchanged — redundancy detection warns but doesn't auto-merge
+      wiring: reviewedWiring,
+      thoroughReview,
+    };
+
+    emit("planner:pfc-review-complete", {
+      warningCount: warnings.length,
+      criticalCount: warnings.filter((w) => w.severity === "critical").length,
+      patchCount: patches.length,
+      thoroughReview,
+    });
+
+    log.info("PFC review complete", {
+      warnings: warnings.length,
+      critical: warnings.filter((w) => w.severity === "critical").length,
+      patches: patches.length,
+      thoroughReview,
+    });
+
+    return result;
+  }
+
+  // ── Generative Completion ───────────────────────────────────
+
+  /**
+   * After shalem: "What questions couldn't have been asked before?"
+   *
+   * A single LLM call that receives the manifested future, what was
+   * actually built (retrospective + completed tasks), and what the
+   * system learned (world model maxims). Produces generative questions
+   * that surface to the question-asker as proposals.
+   */
+  async generateCompletionQuestions(
+    future: ManifestedFuture,
+    intentSummary: string,
+    completedTasks: Array<{ description: string; work?: string }>,
+    retrospective?: string,
+    maxims?: string[],
+  ): Promise<GenerativeCompletionResult> {
+    emit("planner:generative-start", {
+      completedTasks: completedTasks.length,
+      maximCount: maxims?.length ?? 0,
+    });
+
+    const inputs: GenerativeCompletionInputs = {
+      manifestedFuture: future.vision,
+      senseContributions: future.senseContributions,
+      retrospective,
+      completedTasks,
+      maxims,
+      intentSummary,
+    };
+
+    const system = generativeCompletionSystem(this.worldview);
+    const user = generativeCompletionUser(inputs);
+
+    const GenerativeQuestionSchema = z.object({
+      question: z.string(),
+      kind: z.enum(["extension", "revision"]),
+      emergenceReason: z.string(),
+      context: z.string(),
+    });
+
+    const GenerativeCompletionSchema = z.object({
+      reasoning: z.string(),
+      questions: z.array(GenerativeQuestionSchema),
+    });
+
+    let raw: { reasoning: string; questions: Array<{ question: string; kind: "extension" | "revision"; emergenceReason: string; context: string }> };
+    try {
+      raw = await callStructured(
+        "planner",
+        this.model,
+        system,
+        user,
+        GenerativeCompletionSchema,
+        this.config.maxTokens,
+      );
+    } catch (err) {
+      log.error("Generative completion LLM call failed", { error: String(err) });
+      // Non-fatal — return empty questions rather than failing the project
+      return { questions: [], reasoning: `Generative completion failed: ${String(err)}` };
+    }
+
+    const result: GenerativeCompletionResult = {
+      questions: raw.questions,
+      reasoning: raw.reasoning,
+    };
+
+    emit("planner:generative-complete", {
+      questionCount: result.questions.length,
+      extensions: result.questions.filter((q) => q.kind === "extension").length,
+      revisions: result.questions.filter((q) => q.kind === "revision").length,
+    });
+
+    log.info("Generative completion", {
+      questions: result.questions.length,
+      extensions: result.questions.filter((q) => q.kind === "extension").length,
+      revisions: result.questions.filter((q) => q.kind === "revision").length,
+    });
+
+    return result;
   }
 
   // ── Cost Estimation ──────────────────────────────────────────

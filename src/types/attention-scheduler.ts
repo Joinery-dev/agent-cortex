@@ -24,14 +24,15 @@ import type { NEWeights, RiskFactors } from "./norepinephrine.js";
 
 // ─── Scheduler Actions ──────────────────────────────────────────
 
-/** The six actions the Scheduler can return. Discriminated on `action`. */
+/** The seven actions the Scheduler can return. Discriminated on `action`. */
 export type SchedulerAction =
   | SchedulerDispatch
   | SchedulerEscalate
   | SchedulerRest
   | SchedulerReplan
   | SchedulerComplete
-  | SchedulerGestate;
+  | SchedulerGestate
+  | SchedulerObserve;
 
 export interface SchedulerDispatch {
   action: "dispatch-task";
@@ -82,6 +83,13 @@ export interface SchedulerGestate {
   /** Which phase group needs nursery stress-testing. */
   phaseGroup: string;
   reason: string;
+}
+
+export interface SchedulerObserve {
+  action: "observe";
+  reason: string;
+  /** Ambient NE level at decision time — modulates triage depth. */
+  neLevel: number;
 }
 
 // ─── Scheduler Signals ──────────────────────────────────────────
@@ -149,18 +157,24 @@ export interface SchedulerSignals {
   /** Territory observation pressure (0–1). From WM.getObservationPressure(). */
   observationPressure?: number;
 
+  // ── Exteroception signals ──────────────────────────────────────
+  /** Exteroceptive signal pressure (0–1). From ExteroceptionSystem.getSignalPressure(). */
+  exteroceptivePressure?: number;
+
   // ── NE recency-of-failure signal ────────────────────────────
   /** Last completed task's aggregate dopamine. Negative = recent failure → heightened NE. */
   lastTaskDopamine?: number;
+  /** Most recent NE level from the last dispatched task. For observe threshold computation. */
+  lastNELevel?: number;
 
   // ── NE human urgency signal ────────────────────────────────
   /** Mapped human urgency (0–1). From ProjectIntent.urgency via mapUrgencyToNE(). */
   humanUrgency?: number;
 
   // ── Homeostasis PFC flags ───────────────────────────────────
-  /** PFC intervention flags from homeostasis (learning signal degraded, tonic dopamine crashed). */
+  /** PFC intervention flags from homeostasis (learning signal degraded, tonic dopamine crashed, identity drift). */
   pfcFlags?: Array<{
-    type: "learning-signal-degraded" | "tonic-dopamine-crashed";
+    type: "learning-signal-degraded" | "tonic-dopamine-crashed" | "weight-displacement-high";
     reason: string;
   }>;
 

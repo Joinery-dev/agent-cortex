@@ -381,6 +381,28 @@ export class PlasticityStoreImpl implements PlasticityStore {
     return volatileCount / this.weights.size;
   }
 
+  // ── Displacement for homeostasis ────────────────────────────
+
+  /**
+   * Compute overall weight displacement (0–1).
+   * Mean normalized distance of each weight from its default value.
+   * 0 = all weights at their defaults, 1 = all weights at range extremes.
+   */
+  getDisplacement(): number {
+    if (this.weights.size === 0) return 0;
+
+    let totalDisplacement = 0;
+    for (const weight of this.weights.values()) {
+      const rangeSpan = weight.range[1] - weight.range[0];
+      if (rangeSpan <= 0) continue;
+      // Normalize distance from default to 0–1 relative to the weight's range
+      const distance = Math.abs(weight.value - weight.defaultValue) / rangeSpan;
+      totalDisplacement += distance;
+    }
+
+    return totalDisplacement / this.weights.size;
+  }
+
   // ── Dashboard state ─────────────────────────────────────────
 
   getState(): {

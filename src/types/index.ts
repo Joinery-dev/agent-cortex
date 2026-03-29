@@ -481,6 +481,15 @@ export type {
 export { DEFAULT_SATISFACTION_CONFIG } from "./satisfaction-signal.js";
 
 export type {
+  Viewport,
+  VisualCaptureConfig,
+  VisualCapture,
+  WebVitalsMetrics,
+  VisualCaptureResult,
+} from "./visual-capture.js";
+export { VIEWPORTS } from "./visual-capture.js";
+
+export type {
   MonitorSource,
   SentryResult,
   ExteroceptiveSignal,

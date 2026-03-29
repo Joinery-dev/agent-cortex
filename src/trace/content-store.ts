@@ -13,11 +13,16 @@ const PERSIST_PATH = "/tmp/cortex-trace-content.json";
 export class ContentStore {
   private entries: ContentEntry[] = [];
   private nextId = 1;
+  private maxEntries: number;
 
   // ── Indexes ─────────────────────────────────────────────────────
   private byTask = new Map<string, number[]>();
   private byKind = new Map<ContentKind, number[]>();
   private byEventSeq = new Map<number, number[]>();
+
+  constructor(maxEntries = 5_000) {
+    this.maxEntries = maxEntries;
+  }
 
   // ── Record ──────────────────────────────────────────────────────
 
@@ -26,6 +31,12 @@ export class ContentStore {
     const full: ContentEntry = { ...entry, id };
     this.entries.push(full);
     this.index(full);
+
+    // Rotate if over capacity
+    if (this.entries.length > this.maxEntries) {
+      this.rotate();
+    }
+
     this.persist();
     return id;
   }
@@ -113,6 +124,21 @@ export class ContentStore {
     this.byTask.clear();
     this.byKind.clear();
     this.byEventSeq.clear();
+  }
+
+  // ── Buffer rotation ─────────────────────────────────────────
+
+  private rotate(): void {
+    const keep = Math.floor(this.maxEntries / 2);
+    this.entries = this.entries.slice(-keep);
+
+    // Rebuild indexes from surviving entries
+    this.byTask.clear();
+    this.byKind.clear();
+    this.byEventSeq.clear();
+    for (const entry of this.entries) {
+      this.index(entry);
+    }
   }
 
   // ── Persistence ───────────────────────────────────────────────

@@ -78,14 +78,13 @@ mindmap
         Retry Logic
         Partial Failure Handling
         User-Facing Error Messages
-    **PERFORMANCE**
-      Page Load
+    **SYSTEMS**
+      Load Performance
         Critical Rendering Path
         Bundle Size
         Code Splitting
-        Third-Party Script Impact
-        Server Response Time
-      Asset Optimization
+        Core Web Vitals
+      Asset Delivery
         Image Optimization
         Font Loading
         Video Delivery
@@ -93,25 +92,40 @@ mindmap
       Runtime Efficiency
         Render Performance
         Memory Management
-        DOM Thrashing
-        Computed Value Caching
+        DOM Efficiency
         Event Handler Efficiency
-      Network Efficiency
+      Network & Caching
         Request Waterfall
         Caching Strategy
-        Payload Size
-        Connection Management
-        Prefetching
-      Perceived Performance
-        Skeleton Screens
-        Optimistic Updates
-        Progressive Loading
-        Instant Feedback
-      Mobile & Constrained
-        CPU Budget
-        Network Resilience
-        Battery Awareness
-        Viewport Efficiency
+        Cache Invalidation
+        Cache Layers
+        Payload Optimization
+      Resilience & Failover
+        SLO & Error Budgets
+        Redundancy & Failover
+        Deployment Safety
+        Dependency Resilience
+      Incident Lifecycle
+        Monitoring Signals
+        Alerting Discipline
+        Health Checks
+        Incident Response & Recovery
+      Horizontal Scaling
+        Stateless Design
+        Load Balancing
+        Auto-Scaling
+        State Management
+      Data Architecture
+        Query Patterns & Indexing
+        Data Partitioning
+        Schema Evolution
+        Read-Write Separation
+        Service Boundaries
+      Async & Flow Control
+        Message Queues
+        Background Jobs
+        Event-Driven Architecture
+        Backpressure & Idempotency
     **INTENT ALIGNMENT**
       Value Proposition
         Message Clarity
@@ -250,103 +264,6 @@ mindmap
         Debug Experience
         Install Size
         Platform Idioms
-    **SEO & DISCOVERABILITY**
-      Meta Tags
-        Title Tags
-        Meta Descriptions
-        Canonical URLs
-        Robots Directives
-        Heading Structure
-      Structured Data
-        Schema Markup
-        Rich Snippets
-        JSON-LD Implementation
-        Breadcrumbs
-        Structured Data Validation
-      Crawlability
-        Sitemap
-        Internal Linking
-        Render Strategy
-        URL Design
-        Broken Links
-      Social Sharing
-        Open Graph Tags
-        Twitter Cards
-        Share Images
-        Preview Testing
-      Speed Signals
-        Core Web Vitals
-        Mobile Performance
-        Resource Hints
-        CLS Prevention
-      Local SEO
-        NAP Consistency
-        Local Schema
-        Location Pages
-        Review Signals
-    **RELIABILITY**
-      Uptime
-        SLO Definition
-        Redundancy
-        Graceful Degradation
-        Deployment Safety
-        Dependency Resilience
-      Failover
-        Automatic Failover
-        Failover Data Consistency
-        Failover Testing
-        Multi-Region
-      Monitoring
-        Synthetic Checks
-        Real User Monitoring
-        Infrastructure Metrics
-        Dependency Monitoring
-        Business Metrics
-      Alerting
-        Signal to Noise
-        Escalation Paths
-        Runbooks
-        Alert Fatigue Prevention
-      Disaster Recovery
-        Backup Strategy
-        Recovery Testing
-        RTO & RPO
-        Incident Response
-      Health Checks
-        Liveness Checks
-        Readiness Checks
-        Deep Health Checks
-        Dependency Health
-    **INTERNATIONALIZATION**
-      Language Support
-        String Externalization
-        Pluralization
-        Text Expansion
-        Character Encoding
-        Language Detection
-      RTL Support
-        Logical Properties
-        Bidirectional Text
-        Mirrored Layouts
-        Directional Icons
-      Formatting
-        Date & Time Formatting
-        Number Formatting
-        Currency Formatting
-        Unit Formatting
-        Locale-Aware Sorting
-      Cultural Adaptation
-        Cultural Imagery
-        Color Meaning
-        Content Appropriateness
-        Name Formats
-        Address Formats
-      Translation Management
-        Translator Context
-        Translation Memory
-        Missing Translation Handling
-        Continuous Localization
-        Pseudo-Localization
     **CONTENT CRAFT**
       Voice Consistency
         Voice Personality
@@ -378,6 +295,21 @@ mindmap
         Context Sensitivity
         Empathy
         Inclusivity
+      Discoverability & Metadata
+        Title Tags & Meta Descriptions
+        Heading Structure
+        Canonical URLs & Directives
+        Structured Data & JSON-LD
+        Sitemap & Internal Linking
+      Social Reach
+        Open Graph & Social Cards
+        Share Images & Previews
+        Content Appropriateness Across Cultures
+      Global Content
+        String Externalization & Translation Readiness
+        Pluralization & Text Expansion
+        Locale-Aware Formatting
+        Translation Workflow
     **OBSERVABILITY**
       Logging
         Structured Logging
@@ -412,37 +344,6 @@ mindmap
         Visualization Choice
         Context Annotations
         Drill-Down Capability
-    **SCALABILITY**
-      Database Design
-        Query Patterns
-        Indexing Strategy
-        Data Partitioning
-        Connection Management
-        Schema Evolution
-      Caching
-        Cache Strategy
-        Cache Invalidation
-        Cache Layers
-        Cache Warming
-        Thundering Herd Prevention
-      Horizontal Scaling
-        Stateless Design
-        Load Balancing
-        Session Management
-        File Storage
-        Auto-Scaling
-      Async Processing
-        Message Queues
-        Background Jobs
-        Event-Driven Architecture
-        Backpressure
-        Processing Idempotency
-      Architectural Patterns
-        Service Boundaries
-        Data Flow
-        Read-Write Separation
-        API Gateway
-        Rate Limiting & Throttling
     **COMPLIANCE & PRIVACY**
       GDPR
         Lawful Basis
@@ -477,3 +378,36 @@ mindmap
         Age Gates
         Parental Consent
         Age-Appropriate Design
+    **ACCESSIBILITY**
+      Visual Accessibility
+        Color Contrast
+        Color Independence
+        Text Scaling & Zoom
+        Motion Sensitivity
+      Non-Visual Access
+        Alt Text & Image Descriptions
+        Captions & Transcripts
+        Audio Descriptions
+        Semantic HTML Structure
+      Keyboard & Input
+        Keyboard Navigation
+        Focus Management
+        Landmarks & Skip Links
+        Touch Targets & Motor Accessibility
+        Custom Widget ARIA Patterns
+      Cognitive Accessibility
+        Reading Level & Plain Language
+        Predictable Navigation
+        Error Prevention & Recovery
+        Consistent Patterns
+        Timeout & Session Management
+      Assistive Technology
+        Screen Reader Compatibility
+        ARIA Roles & States
+        Browser & AT Testing
+        Dynamic Content & Live Regions
+      Inclusive Design Process
+        Accessibility Testing in CI
+        User Testing with Disabled Users
+        Remediation Prioritization
+        Progressive Enhancement

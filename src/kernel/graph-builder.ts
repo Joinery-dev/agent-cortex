@@ -36,6 +36,7 @@ import type { SemanticMappingInputs, AffinityAnalysisInputs } from "../llm/promp
 import { callStructured } from "../llm/structured.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
+import type { Worldview } from "../types/worldview.js";
 
 const log = createLogger("graph-builder");
 
@@ -109,10 +110,12 @@ interface TaggedEdge {
 export class GraphBuilder {
   private model: string;
   private config: GraphBuilderConfig;
+  private worldview?: Worldview;
 
-  constructor(model: string, config?: Partial<GraphBuilderConfig>) {
+  constructor(model: string, config?: Partial<GraphBuilderConfig>, worldview?: Worldview) {
     this.model = model;
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.worldview = worldview;
   }
 
   // ── Step 1: Semantic Mapping (LLM) ─────────────────────────────
@@ -133,7 +136,7 @@ export class GraphBuilder {
       })),
     };
 
-    const system = semanticMappingSystem();
+    const system = semanticMappingSystem(this.worldview);
     const user = semanticMappingUser(inputs);
 
     let result = await callStructured<{ entries: SemanticMapEntry[] }>(
@@ -258,7 +261,7 @@ export class GraphBuilder {
       cycles,
     };
 
-    const system = affinityAnalysisSystem();
+    const system = affinityAnalysisSystem(this.worldview);
     const user = affinityAnalysisUser(inputs);
 
     const result = await callStructured<{

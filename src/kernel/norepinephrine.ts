@@ -197,6 +197,7 @@ export function extractRiskFromSchedulerSignals(
     vitals: { weightVolatility: number };
     observationPressure?: number;
     lastTaskDopamine?: number;
+    exteroceptivePressure?: number;
   },
   taskMetadata?: {
     dependencyCount: number;
@@ -237,6 +238,7 @@ export function extractRiskFromSchedulerSignals(
     wmPressure: signals.wmSnapshot.load,
     weightVolatility: signals.vitals.weightVolatility,
     observationPressure: signals.observationPressure,
+    exteroceptivePressure: signals.exteroceptivePressure,
     recentFailure,
     taskComplexity: taskMetadata
       ? computeTaskComplexity(

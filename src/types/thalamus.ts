@@ -25,6 +25,7 @@ import type {
   WMTask,
 } from "./working-memory.js";
 import type { Capability } from "./pns.js";
+import type { TerritoryObservation, ObservationStatus } from "./territory-observation.js";
 import type { InhibitionBriefing, InhibitionEnrichment } from "./basal-ganglia.js";
 import type { Episode, Principle } from "./hippocampus.js";
 import type { Maxim, Weltanschauung } from "./world-model.js";
@@ -348,6 +349,27 @@ export interface AccumulatedContextOpts {
   forReceptor?: string;
   /** Filter patterns to those containing this sense name. */
   forSense?: string;
+}
+
+// ─── Observation Harvest ────────────────────────────────────────
+
+/** Options for harvesting observations through the Thalamus. */
+export interface ObservationHarvestOpts {
+  /** Current NE level — required for re-filtering at harvest time. */
+  neLevel: number;
+  /** Which statuses to include. Defaults to ["new", "triaged"]. */
+  statuses?: ObservationStatus[];
+}
+
+/**
+ * Shaped observation set from the Thalamus.
+ * Parallel to AccumulatedContext — filtered, sorted, wrapped in meta.
+ */
+export interface ObservationHarvest {
+  /** Observations surviving all filters, sorted by relevance descending. */
+  observations: TerritoryObservation[];
+  /** Transparency: what sources contributed, what was filtered. */
+  meta: BriefingMeta;
 }
 
 // ─── Sources ─────────────────────────────────────────────────

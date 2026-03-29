@@ -34,8 +34,6 @@ export interface PlannerConfig {
   maxTokens: number;
 
   // ── Hierarchical planning (Phase B evolution) ──────────────────
-  /** Enable hierarchical planning: shaels upfront, shana just-in-time. Default false. */
-  hierarchicalPlanning?: boolean;
   /** Model for Graph Builder (B.2) LLM calls. Defaults to pathReasoningModel or motorCortex. */
   graphBuilderModel?: string;
   /** Minimum shana count to trigger B.2 pipeline during per-shael JIT planning. Default 5. */
@@ -48,7 +46,6 @@ export const DEFAULT_PLANNER_CONFIG: PlannerConfig = {
   maxTasks: 30,
   maxPhaseDepth: 1,
   maxTokens: 8192,
-  hierarchicalPlanning: false,
   jitWiringThreshold: 5,
   jitWiringNEThreshold: 0.5,
 };
@@ -325,6 +322,71 @@ export interface ShaelNode {
 }
 
 /**
+ * Result of assessing whether the hierarchy depth is appropriate.
+ *
+ * Evaluates coherence pressure: if a shael produced too many shana,
+ * it should have been decomposed into sub-shaels first. Necessity
+ * gates apply to the hierarchy structure itself.
+ */
+export interface HierarchyAssessment {
+  /** Overall assessment: is the current depth appropriate? */
+  appropriate: boolean;
+  /** Shaels whose shana count exceeds coherence thresholds. */
+  overloadedShaels: Array<{
+    shaelId: string;
+    shanaCount: number;
+    /** Recommended sub-shael count if decomposition is warranted. */
+    recommendedSubShaels: number;
+    reason: string;
+  }>;
+  /** Current max depth in the tree. */
+  currentDepth: number;
+  /** Maximum depth allowed by config. */
+  maxAllowedDepth: number;
+  /** Cerebellum speed-of-light coherence estimate, if available. */
+  coherenceCeiling?: number;
+}
+
+/**
+ * A phase (shael) ready for just-in-time planning.
+ *
+ * Represents a shael that's about to execute — it needs its own
+ * planning cycle (A' → B.1' → B.2' → B.3') to produce shana.
+ * Carries context from prior completed shaels.
+ */
+export interface PlannedPhase {
+  /** The shael node being planned. */
+  shael: ShaelNode;
+  /** Context from previously completed shaels (descriptions + outcomes). */
+  priorContext: Array<{ shaelId: string; description: string; outcome: string }>;
+  /** The project-level manifested future this phase serves. */
+  manifestedFuture: ManifestedFuture;
+  /** Phase-level gate condition — what must be true when this phase completes. */
+  gateCondition: string;
+  /** Affinity group IDs this shael belongs to (from project-level wiring). */
+  affinityGroupIds: string[];
+}
+
+/**
+ * Output of just-in-time per-shael planning.
+ *
+ * Analogous to HierarchicalPlanResult but scoped to a single shael.
+ * Contains the shana decomposition and wiring for one phase.
+ */
+export interface PhasePlanResult {
+  /** The shael that was planned. */
+  shaelId: string;
+  /** Leaf tasks produced by B.1' decomposition. */
+  shana: ShaelNode[];
+  /** Dependency wiring from B.2' (if triggered — ≥5 shana or NE ≥ 0.5). */
+  wiring: DependencyWiringResult | null;
+  /** Nodes rejected by necessity gates. */
+  rejected: RejectedTask[];
+  /** The backward reasoning from B.1'. */
+  reasoning: string;
+}
+
+/**
  * What the hierarchical planner produces.
  * Analog of PlannerResult for the new planning pipeline.
  */
@@ -341,4 +403,85 @@ export interface HierarchicalPlanResult {
   reasoning: string;
   /** Phase definitions for integration checks. */
   phases: ProposedPhase[];
+}
+
+// ─── PFC Review (Phase B.3) ──────────────────────────────────────
+
+/**
+ * A structural warning from PFC Review.
+ *
+ * Four kinds matching the design doc's four tests:
+ *   gap         — manifested future requires something no shael provides
+ *   redundancy  — two shaels are semantically the same question
+ *   affinity    — co-design risk doesn't hold up under scrutiny
+ *   correction  — dependency correction from B.2 Step 3 wasn't justified
+ */
+export interface PlanWarning {
+  kind: "gap" | "redundancy" | "affinity" | "correction";
+  severity: "info" | "warning" | "critical";
+  description: string;
+  /** Node IDs affected by this warning. */
+  affectedNodeIds: string[];
+}
+
+/**
+ * A dependency patch suggested by PFC Review.
+ * Applied to the wiring before dispatch.
+ */
+export interface DependencyPatch {
+  action: "add" | "remove";
+  from: string;
+  to: string;
+  reason: string;
+}
+
+/**
+ * Output of PFC Review (Phase B.3).
+ *
+ * Contains the validated (possibly patched) plan. The project rhythm
+ * uses reviewed shaels + wiring for dispatch instead of the raw B.2 output.
+ */
+export interface PfcReviewResult {
+  /** Structural warnings found during review. */
+  warnings: PlanWarning[];
+  /** Dependency patches applied. */
+  patches: DependencyPatch[];
+  /** Shaels after review (unchanged unless redundancy was detected). */
+  shaels: ShaelNode[];
+  /** Wiring after patches applied + re-sorted. */
+  wiring: DependencyWiringResult;
+  /** Whether the LLM review ran (true) vs. mechanical-only (false). */
+  thoroughReview: boolean;
+}
+
+// ─── Generative Completion ───────────────────────────────────────
+
+/**
+ * A question that couldn't have been asked before the shalem existed.
+ *
+ * After completion, the system's understanding has changed enough to
+ * see questions it couldn't see before. These surface to the
+ * question-asker as proposals — the system signals, it doesn't chase
+ * its own curiosity without permission.
+ */
+export interface GenerativeQuestion {
+  /** The question itself — framed as a shaela (a question to be lived). */
+  question: string;
+  /** Extension = go deeper in the same direction. Revision = the shalem itself should change. */
+  kind: "extension" | "revision";
+  /** Why this question couldn't have been asked before the shalem existed. */
+  emergenceReason: string;
+  /** Enough context for the question-asker to decide whether to pursue it. */
+  context: string;
+}
+
+/**
+ * What generative completion produces. Attached to ProjectResult
+ * so the question-asker can decide what to pursue next.
+ */
+export interface GenerativeCompletionResult {
+  /** Questions that emerged from the shalem. */
+  questions: GenerativeQuestion[];
+  /** The reasoning trace — how the system arrived at these questions. */
+  reasoning: string;
 }

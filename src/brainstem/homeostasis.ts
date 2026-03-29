@@ -4,13 +4,14 @@
  * The brainstem continuously monitors vital signs and takes
  * corrective action below the level of executive function:
  *
- *   workingMemoryLoad high   → trigger rest cycle
- *   predictionAccuracy low   → trigger rest cycle
- *   contextCapacity critical → evict context (breathing reflex)
- *   learningSignalHealth low → flag for PFC
- *   weightVolatility high    → trigger rest cycle
- *   diagnosticLoad elevated  → spike NE
- *   diagnosticLoad critical  → trigger rest or escalate
+ *   workingMemoryLoad high     → trigger rest cycle
+ *   predictionAccuracy low     → trigger rest cycle
+ *   contextCapacity critical   → evict context (breathing reflex)
+ *   learningSignalHealth low   → flag for PFC
+ *   weightVolatility high      → trigger rest cycle
+ *   weightDisplacement high    → flag for PFC (identity drift)
+ *   diagnosticLoad elevated    → spike NE
+ *   diagnosticLoad critical    → trigger rest or escalate
  *
  * Initially all vitals are at healthy defaults — no learning systems
  * to drive them yet. The wiring exists so Phase 3 components can
@@ -124,6 +125,7 @@ export class HomeostasisMonitor {
       budgetUtilization: 0.0, // No spend yet
       learningSignalHealth: 0.9,
       weightVolatility: 0.1,
+      weightDisplacement: 0.0, // No drift yet — weights at defaults
       tonicDopamine: 0.5, // Neutral — no data yet
     };
 
@@ -242,6 +244,13 @@ export class HomeostasisMonitor {
       });
     }
 
+    if (this.vitals.weightDisplacement > this.thresholds.weightDisplacement) {
+      actions.push({
+        type: "flag-pfc",
+        reason: `Weight displacement ${this.vitals.weightDisplacement.toFixed(2)} exceeds threshold ${this.thresholds.weightDisplacement} — identity drift requires evaluation`,
+      });
+    }
+
     if (this.vitals.tonicDopamine < this.thresholds.tonicDopamine) {
       actions.push({
         type: "flag-pfc",
@@ -297,8 +306,8 @@ export class HomeostasisMonitor {
    * reflexes (rest, compress, tighten) can't fix. Parallel to needsRest()
    * but reads vitals directly — no side effects, no event emission.
    */
-  needsPfcIntervention(): Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }> {
-    const flags: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed"; reason: string }> = [];
+  needsPfcIntervention(): Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed" | "weight-displacement-high"; reason: string }> {
+    const flags: Array<{ type: "learning-signal-degraded" | "tonic-dopamine-crashed" | "weight-displacement-high"; reason: string }> = [];
 
     if (this.vitals.learningSignalHealth < this.thresholds.learningSignalHealth) {
       flags.push({
@@ -311,6 +320,13 @@ export class HomeostasisMonitor {
       flags.push({
         type: "tonic-dopamine-crashed",
         reason: `Tonic dopamine ${this.vitals.tonicDopamine.toFixed(2)} below threshold ${this.thresholds.tonicDopamine} — project persistently disappointing`,
+      });
+    }
+
+    if (this.vitals.weightDisplacement > this.thresholds.weightDisplacement) {
+      flags.push({
+        type: "weight-displacement-high",
+        reason: `Weight displacement ${this.vitals.weightDisplacement.toFixed(2)} exceeds threshold ${this.thresholds.weightDisplacement} — identity drift requires evaluation`,
       });
     }
 

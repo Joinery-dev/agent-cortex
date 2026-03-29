@@ -14,6 +14,11 @@
  *                         genuine synthesis or capitulation. Returns a
  *                         gate signal for the build-cycle.
  *
+ * Persistence: routines and candidates survive across sessions via
+ * BasalGangliaStore. Routine confidence is also mirrored in the
+ * PlasticityStore as routine-strength weights, so the identity portrait
+ * includes procedural memory.
+ *
  * Owned by the Brainstem, threaded through rhythm definitions.
  */
 
@@ -36,6 +41,8 @@ import {
 import type { StriatalProjection } from "../types/dopamine.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { WorkingMemory } from "./working-memory.js";
+import type { PlasticityStore } from "../types/plasticity.js";
+import type { BasalGangliaStore, PersistedCandidate } from "../subcortical/basal-ganglia-store.js";
 import { callStructured } from "../llm/structured.js";
 import {
   basalGangliaSystem,
@@ -149,8 +156,131 @@ export class BasalGanglia {
   /** Candidate patterns accumulating toward routine creation, keyed by fingerprint hash. */
   private candidates: Map<string, CandidateAccumulator> = new Map();
 
-  constructor(config?: Partial<BasalGangliaConfig>) {
+  /** File-based persistence (optional — without it, routines are session-scoped). */
+  private store: BasalGangliaStore | undefined;
+  /** Plasticity integration (optional — mirrors routine confidence as plastic weights). */
+  private plasticity: PlasticityStore | undefined;
+
+  constructor(
+    config?: Partial<BasalGangliaConfig>,
+    store?: BasalGangliaStore,
+    plasticity?: PlasticityStore,
+  ) {
     this.config = { ...DEFAULT_BASAL_GANGLIA_CONFIG, ...config };
+    this.store = store;
+    this.plasticity = plasticity;
+  }
+
+  // ── Persistence ─────────────────────────────────────────────────
+
+  /**
+   * Load persisted routines and candidates from disk.
+   * Call once at startup, before any selectAction() calls.
+   * Safe to call without a store — no-ops gracefully.
+   */
+  async load(): Promise<void> {
+    if (!this.store) return;
+
+    const [routines, candidates] = await Promise.all([
+      this.store.loadRoutines(),
+      this.store.loadCandidates(),
+    ]);
+
+    for (const routine of routines) {
+      this.routines.set(routine.id, routine);
+      // Mirror into PlasticityStore so identity portrait includes routines
+      this.registerRoutineWeight(routine);
+    }
+
+    for (const pc of candidates) {
+      this.candidates.set(pc.hash, {
+        fingerprint: pc.fingerprint,
+        observations: pc.observations,
+        firstSeen: pc.firstSeen,
+        lastSeen: pc.lastSeen,
+      });
+    }
+
+    log.info("Loaded persisted state", {
+      routines: routines.length,
+      candidates: candidates.length,
+    });
+
+    emit("basal-ganglia:loaded", {
+      routines: routines.length,
+      candidates: candidates.length,
+    });
+  }
+
+  /**
+   * Persist current routines and candidates to disk.
+   * Called after mutations (promote, reinforce, decay).
+   */
+  private async save(): Promise<void> {
+    if (!this.store) return;
+
+    const persistedCandidates: PersistedCandidate[] = [...this.candidates.entries()]
+      .map(([hash, c]) => ({
+        hash,
+        fingerprint: c.fingerprint,
+        observations: c.observations,
+        firstSeen: c.firstSeen,
+        lastSeen: c.lastSeen,
+      }));
+
+    await Promise.all([
+      this.store.saveRoutines([...this.routines.values()]),
+      this.store.saveCandidates(persistedCandidates),
+    ]).catch((err) =>
+      log.error("Failed to persist BG state", { error: String(err) }),
+    );
+  }
+
+  /**
+   * Register a routine's confidence as a plastic weight.
+   * Creates the weight if it doesn't exist yet.
+   */
+  private registerRoutineWeight(routine: Routine): void {
+    if (!this.plasticity) return;
+
+    const connectionId = `basal-ganglia.routine.${routine.id}`;
+    const existing = this.plasticity.get(connectionId);
+
+    if (!existing) {
+      this.plasticity.register({
+        id: connectionId,
+        region: "BasalGanglia",
+        description: `Routine confidence for pattern: ${routine.fingerprint.domainKeywords.slice(0, 3).join(", ")}`,
+        defaultValue: routine.confidence,
+        range: [0, 1],
+        category: "routine-strength",
+      });
+    }
+  }
+
+  /**
+   * Update a routine's confidence in the PlasticityStore.
+   */
+  private syncRoutineWeight(routine: Routine, delta: number, context: string): void {
+    if (!this.plasticity) return;
+
+    const connectionId = `basal-ganglia.routine.${routine.id}`;
+    this.plasticity.update(connectionId, delta, "dopamine", context);
+  }
+
+  /**
+   * Remove a routine's weight from the PlasticityStore when pruned.
+   * PlasticityStore doesn't have a remove() method, so we zero it out.
+   */
+  private clearRoutineWeight(routineId: string): void {
+    if (!this.plasticity) return;
+
+    const connectionId = `basal-ganglia.routine.${routineId}`;
+    const existing = this.plasticity.get(connectionId);
+    if (existing) {
+      // Drive to zero — effectively deactivated
+      this.plasticity.update(connectionId, -existing.value, "decay", "routine-pruned");
+    }
   }
 
   // ── Routine store accessors ───────────────────────────────────
@@ -322,6 +452,7 @@ export class BasalGanglia {
       // ── Reinforce existing routine ────────────────────────
       const routine = match.routine;
       const learningStep = striatal.reinforcement * 0.1;
+      const oldConfidence = routine.confidence;
       routine.confidence = Math.max(0, Math.min(1, routine.confidence + learningStep));
       routine.observationCount++;
       routine.lastReinforcedAt = new Date();
@@ -341,6 +472,9 @@ export class BasalGanglia {
         }
       }
 
+      // Mirror confidence change into PlasticityStore
+      this.syncRoutineWeight(routine, routine.confidence - oldConfidence, `reinforce:${taskId}`);
+
       log.debug("Routine reinforced", {
         routineId: routine.id,
         reinforcement: striatal.reinforcement.toFixed(3),
@@ -355,6 +489,8 @@ export class BasalGanglia {
         confidence: routine.confidence,
         observationCount: routine.observationCount,
       });
+
+      void this.save();
     } else if (striatal.reinforcement > 0) {
       // ── Accumulate candidate ──────────────────────────────
       const hash = this.fingerprintHash(fingerprint);
@@ -377,6 +513,9 @@ export class BasalGanglia {
       const candidate = this.candidates.get(hash)!;
       if (candidate.observations.length >= this.config.stableObservationCount) {
         this.promoteCandidate(hash, candidate);
+      } else {
+        // Candidate accumulated but not promoted — still worth persisting
+        void this.save();
       }
     }
   }
@@ -393,10 +532,12 @@ export class BasalGanglia {
 
     for (const [id, routine] of this.routines) {
       routine.confidence -= this.config.routineDecayRate;
+      this.syncRoutineWeight(routine, -this.config.routineDecayRate, "decay");
       decayed++;
 
       if (routine.confidence < 0.1) {
         this.routines.delete(id);
+        this.clearRoutineWeight(id);
         pruned++;
         log.debug("Routine pruned", { routineId: id });
       }
@@ -408,6 +549,7 @@ export class BasalGanglia {
         .sort((a, b) => a[1].confidence - b[1].confidence);
       const toEvict = sorted.slice(0, this.routines.size - this.config.maxRoutines);
       for (const [id] of toEvict) {
+        this.clearRoutineWeight(id);
         this.routines.delete(id);
         pruned++;
       }
@@ -418,6 +560,7 @@ export class BasalGanglia {
       log.debug("Routine decay", { decayed, pruned, remaining: this.routines.size });
     }
 
+    void this.save();
     return { decayed, pruned };
   }
 
@@ -820,6 +963,9 @@ export class BasalGanglia {
     this.routines.set(routine.id, routine);
     this.candidates.delete(hash);
 
+    // Register in PlasticityStore so identity portrait includes this routine
+    this.registerRoutineWeight(routine);
+
     log.info("New routine created", {
       routineId: routine.id,
       activateSenses,
@@ -833,6 +979,8 @@ export class BasalGanglia {
       suppressSenses,
       confidence: routine.confidence,
     });
+
+    void this.save();
   }
 
   /** Simple hash of a fingerprint for candidate deduplication. */

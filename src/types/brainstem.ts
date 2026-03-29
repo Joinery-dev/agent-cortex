@@ -137,6 +137,8 @@ export interface BuildCycleContext {
   taskBudgetRemaining?: number;
   /** Project-level budget utilization (0–1). For gate economic signals. */
   projectBudgetUtilization?: number;
+  /** How close to the attention budget ceiling (0–1). Computed by sensory-cortex. */
+  budgetProximity?: number;
 }
 
 // ─── Rhythm-level result types ──────────────────────────────────
@@ -146,6 +148,8 @@ export interface ProjectResult {
   state: "delivered" | "paused";
   taskResults: Map<string, OrchestratorResult>;
   retrospective?: string;
+  /** Questions that emerged from the shalem — proposals for the question-asker. */
+  generativeQuestions?: import("./planner.js").GenerativeCompletionResult;
 }
 
 /** What task-dispatch produces — all tasks done or escalated. */
@@ -320,11 +324,12 @@ export interface EscalationDeliveryAdapter {
  * the PFC to deliberate over — they're reflexes. When a vital sign
  * leaves its range, the brainstem acts automatically:
  *
- * - workingMemoryLoad high   → trigger rest cycle (prune/promote)
- * - predictionAccuracy low   → trigger rest cycle (recalibrate cerebellum)
- * - contextCapacity critical → compress briefings (breathing reflex)
- * - budgetUtilization high   → tighten budget (model downgrade + briefing compression)
- * - learningSignalHealth low → flag for PFC (something is wrong, not fixable by reflex)
+ * - workingMemoryLoad high     → trigger rest cycle (prune/promote)
+ * - predictionAccuracy low     → trigger rest cycle (recalibrate cerebellum)
+ * - contextCapacity critical   → compress briefings (breathing reflex)
+ * - budgetUtilization high     → tighten budget (model downgrade + briefing compression)
+ * - learningSignalHealth low   → flag for PFC (something is wrong, not fixable by reflex)
+ * - weightDisplacement high    → flag for PFC (identity drift — is this growth or runaway?)
  */
 export interface VitalSigns {
   /**
@@ -375,6 +380,17 @@ export interface VitalSigns {
   weightVolatility: number;
 
   /**
+   * How far plastic weights have drifted from their initial values. 0–1.
+   * Mean normalized displacement across all weights. High = the system's
+   * learned identity has shifted dramatically from its starting point.
+   * Could be healthy growth or runaway drift — PFC must evaluate.
+   *
+   * Distinct from volatility: volatility = jitter (oscillating in place),
+   * displacement = drift (moved far from origin, stable or not).
+   */
+  weightDisplacement: number;
+
+  /**
    * Tonic dopamine level for the current project. Mapped to 0–1 for
    * homeostasis (raw tonic is unbounded). Reflects overall reward
    * environment: 0.5 = neutral, < 0.5 = project disappointing,
@@ -398,6 +414,8 @@ export interface VitalSignThresholds {
   learningSignalHealth: number;
   /** Above this → brainstem considers rest. */
   weightVolatility: number;
+  /** Above this → brainstem flags for PFC (identity drift). */
+  weightDisplacement: number;
   /** Below this → brainstem flags for PFC (project persistently disappointing). */
   tonicDopamine: number;
 }
@@ -409,6 +427,7 @@ export const DEFAULT_VITAL_THRESHOLDS: VitalSignThresholds = {
   budgetUtilization: 0.85,
   learningSignalHealth: 0.3,
   weightVolatility: 0.7,
+  weightDisplacement: 0.7,
   tonicDopamine: 0.25,
 };
 

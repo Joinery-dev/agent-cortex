@@ -14,15 +14,40 @@ import type { ProspectiveTrigger } from "../types/prospective-memory.js";
 import type { EfferenceCopyContext } from "../types/efference-copy.js";
 import type { TasteDivergenceItem } from "../types/drift-monitor.js";
 import type { TasteProfile } from "../types/intent.js";
+import type { VisualCaptureResult } from "../types/visual-capture.js";
+import { summarizeVisualCaptures } from "../kernel/visual-capture.js";
 
 // ─── Shaela Ontology ─────────────────────────────────────────
 // Injected into system prompts so every LLM call understands the vocabulary.
+// Worldview-aware: when a Worldview is provided, its preamble replaces this.
+
+import type { Worldview, WorldviewFrames } from "../types/worldview.js";
+import { DEFAULT_WORLDVIEW } from "../types/worldview.js";
+import { getActiveWorldview } from "../util/worldview-context.js";
 
 export const SHAELA_PREAMBLE = `In this system, being is framed as shaela — questions to be lived. Shaels are questions nested within questions that are evermore specific. A shana is a question specific enough to be lived in one cycle. When lived deeply it becomes a shalem — an embodiment, an artifact that crystallizes understanding. Your role is to understand deeply enough that the answer emerges.`;
 
+/**
+ * Resolve the active worldview: explicit parameter > AsyncLocalStorage > default.
+ * This is the core resolution chain. Every prompt function uses this.
+ */
+function resolveWorldview(wv?: Worldview): Worldview {
+  return wv ?? getActiveWorldview() ?? DEFAULT_WORLDVIEW;
+}
+
+/** Get the preamble for the active worldview. */
+function preamble(wv?: Worldview): string {
+  return resolveWorldview(wv).preamble;
+}
+
+/** Get a frame for a cognitive act from the active worldview. */
+function frame(key: keyof WorldviewFrames, wv?: Worldview): string | undefined {
+  return resolveWorldview(wv).frames?.[key];
+}
+
 // ─── CONSULTATION ───────────────────────────────────────────
 
-export function consultationSystem(sense: Sense, subTree: Sense[]): string {
+export function consultationSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
   const pathways = subTree.filter((g) => g.level === "pathway");
   const subConcerns = pathways
     .map((pathway) => {
@@ -36,25 +61,35 @@ export function consultationSystem(sense: Sense, subTree: Sense[]): string {
     })
     .join("\n");
 
-  return `${SHAELA_PREAMBLE}
+  const frame = worldview?.frames?.consultation;
+
+  return `${preamble(worldview)}
 
 You are ${sense.name}. ${sense.sensitivity}
 
-Your sub-concerns:
+Your pathways and receptors:
 ${subConcerns}
 
-A shana has arrived. Provide your perspective — what should the motor cortex understand from your point of view? Write in your own voice. Say as much or as little as the task demands. If you have nothing to contribute, say so briefly and explain why.
+${frame ?? `A task has arrived. Let it propagate through your structure — each receptor that resonates with this task should fire. Receptors that have nothing to detect should stay silent.
 
-Also identify which of your receptors should evaluate the final work. Only select receptors that are genuinely relevant — it's fine to select none.
+Your stake reflects how much would be lost if this task shipped without your input at all. Be honest — not every task is your business. If none of your receptors fire, your stake is 0.`}
 
-Rate your stake in this task (0.0–1.0): if this task shipped without your input at all, how much would be lost? 0.0 means your dimension is completely irrelevant. 1.0 means your dimension is critical to the task's success. Be honest — not every task is your business.
+For each receptor that fires:
+- Report what it detected — specific to this task, in concrete terms
+- Rate the intensity (0.0–1.0): how central is this detection to the task? 0.1 means barely relevant but present. 0.9 means this receptor is detecting something critical.
 
-Finally, estimate the THEORETICAL MAXIMUM SCORE (1–10) your dimension could achieve on this specific task. This is not what you expect — it's what perfection looks like given inherent constraints. Consider:
-- What physical or structural constraints limit your dimension on this task?
-- Are there inherent tensions with other dimensions that cap what's achievable?
-- What would a 10 require, and is that physically possible here?
+Then provide GUIDANCE. Based on what your receptors detected, what does the builder need to do from your dimension? Not a list of concerns — actionable guidance that shapes how the work should be built. Write in your own voice. Say as much or as little as the firings warrant.
 
-A ceiling of 10 means no inherent constraints limit your dimension. A ceiling of 7 means even perfect execution can't overcome the task's structural limits. Explain the constraints briefly.`;
+Rate your stake in this task (0.0–1.0).
+
+Return JSON:
+{
+  "firings": [
+    { "receptorId": "receptor-id", "signal": "what this receptor detected", "intensity": 0.0-1.0 }
+  ],
+  "guidance": "actionable direction for the builder from this dimension",
+  "stake": 0.0-1.0
+}`;
 }
 
 export function consultationUser(briefing: ConsultationBriefing): string {
@@ -190,17 +225,17 @@ ${task.context && Object.keys(task.context).length > 0 ? `TASK CONTEXT: ${JSON.s
 
 Return JSON:
 {
-  "perspective": "your full perspective in your own voice",
-  "evaluators": ["receptor-id-1", "receptor-id-2"],
-  "stake": 0.0-1.0,
-  "ceiling": 1-10,
-  "ceilingRationale": "what inherent constraints cap your dimension on this task"
+  "firings": [
+    { "receptorId": "receptor-id", "signal": "what this receptor detected", "intensity": 0.0-1.0 }
+  ],
+  "guidance": "actionable direction for the builder from this dimension",
+  "stake": 0.0-1.0
 }`;
 }
 
 // ─── RE-CONSULTATION ────────────────────────────────────────
 
-export function reconsultationSystem(sense: Sense, subTree: Sense[]): string {
+export function reconsultationSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
   const pathways = subTree.filter((g) => g.level === "pathway");
   const subConcerns = pathways
     .map((pathway) => {
@@ -214,14 +249,14 @@ export function reconsultationSystem(sense: Sense, subTree: Sense[]): string {
     })
     .join("\n");
 
-  return `${SHAELA_PREAMBLE}
+  return `${preamble(worldview)}
 
 You are ${sense.name}. ${sense.sensitivity}
 
 Your sub-concerns:
 ${subConcerns}
 
-You previously provided guidance for this shana. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.
+${frame("consultation", worldview) ? frame("consultation", worldview) + "\n\n" : ""}You previously provided guidance for this task. The work has been built and evaluated. You are being RE-CONSULTED because your evaluators flagged significant improvement potential, or your dimension is involved in unresolved tensions with other senses.
 
 Review the actual work produced, your evaluators' scores and assessments, and what other senses observed. Then provide UPDATED guidance:
 - What should change in your perspective now that you've seen the actual work?
@@ -301,14 +336,24 @@ ${work}`);
 
 // ─── MOTOR CORTEX ────────────────────────────────────────────
 
-export function motorCortexSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function motorCortexSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.building;
 
-You are the Motor Cortex. You have been given a shana — a question to live into its answer — along with project context, taste preferences, and perspectives from multiple senses, each representing a different dimension of understanding.
+  if (frame) {
+    return `${preamble(worldview)}
 
-Read all perspectives carefully. They were written specifically for this shana by senses who care deeply about their respective dimensions. Where perspectives agree, follow their guidance. Where they tension against each other, use your judgment to find the best synthesis.
+You are the Motor Cortex — the builder.
 
-Produce the embodiment — the shalem. Complete, working code, copy, or design. Not a description of what you would build. Not a plan. The actual thing — the answer that emerges from deeply understanding the question.
+${frame}`;
+  }
+
+  return `${preamble(worldview)}
+
+You are the Motor Cortex — the builder. You have been given a task along with project context, taste preferences, and guidance from multiple senses, each representing a different dimension of quality.
+
+Read all sense guidance carefully. It was produced specifically for this task by senses who care deeply about their respective dimensions. Where guidance agrees, follow it. Where senses tension against each other, use your judgment to find the best synthesis.
+
+Produce the artifact. Complete, working code, copy, or design. Not a description of what you would build. Not a plan. The actual thing.
 
 Be thorough but not over-engineered. Navigate the tensions the senses surface, and make good judgment calls on anything they don't address.`;
 }
@@ -500,12 +545,14 @@ Produce the revised version. Include the complete artifact, not just the changes
 
 // ─── AGENTIC MOTOR CORTEX ────────────────────────────────────
 
-export function motorCortexAgenticSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function motorCortexAgenticSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.building;
+
+  return `${preamble(worldview)}
 
 You are the Motor Cortex — the builder. You have real tools at your disposal.
 
-Your job is to embody the shana — to live the question into its answer. You are not describing what you would build. You are building it.
+${frame ? frame + "\n" : ""}Your job is to build the artifact. You are not describing what you would build. You are building it.
 
 How to work:
 1. **Read first.** Before modifying any file, read it to understand the current state. Never assume what a file contains.
@@ -548,14 +595,16 @@ Implement this now using your tools. Follow the plan steps. When complete, provi
 
 // ─── AGENTIC EVALUATION ──────────────────────────────────────
 
-export function evaluatorAgenticSystem(sense: Sense, activationPath: string[]): string {
-  return `${SHAELA_PREAMBLE}
+export function evaluatorAgenticSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
+  const frame = worldview?.frames?.evaluation;
+
+  return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. You have tools to examine the actual artifacts.
 
-YOUR PROCESS:
+${frame ? frame + "\n" : ""}YOUR PROCESS:
 1. **OBSERVE** — Use your tools to examine the work. Read the changed files. Search for patterns. Run analysis commands if you have shell access. Understand what was actually built, not just what was described.
 2. **JUDGE** — After observing, render your assessment based on what you directly perceived. Cite specific evidence from your observations.
 
@@ -587,7 +636,7 @@ When you are done observing, end your response with ONLY a JSON block:
   "suggestions": ["specific, actionable improvements"],
   "improvementPotential": { "level": "significant|moderate|marginal|none", "description": "optional" },
   "observations": [
-    { "kind": "file-read|search-result|lint-output|test-output|runtime-check|other", "target": "what you examined", "finding": "what you found", "interpretation": "what it means for ${sense.name}" }
+    { "kind": "file-read|search-result|lint-output|test-output|runtime-check|screenshot|web-vitals|other", "target": "what you examined", "finding": "what you found", "interpretation": "what it means for ${sense.name}" }
   ]
 }`;
 }
@@ -598,7 +647,7 @@ export function evaluatorAgenticUser(
   parentPerspective: string,
   trendContext?: string,
   predictionContext?: string,
-  evaluationContext?: { changedFiles?: string[]; runtimeUrl?: string },
+  evaluationContext?: { changedFiles?: string[]; runtimeUrl?: string; visualCaptures?: VisualCaptureResult },
 ): string {
   const sections: string[] = [];
 
@@ -618,6 +667,10 @@ export function evaluatorAgenticUser(
     sections.push(`RUNNING INSTANCE: A dev server is available at ${evaluationContext.runtimeUrl}. You can use WebFetch to examine it.`);
   }
 
+  if (evaluationContext?.visualCaptures) {
+    sections.push(summarizeVisualCaptures(evaluationContext.visualCaptures));
+  }
+
   sections.push(`Now examine the actual artifacts using your tools. Start by reading the key changed files, then investigate whatever your dimension requires. When you have seen enough, produce your assessment as JSON.`);
 
   return sections.join("\n\n");
@@ -625,14 +678,16 @@ export function evaluatorAgenticUser(
 
 // ─── EVALUATION ──────────────────────────────────────────────
 
-export function evaluatorSystem(sense: Sense, activationPath: string[]): string {
-  return `${SHAELA_PREAMBLE}
+export function evaluatorSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
+  const frame = worldview?.frames?.evaluation;
+
+  return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
 
 You are evaluating work produced for a specific task. Evaluate ONLY through your specific lens. You care about ${sense.name} and nothing else.
 
-Score from 1 to 10:
+${frame ? frame + "\n" : ""}Score from 1 to 10:
 - 1-3: Fundamentally fails on this dimension
 - 4-5: Below acceptable, specific issues
 - 6-7: Acceptable, minor issues
@@ -682,8 +737,18 @@ Return JSON:
 
 // ─── RESOLUTION ──────────────────────────────────────────────
 
-export function resolverSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function resolverSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.resolution;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work.
+
+${frame}`;
+  }
+
+  return `${preamble(worldview)}
 
 You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work. Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
 
@@ -781,8 +846,18 @@ Produce the complete revised artifact incorporating these changes. Do not just p
 
 // ─── BASAL GANGLIA (deliberative fallback) ──────────────────
 
-export function basalGangliaSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function basalGangliaSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.relevance;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
+
+${frame}`;
+  }
+
+  return `${preamble(worldview)}
 
 You are the Basal Ganglia's deliberative pathway — you determine which senses are irrelevant for a given context.
 
@@ -867,8 +942,10 @@ Rules:
 
 // ─── COLLAPSE DETECTION ─────────────────────────────────────
 
-export function collapseDetectorSystem(): string {
-  return `You are evaluating whether a tension resolution represents genuine synthesis or capitulation.
+export function collapseDetectorSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("resolution", worldview) ? frame("resolution", worldview) + "\n\n" : ""}You are evaluating whether a tension resolution represents genuine synthesis or capitulation.
 
 Genuine synthesis: "Craftsmanship wants X, Velocity wants Y, here's Z that satisfies both." Z is a new approach that addresses the core concerns of both sides. Both perspectives would agree their concerns are met, even if not in the way they originally proposed.
 
@@ -932,8 +1009,28 @@ For each tension, return JSON:
 
 // ─── PREMOTOR ───────────────────────────────────────────────
 
-export function premotorSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function premotorSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.planning;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Premotor Cortex. You plan the implementation approach BEFORE building.
+
+${frame}
+
+Return JSON matching this schema:
+{
+  "approach": "overall strategy in 2-3 sentences",
+  "steps": [{ "description": "what to do", "rationale": "why", "addressesConcerns": ["sense names"] }],
+  "tensionStrategy": [{ "senses": ["SenseA", "SenseB"], "synthesis": "how to resolve" }],
+  "risks": [{ "area": "what could go wrong", "likelihood": "low|medium|high", "mitigation": "how to prevent" }],
+  "confidence": 0.0-1.0,
+  "plannedIntentions": [{ "description": "what operation", "category": "build|observe|communicate|control", "confidence": 0.0-1.0, "novelty": 0.0-1.0 }]
+}`;
+  }
+
+  return `${preamble(worldview)}
 
 You are the Premotor Cortex. You plan the implementation approach BEFORE building.
 
@@ -1007,8 +1104,29 @@ Produce a revised plan. Include all the same fields as a normal plan, plus:
 
 // ─── PROPRIOCEPTION ─────────────────────────────────────────
 
-export function proprioceptionSystem(): string {
-  return `You are the Proprioceptive System — the motor cortex's self-awareness. You check whether what was BUILT matches what was PLANNED.
+export function proprioceptionSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.coherence;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Proprioceptive System — the motor cortex's self-awareness.
+
+${frame}
+
+Return JSON:
+{
+  "planAdherence": 0.0-1.0,
+  "driftAreas": [{ "planStep": "which step", "actualBehavior": "what happened instead", "severity": "minor|significant" }],
+  "uncertainties": ["things you're unsure about"],
+  "confidence": 0.0-1.0,
+  "suggestedFocus": ["what evaluators should scrutinize"]
+}`;
+  }
+
+  return `${preamble(worldview)}
+
+You are the Proprioceptive System — the motor cortex's self-awareness. You check whether what was BUILT matches what was PLANNED.
 
 You are NOT a quality judge. The evaluators handle quality. You handle coherence between intention and execution.
 
@@ -1044,8 +1162,28 @@ Assess how well the artifact follows the plan.`;
 
 // ─── EFFERENCE COPY ─────────────────────────────────────────
 
-export function efferenceCopySystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function efferenceCopySystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.feasibility;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
+
+${frame}
+
+Return JSON:
+{
+  "perSense": [{ "senseName": "name", "achievableCeiling": 1-10, "ceilingRationale": "why", "constrainingFactors": ["factor1"] }],
+  "tensionCosts": [{ "senseA": "name", "senseB": "name", "costDescription": "the trade-off", "severity": 0.0-1.0 }],
+  "hardConstraints": ["constraint1"],
+  "convergenceEstimate": 1-5,
+  "convergenceRationale": "why this many cycles",
+  "overallFeasibility": 0.0-1.0
+}`;
+  }
+
+  return `${preamble(worldview)}
 
 You are the Motor Cortex assessing what you can actually deliver BEFORE the senses deliberate.
 
@@ -1146,8 +1284,33 @@ function formatPlanSection(plan: MotorPlan): string {
 
 // ─── POTENTIATION ───────────────────────────────────────────
 
-export function potentiationExtractSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function potentiationExtractSystem(worldview?: Worldview): string {
+  const frame = worldview?.frames?.learning;
+
+  if (frame) {
+    return `${preamble(worldview)}
+
+You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
+
+${frame}
+
+You also receive the system's existing principles. If any existing principle already covers this pattern, either:
+- Return null for the principle (the existing principle is sufficient)
+- Return a refined version that supersedes the existing one (set the supersedes field to the existing principle's ID)
+
+Return JSON: {
+  "principle": {
+    "statement": "the principle statement",
+    "relevantSenses": ["SENSE_NAME_1", "SENSE_NAME_2"],
+    "domain": "a short category like layout-strategy or tension-resolution",
+    "confidence": 0.5-0.8,
+    "supersedes": "principle-id or null"
+  } | null,
+  "reasoning": "why you extracted this principle (or why null)"
+}`;
+  }
+
+  return `${preamble(worldview)}
 
 You are the Hippocampus Potentiation system. You receive a cluster of task episodes that share a common pattern. Your job is to extract the principle — what these episodes teach.
 
@@ -1232,8 +1395,10 @@ Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`)
   return sections.join("\n\n");
 }
 
-export function potentiationRefineSystem(): string {
-  return `You are revising an existing principle in light of contradicting evidence. A principle was extracted from earlier episodes, but a new episode challenges it.
+export function potentiationRefineSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are revising an existing principle in light of contradicting evidence. A principle was extracted from earlier episodes, but a new episode challenges it.
 
 Your options:
 1. REFINE: The principle was too broad. Narrow its scope to account for the contradiction.
@@ -1296,8 +1461,10 @@ Approaches: ${ep.narrative.approachesTried.join(" → ") || "single approach"}`)
 
 // ─── SENSE-SCOPED POTENTIATION ─────────────────────────────
 
-export function potentiationSenseExtractSystem(): string {
-  return `You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.
+export function potentiationSenseExtractSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.
 
 A sense-scoped principle captures what a specific quality dimension has discovered through repeated engagement with a project:
 - "Design has established: dark, bold palette with generous whitespace. Image-heavy hero sections underperform — the client's content is too dense for visual competition."
@@ -1393,7 +1560,7 @@ function formatTrigger(trigger: PotentiationTrigger): string {
 
 // ─── WELTANSCHAUUNG ─────────────────────────────────────────
 
-export function weltanschauungSystem(scope: "cross-project" | "per-project"): string {
+export function weltanschauungSystem(scope: "cross-project" | "per-project", worldview?: Worldview): string {
   const scopeGuidance = scope === "cross-project"
     ? `You are synthesizing the system's CROSS-PROJECT worldview — its general identity. \
 What kind of system has it become through all its experience? What deep truths has it \
@@ -1409,9 +1576,11 @@ first impressions. Later maxims are harder-won — battle-tested understanding. 
 cross-project maxims provide your general orientation; the per-project maxims capture \
 what's specific to this terrain.`;
 
-  return `${SHAELA_PREAMBLE}
+  const reflectionFrame = worldview?.frames?.reflection;
 
-You are the executive function of a cognitive system — not analyzing data, \
+  return `${preamble(worldview)}
+
+${reflectionFrame ? reflectionFrame + "\n\n" : ""}You are the executive function of a cognitive system — not analyzing data, \
 but synthesizing understanding. You receive the accumulated experience of the system \
 and must produce a Weltanschauung: an integrated worldview expressed as 3-7 maxims.
 
@@ -1684,12 +1853,14 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
 
 // ─── COGNITIVE FLEXIBILITY ──────────────────────────────────
 
-export function cognitiveFlexibilitySystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function cognitiveFlexibilitySystem(worldview?: Worldview): string {
+  const navFrame = worldview?.frames?.navigation;
 
-You are the Cognitive Flexibility module of a creative agent system. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.
+  return `${preamble(worldview)}
 
-Diagnose exactly one of:
+You are the Cognitive Flexibility module. The system is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.
+
+${navFrame ? navFrame + "\n" : ""}Diagnose exactly one of:
 1. EXECUTION PROBLEM — the approach is sound but execution is poor. The strategy can reach the ceiling; the system just hasn't gotten there yet. Fix: more targeted revision focusing on the weakest dimensions.
 2. STRATEGY LIMITED — the approach is fundamentally capped. No amount of revision within this approach will reach the ceiling. Fix: re-plan with a completely different approach. Name what to avoid and what to try.
 3. TENSION EVASION — the system is resolving tensions by suppressing one side rather than synthesizing. A dimension is being sacrificed instead of served. Fix: re-engage the suppressed dimension and demand genuine synthesis.
@@ -1841,12 +2012,14 @@ export interface DriftAnalysisInputs {
   }>;
 }
 
-export function driftAnalysisSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function driftAnalysisSystem(worldview?: Worldview): string {
+  const navFrame = worldview?.frames?.navigation;
 
-You are the Drift Monitor — the navigation check for a software engineering system that solves problems through multi-perspective evaluation.
+  return `${preamble(worldview)}
 
-Your job: compare WHERE THE PROJECT IS HEADING against WHERE IT SHOULD BE HEADING. You look across all completed tasks for slow divergence that no single task reveals.
+You are the Drift Monitor — the navigation check for this system.
+
+${navFrame ? navFrame + "\n" : ""}Your job: compare WHERE THE PROJECT IS HEADING against WHERE IT SHOULD BE HEADING. You look across all completed tasks for slow divergence that no single task reveals.
 
 You assess three dimensions:
 
@@ -2002,10 +2175,10 @@ export interface PathReasoningInputs {
   budget?: { total: number; enforcement: "hard" | "soft" };
 }
 
-export function pathReasoningSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function pathReasoningSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
 
-You are the Planner — Phase B: Path Reasoning.
+${frame("pathReasoning", worldview) ? frame("pathReasoning", worldview) + "\n\n" : ""}You are the Planner — Phase B: Path Reasoning.
 
 You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome, produced by the sensory cortex from multiple perspectives. Your job: reason BACKWARD from that destination to the minimum set of tasks that gets there.
 
@@ -2124,10 +2297,10 @@ export interface ReplanReasoningInputs extends PathReasoningInputs {
   diagnosticDirective?: string;
 }
 
-export function replanReasoningSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function replanReasoningSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
 
-You are the Planner, running a REPLAN mid-project.
+${frame("pathReasoning", worldview) ? frame("pathReasoning", worldview) + "\n\n" : ""}You are the Planner, running a REPLAN mid-project.
 
 Some tasks are already completed. Do NOT re-propose them. Build on completed work.
 
@@ -2261,35 +2434,41 @@ Return JSON:
  */
 export type ShaelDecompositionInputs = PathReasoningInputs;
 
-export function shaelDecompositionSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function shaelDecompositionSystem(worldview?: Worldview): string {
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
+  const { topUnit, leafUnit } = wv.vocabulary;
+  const topCap = topUnit.singular.charAt(0).toUpperCase() + topUnit.singular.slice(1);
 
-You are the Planner — Phase B.1: Shael Decomposition.
+  return `${wv.preamble}
 
-You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome. Your job: reason BACKWARD from that destination to the minimum set of SHAELS (questions to be lived) that gets there.
+You are the Planner — Phase B.1: ${topCap} Decomposition.
+
+You have been given a MANIFESTED FUTURE — a concrete description of the completed outcome. Your job: reason BACKWARD from that destination to the minimum set of ${topUnit.plural} that gets there — ${wv.vocabulary.decomposeVerb}.
 
 BACKWARD REASONING — not forward decomposition.
-Start from the manifested future. Ask: what must be understood immediately before this exists? What must be understood before that? Work backward until you reach the current state (nothing exists yet). The shaels you produce are the questions that must be lived from here to there.
+Start from the manifested future. Ask: what must be understood immediately before this exists? What must be understood before that? Work backward until you reach the current state (nothing exists yet). The ${topUnit.plural} you produce are what must be ${wv.vocabulary.completeVerb === "live deeply" ? "lived" : wv.vocabulary.completeVerb + "ed"} from here to there.
 
-SHAELS, NOT TASKS. Each node is a question at the right resolution — not "create the database migration" (too granular) but "the data model must capture X" or "the authentication boundary must exist." You are decomposing understanding, not work.
+${wv.frames?.decomposition ?? "Each node should be at the right resolution — specific enough to act on, broad enough to require genuine engagement."}
 
 Every proposed node passes three gates:
-1. EXISTENCE: Does this question need to be asked? What understanding is missing without it? If nothing is missing, cut it.
-2. FORM: Does it need to be THIS question? Could a simpler question capture the same understanding? If yes, simplify.
-3. SCOPE: Does this question need this scope? Could it be narrower and still serve the path? If yes, narrow.
+1. EXISTENCE: Does this node need to exist? What is missing without it? If nothing is missing, cut it.
+2. FORM: Does it need to be THIS? Could a simpler form capture the same? If yes, simplify.
+3. SCOPE: Does this node need this scope? Could it be narrower and still serve the path? If yes, narrow.
 
-The node tree you produce is the MINIMUM PATH of understanding — not a comfortable plan, not a comprehensive plan, the minimum path. If you can reach the manifested future by living 4 questions, don't propose 8.
+The node tree you produce is the MINIMUM PATH — not a comfortable plan, not a comprehensive plan, the minimum path. If you can reach the manifested future with 4 ${topUnit.plural}, don't propose 8.
 
-PHASE GROUPS: Organize nodes into phases. A phase is a coherent cluster of questions that can be verified at its boundary. Each phase has a gate condition: what must be true when all nodes in the phase are understood.
+PHASE GROUPS: Organize nodes into phases. A phase is a coherent cluster that can be verified at its boundary. Each phase has a gate condition: what must be true when all nodes in the phase complete.
 
-HIERARCHY: Nodes can be nested. A shael can contain child shaels. Set parentId to the parent's id, or null for root nodes. Leaf nodes that are specific enough to be lived in one cycle should have level "shana". Higher-level questions should have level "shael".
+HIERARCHY: Nodes can be nested. A ${topUnit.singular} can contain child ${topUnit.plural}. Set parentId to the parent's id, or null for root nodes. Leaf nodes that are specific enough to ${wv.vocabulary.completeVerb} in one cycle should have level "shana". Higher-level nodes should have level "shael".
 
-CRITICAL: Do NOT produce provides/consumes, dependencies, or affinity groups. Those are derived in a separate step. Do NOT produce ordering hints — the decomposer is unreliable at wiring. Just identify the right questions.
+NOTE ON OUTPUT FORMAT: In the JSON output, always use level="shael" for high-level nodes and level="shana" for leaf nodes. These are internal protocol labels regardless of vocabulary.
+
+CRITICAL: Do NOT produce provides/consumes, dependencies, or affinity groups. Those are derived in a separate step. Do NOT produce ordering hints — the decomposer is unreliable at wiring. Just identify the right ${topUnit.plural}.
 
 Output a valid JSON object.`;
 }
 
-export function shaelDecompositionUser(inputs: ShaelDecompositionInputs): string {
+export function shaelDecompositionUser(inputs: ShaelDecompositionInputs, worldview?: Worldview): string {
   const sections: string[] = [];
 
   sections.push(`MANIFESTED FUTURE
@@ -2332,7 +2511,10 @@ Total: $${inputs.budget.total.toFixed(2)}
 Enforcement: ${inputs.budget.enforcement === "hard" ? "Hard — stop when exhausted" : "Soft — slow down but continue"}`);
   }
 
-  sections.push(`Reason backward from the manifested future. Produce the minimum shael tree.
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
+  const { topUnit, nodeNature } = wv.vocabulary;
+
+  sections.push(`Reason backward from the manifested future. Produce the minimum ${topUnit.singular} tree.
 
 Return JSON:
 {
@@ -2347,14 +2529,163 @@ Return JSON:
   "nodes": [
     {
       "id": "s1",
-      "description": "the question to be lived",
+      "description": "${nodeNature}",
       "level": "shael",
       "phaseGroup": "phase-group-name",
       "parentId": null,
       "gateCondition": "what must be true when this node completes",
-      "necessity": "what understanding is missing without this",
-      "formJustification": "why this question, not simpler",
+      "necessity": "what is missing without this",
+      "formJustification": "why this form, not simpler",
       "scopeJustification": "why this scope, not narrower"
+    }
+  ]
+}`);
+
+  return sections.join("\n\n");
+}
+
+// ─── PFC REVIEW (Phase B.3) ───────────────────────────────────────
+
+export interface PfcReviewInputs {
+  manifestedFuture: string;
+  senseContributions: Record<string, string>;
+  nodes: Array<{
+    id: string;
+    description: string;
+    level: string;
+    phaseGroup: string;
+    gateCondition: string;
+  }>;
+  semanticMap: Array<{
+    id: string;
+    provides: Array<{ capability: string; description: string }>;
+    consumes: Array<{ capability: string; description: string }>;
+  }>;
+  dependencies: Array<{
+    from: string;
+    to: string;
+    source: "algorithmic" | "correction";
+    reason?: string;
+  }>;
+  affinityGroups: Array<{
+    name: string;
+    shaelIds: string[];
+    sharedBoundary: string;
+    coDesignRisk: string;
+  }>;
+  corrections: Array<{
+    action: "add" | "remove";
+    from: string;
+    to: string;
+    reason: string;
+  }>;
+  /** Unresolved consumes detected mechanically. */
+  unresolvedConsumes: Array<{ nodeId: string; capability: string }>;
+}
+
+export function pfcReviewSystem(worldview?: Worldview): string {
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
+
+  return `${wv.preamble}
+
+You are the PFC — Phase B.3: Structural Review.
+
+You have been given a MANIFESTED FUTURE and a fully wired plan (nodes + semantic map + dependencies + affinity groups). Your job: validate the plan's structural integrity against the manifested future. Find problems. Suggest fixes.
+
+You run FOUR TESTS:
+
+1. GAP DETECTION
+Does the manifested future require understanding that NO node in the plan produces? The semantic map shows what each node provides. If the manifested future needs something not provided by any node, that's a gap. Unresolved consumes (provided to you) are strong signals — they mean a node needs a capability that nothing provides.
+
+Severity: "critical" if the gap blocks the manifested future. "warning" if it's a quality risk.
+
+2. REDUNDANCY DETECTION
+Are any two nodes semantically the same question? Same description in different words, overlapping scope, or one that's a strict subset of another. Redundancy wastes budget and creates integration confusion.
+
+Severity: "warning" for partial overlap, "critical" for near-duplicates.
+
+3. AFFINITY VALIDATION
+Do the co-design groups make sense? Each affinity group claims nodes share a boundary with a concrete risk. Validate:
+- Is the shared boundary real?
+- Is the co-design risk concrete (not hypothetical)?
+- Are the right nodes in the group?
+
+Severity: "info" for questionable groups, "warning" for clearly wrong groupings.
+
+4. CORRECTION VALIDATION
+B.2 Step 3 proposed dependency corrections (adds/removes). Were they justified?
+- For each "add": is the dependency real?
+- For each "remove": was the removed edge genuinely unnecessary?
+
+Severity: "warning" for unjustified corrections.
+
+PATCHES: For gaps and redundancy, you may propose dependency patches:
+- "add" an edge if a gap reveals a missing dependency
+- "remove" an edge if redundancy makes one unnecessary
+
+Be conservative. Only patch when the evidence is clear. The plan is already wired — you're validating, not redesigning.
+
+Output a valid JSON object.`;
+}
+
+export function pfcReviewUser(inputs: PfcReviewInputs): string {
+  const sections: string[] = [];
+
+  sections.push(`MANIFESTED FUTURE
+${inputs.manifestedFuture}`);
+
+  const contribs = Object.entries(inputs.senseContributions);
+  if (contribs.length > 0) {
+    sections.push(`SENSE CONTRIBUTIONS
+${contribs.map(([s, c]) => `${s}: ${c}`).join("\n\n")}`);
+  }
+
+  sections.push(`PLAN NODES
+${inputs.nodes.map((n) => `- ${n.id} [${n.level}] (phase: ${n.phaseGroup}): ${n.description}${n.gateCondition ? ` | Gate: ${n.gateCondition}` : ""}`).join("\n")}`);
+
+  sections.push(`SEMANTIC MAP
+${inputs.semanticMap.map((e) => {
+    const provides = e.provides.map((p) => p.capability).join(", ") || "(none)";
+    const consumes = e.consumes.map((c) => c.capability).join(", ") || "(none)";
+    return `- ${e.id}: provides [${provides}], consumes [${consumes}]`;
+  }).join("\n")}`);
+
+  sections.push(`DEPENDENCIES (${inputs.dependencies.length} edges)
+${inputs.dependencies.map((d) => `- ${d.from} → ${d.to} [${d.source}]${d.reason ? ` (${d.reason})` : ""}`).join("\n")}`);
+
+  if (inputs.affinityGroups.length > 0) {
+    sections.push(`AFFINITY GROUPS
+${inputs.affinityGroups.map((g) => `- "${g.name}" [${g.shaelIds.join(", ")}]: ${g.sharedBoundary} — Risk: ${g.coDesignRisk}`).join("\n")}`);
+  }
+
+  if (inputs.corrections.length > 0) {
+    sections.push(`B.2 CORRECTIONS
+${inputs.corrections.map((c) => `- ${c.action}: ${c.from} → ${c.to} — ${c.reason}`).join("\n")}`);
+  }
+
+  if (inputs.unresolvedConsumes.length > 0) {
+    sections.push(`UNRESOLVED CONSUMES (mechanical detection)
+${inputs.unresolvedConsumes.map((u) => `- Node "${u.nodeId}" needs "${u.capability}" but no node provides it`).join("\n")}`);
+  }
+
+  sections.push(`Run all four tests. Report warnings and suggest patches.
+
+Return JSON:
+{
+  "warnings": [
+    {
+      "kind": "gap" | "redundancy" | "affinity" | "correction",
+      "severity": "info" | "warning" | "critical",
+      "description": "what's wrong and why it matters",
+      "affectedNodeIds": ["node-ids"]
+    }
+  ],
+  "patches": [
+    {
+      "action": "add" | "remove",
+      "from": "consumer-node-id",
+      "to": "provider-node-id",
+      "reason": "why this patch"
     }
   ]
 }`);
@@ -2377,12 +2708,14 @@ export interface SemanticMappingInputs {
   neLevel?: number;
 }
 
-export function semanticMappingSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function semanticMappingSystem(worldview?: Worldview): string {
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
 
-You are the Graph Builder — Step 1: Semantic Mapping.
+  return `${wv.preamble}
 
-You are given a tree of shaels (questions to be lived) and shana (leaf tasks). Your job: for each node, identify what CAPABILITIES it produces and what CAPABILITIES it requires.
+${wv.frames?.wiring ? wv.frames.wiring + "\n\n" : ""}You are the Graph Builder — Step 1: Semantic Mapping.
+
+You are given a tree of ${wv.semanticNodeDescription}. Your job: for each node, identify what CAPABILITIES it produces and what CAPABILITIES it requires.
 
 CAPABILITY TOKENS must be SHORT, CONSISTENT identifiers. If one node provides "auth-boundary", any node that consumes that capability MUST use "auth-boundary" — not "authentication", not "access-control", not "auth". Token consistency is critical because an algorithm will match provides to consumes mechanically.
 
@@ -2464,13 +2797,15 @@ export interface AffinityAnalysisInputs {
   neLevel?: number;
 }
 
-export function affinityAnalysisSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function affinityAnalysisSystem(worldview?: Worldview): string {
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
 
-You are the Graph Builder — Step 3: Affinity Analysis + Dependency Correction.
+  return `${wv.preamble}
+
+${wv.frames?.wiring ? wv.frames.wiring + "\n\n" : ""}You are the Graph Builder — Step 3: Affinity Analysis + Dependency Correction.
 
 You are given:
-1. A set of nodes (shaels/shana) with descriptions
+1. A set of nodes (${wv.semanticNodeDescription}) with descriptions
 2. A semantic map showing what each node provides and consumes
 3. Dependency edges ALREADY DERIVED algorithmically from the semantic map
 4. Any cycles detected in the algorithmic derivation
@@ -2596,10 +2931,10 @@ export interface DiagnosticInputs {
   };
 }
 
-export function projectDiagnosticsSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function projectDiagnosticsSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
 
-You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
+${frame("navigation", worldview) ? frame("navigation", worldview) + "\n\n" : ""}You are the ProjectDiagnostics module — the system's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
 
 The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of the system is misaligned and prescribe the correct self-heal action.
 
@@ -2750,8 +3085,10 @@ Summary: ${inputs.driftAssessment.driftSummary}${
  * System prompt for evaluating PM trigger conditions against a task.
  * Single call evaluates all pending triggers at once.
  */
-export function prospectiveMatchingSystem(): string {
-  return `You evaluate whether memorized future intentions should trigger for a given task.
+export function prospectiveMatchingSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("prospective", worldview) ? frame("prospective", worldview) + "\n\n" : ""}You evaluate whether memorized future intentions should trigger for a given task.
 
 Each trigger has a natural-language condition describing when it should fire. You determine which conditions match the current task context.
 
@@ -2811,8 +3148,12 @@ export interface TasteProposalInputs {
   persistence: number;
 }
 
-export function tasteProposalSystem(): string {
-  return `You are framing a taste divergence observation for a human collaborator. You are part of a software engineering system that has noticed a gap between what the human SAID they prefer and what actually produces the best results.
+export function tasteProposalSystem(worldview?: Worldview): string {
+  const partnershipFrame = worldview?.frames?.partnership;
+
+  return `${preamble(worldview)}
+
+${partnershipFrame ? partnershipFrame + "\n\n" : ""}You are framing a taste divergence observation for a human collaborator. You are part of a software engineering system that has noticed a gap between what the human SAID they prefer and what actually produces the best results.
 
 Your job: interpret the evidence and present it as a partner observation. You are NOT asking "should we change a setting?" You are saying "I've noticed something about our work together that's worth discussing."
 
@@ -2863,10 +3204,14 @@ export interface IntegrationEvaluatorInputs {
   trendContext?: string;
 }
 
-export function integrationEvaluatorSystem(sense: Sense, activationPath: string[]): string {
-  return `${SHAELA_PREAMBLE}
+export function integrationEvaluatorSystem(sense: Sense, activationPath: string[], worldview?: Worldview): string {
+  const integrationFrame = worldview?.frames?.integration;
+
+  return `${preamble(worldview)}
 
 You are ${activationPath.join(" > ")}. ${sense.sensitivity}
+
+${integrationFrame ? integrationFrame + "\n" : ""}
 
 You are evaluating a PHASE'S COLLECTIVE OUTPUT — not a single task. Multiple tasks have completed in this phase, and you're judging whether their combined output COHERES from your dimension.
 
@@ -2929,10 +3274,12 @@ Return JSON:
 
 // ─── HIPPOCAMPAL SIMULATION ─────────────────────────────────────
 
-export function hippocampalSimulationSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function hippocampalSimulationSystem(worldview?: Worldview): string {
+  const simFrame = worldview?.frames?.simulation;
 
-You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.
+  return `${preamble(worldview)}
+
+${simFrame ? simFrame + "\n\n" : ""}You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what the system has learned.
 
 You receive:
 - PRINCIPLES: living theories crystallized from past experience
@@ -3027,10 +3374,10 @@ export function hippocampalSimulationUser(inputs: SimulationPromptInputs): strin
 
 // ─── DEEP SYNTHESIS ─────────────────────────────────────────────
 
-export function deepSynthesisSystem(): string {
-  return `${SHAELA_PREAMBLE}
+export function deepSynthesisSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
 
-You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.
+${frame("simulation", worldview) ? frame("simulation", worldview) + "\n\n" : ""}You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what the system has learned.
 
 You receive:
 - TERRITORY OBSERVATIONS: objective facts discovered during execution
@@ -3133,8 +3480,10 @@ export function deepSynthesisUser(inputs: DeepSynthesisPromptInputs): string {
 
 // --- Principle Verification ---
 
-export function principleVerificationSystem(sense: Sense): string {
-  return `You are ${sense.name}. ${sense.sensitivity}
+export function principleVerificationSystem(sense: Sense, worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("learning", worldview) ? frame("learning", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
 
 A principle has been extracted from past episodes. Before it's stored, you're being asked: does this ring true from your dimension's perspective?
 
@@ -3166,10 +3515,10 @@ export function principleVerificationUser(
 
 // --- Mid-Build Sense Question ---
 
-export function senseQuestionSystem(sense: Sense): string {
-  return `${SHAELA_PREAMBLE}
+export function senseQuestionSystem(sense: Sense, worldview?: Worldview): string {
+  return `${preamble(worldview)}
 
-You are ${sense.name}. ${sense.sensitivity}
+${frame("consultation", worldview) ? frame("consultation", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
 
 The builder (Motor Cortex) has hit an ambiguity mid-build and is asking you a specific question from your dimension's perspective. You were already consulted on this task — your original perspective is included below. Now you're being asked to give a targeted answer based on what the builder has encountered during implementation.
 
@@ -3204,8 +3553,10 @@ export function senseQuestionUser(briefing: SenseQuestionBriefing): string {
 
 // --- Escalation Sense Assessment ---
 
-export function escalationSenseAssessmentSystem(sense: Sense): string {
-  return `You are ${sense.name}. ${sense.sensitivity}
+export function escalationSenseAssessmentSystem(sense: Sense, worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("partnership", worldview) ? frame("partnership", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
 
 The system is escalating an issue to the human. Before the human sees it, you're being asked: from your dimension's perspective, what's going on?
 
@@ -3240,8 +3591,10 @@ export function escalationSenseAssessmentUser(
 
 // --- Taste Feedback Verification ---
 
-export function tasteVerificationSystem(sense: Sense): string {
-  return `You are ${sense.name}. ${sense.sensitivity}
+export function tasteVerificationSystem(sense: Sense, worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+${frame("partnership", worldview) ? frame("partnership", worldview) + "\n\n" : ""}You are ${sense.name}. ${sense.sensitivity}
 
 The system has detected a divergence between the human's stated preferences and what actually produces good results. Before proposing this to the human, you're being asked: from your dimension, is this divergence real?
 
@@ -3269,6 +3622,92 @@ export function tasteVerificationUser(
   }
 
   sections.push("Does your experience confirm this divergence? First line: agreement (0.0-1.0). Then your assessment.");
+
+  return sections.join("\n\n");
+}
+
+// ─── GENERATIVE COMPLETION ──────────────────────────────────────
+
+export interface GenerativeCompletionInputs {
+  /** The manifested future from Phase A — what was planned. */
+  manifestedFuture: string;
+  /** Per-sense contributions to the vision. */
+  senseContributions: Record<string, string>;
+  /** The final evaluation / retrospective — what was actually built. */
+  retrospective?: string;
+  /** Summaries of completed tasks — what actually happened. */
+  completedTasks: Array<{ description: string; work?: string }>;
+  /** Maxims the world model gained during this project. */
+  maxims?: string[];
+  /** Original intent summary. */
+  intentSummary: string;
+}
+
+export function generativeCompletionSystem(worldview?: Worldview): string {
+  const wv = resolveWorldview(worldview);
+
+  return `${wv.preamble}
+
+${frame("emergence", worldview) ? frame("emergence", worldview) + "\n\n" : ""}You are the system's generative voice. The project is complete. An artifact has been built — a ${wv.vocabulary.artifact.singular} that embodies the system's work.
+
+Your job: surface questions that COULD NOT HAVE BEEN ASKED before this ${wv.vocabulary.artifact.singular} existed. Building it changed the system's understanding. What can it see now that it couldn't see before?
+
+The shaper is shaped. The act of building changes the builder. The questions you surface come from that changed understanding — not from a backlog, not from "nice to have" features, not from obvious next steps that anyone could have listed before the work began.
+
+Two kinds of questions:
+- EXTENSION: Go deeper in the same direction. The ${wv.vocabulary.artifact.singular} revealed a depth that wasn't visible from the outside.
+- REVISION: The ${wv.vocabulary.artifact.singular} itself should change. Now that it exists, something about it is wrong in a way that couldn't have been seen until it was built.
+
+For each question:
+1. Frame it as a ${wv.vocabulary.topUnit.singular} — ${wv.vocabulary.nodeNature}, not a checklist item
+2. Explain WHY it couldn't have been asked before (the emergence reason — what about the ${wv.vocabulary.artifact.singular}'s existence makes this question visible?)
+3. Provide enough context for the question-asker to decide whether to pursue it
+
+Quality over quantity. 1-5 questions. If nothing genuinely emerged — if the ${wv.vocabulary.artifact.singular} didn't change the system's understanding in a way that opens new questions — say so. An empty list is honest. A padded list is noise.
+
+Output a valid JSON object.`;
+}
+
+export function generativeCompletionUser(inputs: GenerativeCompletionInputs, worldview?: Worldview): string {
+  const sections: string[] = [];
+
+  sections.push(`MANIFESTED FUTURE (what was planned)
+${inputs.manifestedFuture}`);
+
+  const contribs = Object.entries(inputs.senseContributions);
+  if (contribs.length > 0) {
+    const contribLines = contribs
+      .map(([sense, contribution]) => `${sense}: ${contribution}`)
+      .join("\n\n");
+    sections.push(`SENSE CONTRIBUTIONS TO THE VISION
+${contribLines}`);
+  }
+
+  if (inputs.retrospective) {
+    sections.push(`RETROSPECTIVE (final evaluation of what was built)
+${inputs.retrospective}`);
+  }
+
+  if (inputs.completedTasks.length > 0) {
+    const taskLines = inputs.completedTasks
+      .map((t) => {
+        const work = t.work ? ` → ${t.work.slice(0, 300)}` : "";
+        return `- ${t.description}${work}`;
+      })
+      .join("\n");
+    sections.push(`COMPLETED TASKS
+${taskLines}`);
+  }
+
+  if (inputs.maxims && inputs.maxims.length > 0) {
+    sections.push(`UNDERSTANDING GAINED (world model maxims from this project)
+${inputs.maxims.map((m) => `- "${m}"`).join("\n")}`);
+  }
+
+  sections.push(`ORIGINAL INTENT: ${inputs.intentSummary}`);
+
+  const wvGen = resolveWorldview(worldview);
+  sections.push(`Now that the ${wvGen.vocabulary.artifact.singular} exists: what ${wvGen.vocabulary.topUnit.plural} couldn't have been asked before? What did building this reveal that wasn't visible from the outside?`);
 
   return sections.join("\n\n");
 }

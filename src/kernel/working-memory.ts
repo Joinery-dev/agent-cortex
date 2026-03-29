@@ -145,7 +145,7 @@ export class WorkingMemory {
     // Record scores only if build-cycle didn't already record them.
     // When driven by the rhythm system, build-cycle.integrate calls
     // recordScores() each cycle, so scores already exist for this task.
-    // Standalone callers (tests, old orchestrator) still get scores recorded here.
+    // Standalone callers (tests) still get scores recorded here.
     const hasScores = this.state.scoreHistory.some((s) => s.taskId === taskId);
     if (!hasScores && result.evaluations.length > 0) {
       const snapshot: ScoreSnapshot = {

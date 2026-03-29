@@ -471,6 +471,13 @@ export function createSensoryCortexDefinition(
 
         acc.previousConsultation = updatedConsultation;
 
+        // Budget proximity: how close to the attention budget ceiling (0–1).
+        // Only meaningful on cycle 2+ (cycle 1 is always within budget).
+        const budgetCeiling = acc.attentionBudget?.cycleRange.ceiling;
+        const budgetProximity = budgetCeiling && budgetCeiling > 0
+          ? Math.min(1, outerCycle / budgetCeiling)
+          : undefined;
+
         const buildCycleContext: BuildCycleContext = {
           task,
           consultation: updatedConsultation,
@@ -482,6 +489,7 @@ export function createSensoryCortexDefinition(
           outerCycle,
           taskBudgetRemaining: context.taskBudget,
           projectBudgetUtilization: context.projectBudgetUtilization,
+          budgetProximity,
         };
 
         return { consultation: updatedConsultation, buildCycleContext };

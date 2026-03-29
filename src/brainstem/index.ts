@@ -40,11 +40,14 @@ import type { SchedulerConfig } from "../types/attention-scheduler.js";
 import { MotorCortex } from "../kernel/motor-cortex.js";
 import { BasalGanglia } from "../kernel/basal-ganglia.js";
 import type { BasalGangliaConfig } from "../types/basal-ganglia.js";
+import { BasalGangliaStore } from "../subcortical/basal-ganglia-store.js";
 import type { Gate } from "../types/gate.js";
 import type { StakeAdjuster } from "../kernel/evaluation-weighter.js";
 import { createGate } from "../kernel/gate.js";
 import { PlasticityStoreImpl } from "../subcortical/plasticity-store.js";
 import type { PlasticityStoreConfig } from "../subcortical/plasticity-store.js";
+import { Amygdala } from "../subcortical/amygdala.js";
+import { ExteroceptionSystem } from "../subcortical/exteroception.js";
 import { WorldModel } from "../kernel/world-model.js";
 import { CognitiveFlexibility } from "../kernel/cognitive-flexibility.js";
 import { PeripheralNervousSystem } from "../kernel/pns.js";
@@ -66,6 +69,7 @@ import { registerCostCallback, setCostTaskId } from "../llm/client.js";
 import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
 import { DEFAULT_COST_BUDGET } from "../types/cost.js";
 import { bus } from "../events.js";
+import type { Worldview } from "../types/worldview.js";
 
 export class Brainstem {
   private runner: RhythmRunnerImpl;
@@ -92,6 +96,8 @@ export class Brainstem {
   private projectDiagnostics: ProjectDiagnostics;
   private prospectiveMemory: ProspectiveMemory;
   private tasteFeedbackLoop: TasteFeedbackLoop;
+  private amygdala: Amygdala;
+  private exteroception: ExteroceptionSystem;
   private escalationHandler: EscalationHandler;
   private costTracker: CostTracker | null = null;
 
@@ -105,6 +111,7 @@ export class Brainstem {
     gate?: Gate,
     stakeAdjuster?: StakeAdjuster,
     plasticityConfig?: Partial<PlasticityStoreConfig>,
+    worldview?: Worldview,
   ) {
     this.config = config;
     this.library = library;
@@ -118,6 +125,8 @@ export class Brainstem {
     });
     this.plasticityStore = new PlasticityStoreImpl(plasticityConfig);
     this.tonicTracker = new TonicTracker();
+    this.amygdala = new Amygdala();
+    this.exteroception = new ExteroceptionSystem(undefined, this.amygdala);
 
     // Register all built-in connections. Expand per-sense template
     // using the sense IDs from the library.
@@ -144,13 +153,17 @@ export class Brainstem {
     });
     this.scheduler = new AttentionScheduler(schedulerConfig);
     this.motorCortex = new MotorCortex(config, this.pns);
-    this.basalGanglia = new BasalGanglia(basalGangliaConfig);
+    this.basalGanglia = new BasalGanglia(
+      basalGangliaConfig,
+      new BasalGangliaStore(),
+      this.plasticityStore,
+    );
     this.gate = gate ?? createGate();
     this.cognitiveFlexibility = new CognitiveFlexibility(config);
     this.driftMonitor = new DriftMonitor({
       deepAnalysisModel: config.models.consultation,
     });
-    this.planner = new Planner(config.models.motorCortex);
+    this.planner = new Planner(config.models.motorCortex, undefined, worldview);
     this.projectDiagnostics = new ProjectDiagnostics(config);
     this.prospectiveMemory = new ProspectiveMemory();
     this.tasteFeedbackLoop = new TasteFeedbackLoop({
@@ -168,6 +181,8 @@ export class Brainstem {
       homeostasis: this.homeostasis,
       plasticity: this.plasticityStore,
       basalGanglia: this.basalGanglia,
+      amygdala: this.amygdala,
+      exteroception: this.exteroception,
       tonic: this.tonicTracker,
       wm: this.wm,
       projectId: "default",
@@ -279,12 +294,12 @@ export class Brainstem {
 
   /**
    * Run a single task through the sensory-cortex rhythm.
-   * Drop-in replacement for the old orchestrator.runTask().
-   * Same return type (OrchestratorResult via SensoryCortexResult).
+   * Returns OrchestratorResult via SensoryCortexResult.
    */
   async runTask(context: SensoryCortexContext): Promise<SensoryCortexResult> {
     await this.hippocampus.load();
     await this.worldModel.load();
+    await this.basalGanglia.load();
     this.thalamus.updateProject(context.intent, context.taste);
 
     const definition = createSensoryCortexDefinition(
@@ -310,6 +325,7 @@ export class Brainstem {
   async runProject(context: ProjectContext): Promise<ProjectResult> {
     await this.hippocampus.load();
     await this.worldModel.load();
+    await this.basalGanglia.load();
     if (this.hooks instanceof CompositeSubcorticalHooks) {
       this.hooks.setProjectId(context.intent.id);
     }
@@ -419,6 +435,16 @@ export class Brainstem {
   /** Get prospective memory (future intentions with trigger conditions). */
   getProspectiveMemory(): ProspectiveMemory {
     return this.prospectiveMemory;
+  }
+
+  /** Get the amygdala (priority override + threat detection). */
+  getAmygdala(): Amygdala {
+    return this.amygdala;
+  }
+
+  /** Get the exteroception system (external world monitoring). */
+  getExteroception(): ExteroceptionSystem {
+    return this.exteroception;
   }
 
   /** Get the escalation handler (pause/resume + human-facing briefings). */
@@ -533,6 +559,8 @@ export { Hippocampus } from "../subcortical/hippocampus.js";
 export { PlasticityStoreImpl } from "../subcortical/plasticity-store.js";
 export { CompositeSubcorticalHooks, CerebellumSubcorticalHooks } from "../subcortical/hooks.js";
 export { TonicTracker } from "../subcortical/tonic.js";
+export { Amygdala } from "../subcortical/amygdala.js";
+export { ExteroceptionSystem } from "../subcortical/exteroception.js";
 export { CognitiveFlexibility } from "../kernel/cognitive-flexibility.js";
 export { PeripheralNervousSystem } from "../kernel/pns.js";
 export { DriftMonitor } from "../kernel/drift-monitor.js";

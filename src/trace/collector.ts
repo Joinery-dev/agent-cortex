@@ -103,6 +103,8 @@ export class TraceCollector {
   private entries: TraceEntry[] = [];
   private edges: TraceEdge[] = [];
   private nextSeq = 0;
+  private baseSeq = 0; // offset: entries[seq - baseSeq] = entry with that seq
+  private maxEntries: number;
   private startTs = performance.now();
   private lastTs = performance.now();
   private listening = false;
@@ -126,6 +128,10 @@ export class TraceCollector {
 
   // ── Last event by type (for causal edge detection) ──────────
   private lastByType = new Map<string, number>();
+
+  constructor(maxEntries = 10_000) {
+    this.maxEntries = maxEntries;
+  }
 
   // ── Lifecycle ─────────────────────────────────────────────────
 
@@ -151,6 +157,7 @@ export class TraceCollector {
     this.entries = [];
     this.edges = [];
     this.nextSeq = 0;
+    this.baseSeq = 0;
     this.startTs = performance.now();
     this.lastTs = this.startTs;
     this.byRegion.clear();
@@ -218,6 +225,11 @@ export class TraceCollector {
       }
     }
 
+    // Rotate if over capacity
+    if (this.entries.length > this.maxEntries) {
+      this.rotate();
+    }
+
     return entry;
   }
 
@@ -229,10 +241,10 @@ export class TraceCollector {
     // Start with the most selective index
     if (filter.taskId && this.byTask.has(filter.taskId)) {
       const seqs = this.byTask.get(filter.taskId)!;
-      candidates = seqs.map((s) => this.entries[s]!).filter(Boolean);
+      candidates = seqs.map((s) => this.getBySeq(s)!).filter(Boolean);
     } else if (filter.rhythmId && this.byRhythm.has(filter.rhythmId)) {
       const seqs = this.byRhythm.get(filter.rhythmId)!;
-      candidates = seqs.map((s) => this.entries[s]!).filter(Boolean);
+      candidates = seqs.map((s) => this.getBySeq(s)!).filter(Boolean);
     } else {
       candidates = [...this.entries];
     }
@@ -276,10 +288,18 @@ export class TraceCollector {
     return { entries: candidates, edges: relevantEdges, total };
   }
 
+  // ── Seq-based access ─────────────────────────────────────────
+
+  private getBySeq(seq: number): TraceEntry | undefined {
+    const idx = seq - this.baseSeq;
+    if (idx < 0 || idx >= this.entries.length) return undefined;
+    return this.entries[idx];
+  }
+
   // ── Accessors ─────────────────────────────────────────────────
 
   getEntry(seq: number): TraceEntry | undefined {
-    return this.entries[seq];
+    return this.getBySeq(seq);
   }
 
   getAll(): TraceEntry[] {
@@ -336,8 +356,8 @@ export class TraceCollector {
     }
 
     for (const edge of this.edges) {
-      const from = this.entries[edge.fromSeq];
-      const to = this.entries[edge.toSeq];
+      const from = this.getBySeq(edge.fromSeq);
+      const to = this.getBySeq(edge.toSeq);
       if (!from || !to) continue;
 
       const key = `${from.region}->${to.region}`;
@@ -370,8 +390,13 @@ export class TraceCollector {
 
   // ── Summary ───────────────────────────────────────────────────
 
+  get totalIngested(): number {
+    return this.nextSeq;
+  }
+
   getSummary(): {
     totalEvents: number;
+    totalIngested: number;
     totalEdges: number;
     regions: Record<string, number>;
     components: Record<string, number>;
@@ -395,12 +420,63 @@ export class TraceCollector {
 
     return {
       totalEvents: this.entries.length,
+      totalIngested: this.nextSeq,
       totalEdges: this.edges.length,
       regions,
       components,
       tasks: [...this.byTask.keys()],
       severities,
     };
+  }
+
+  // ── Buffer rotation ─────────────────────────────────────────
+
+  private rotate(): void {
+    const keep = Math.floor(this.maxEntries / 2);
+    const cutIndex = this.entries.length - keep;
+    this.entries = this.entries.slice(cutIndex);
+    this.baseSeq += cutIndex;
+
+    // Rebuild all indexes from surviving entries
+    this.rebuildIndexes();
+
+    // Trim edges to only reference surviving entries
+    this.edges = this.edges.filter(
+      (e) => e.fromSeq >= this.baseSeq && e.toSeq >= this.baseSeq,
+    );
+
+    // Trim completed spans
+    this.completedSpans = this.completedSpans.filter(
+      (s) => (s.endSeq ?? s.startSeq) >= this.baseSeq,
+    );
+
+    // Trim markers
+    this.markers = this.markers.filter((m) => m.seq >= this.baseSeq);
+
+    // Trim lastByType — remove entries pointing to evicted seqs
+    for (const [type, seq] of this.lastByType) {
+      if (seq < this.baseSeq) this.lastByType.delete(type);
+    }
+  }
+
+  private rebuildIndexes(): void {
+    this.byRegion.clear();
+    this.byComponent.clear();
+    this.byTask.clear();
+    this.byRhythm.clear();
+    this.byType.clear();
+    this.bySeverity.clear();
+
+    for (const entry of this.entries) {
+      this.addToIndex(this.byRegion, entry.region, entry.seq);
+      this.addToIndex(this.byComponent, entry.component, entry.seq);
+      if (entry.taskId) this.addToIndex(this.byTask, entry.taskId, entry.seq);
+      if (entry.rhythmContext?.rhythmId) {
+        this.addToIndex(this.byRhythm, entry.rhythmContext.rhythmId, entry.seq);
+      }
+      this.addToIndex(this.byType, entry.event.type, entry.seq);
+      this.addToIndex(this.bySeverity, entry.event.severity, entry.seq);
+    }
   }
 
   // ── Internal ──────────────────────────────────────────────────

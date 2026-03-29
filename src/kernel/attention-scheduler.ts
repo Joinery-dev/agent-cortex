@@ -11,9 +11,11 @@
  *   4. Drift ≥ escalate threshold → escalate
  *   5. Too many open questions → escalate
  *   6. Scores cratering → escalate
- *   7. Rest needed (and ≥1 task completed) → rest
- *   8. Ready tasks available → dispatch highest priority
- *   9. No ready tasks, graph not done → escalate (deadlock)
+ *   7. Budget exhausted → complete
+ *   8. Rest needed (and ≥1 task completed) → rest
+ *   9. Observation pressure exceeds NE-modulated threshold → observe
+ *  10. Ready tasks available → dispatch highest priority
+ *  11. No ready tasks, graph not done → escalate (deadlock)
  */
 
 import type {
@@ -91,7 +93,21 @@ export class AttentionScheduler {
       return action;
     }
 
-    // 8. Find ready tasks and dispatch
+    // 9. Observation pressure → observe
+    if (signals.observationPressure !== undefined && signals.observationPressure > 0) {
+      const neLevel = signals.lastNELevel ?? 0.5;
+      const observeThreshold = 0.9 - 0.5 * neLevel;
+      if (signals.observationPressure >= observeThreshold) {
+        this.emitDecision("observe", signals);
+        return {
+          action: "observe",
+          reason: `Observation pressure ${signals.observationPressure.toFixed(2)} ≥ NE-modulated threshold ${observeThreshold.toFixed(2)} (NE=${neLevel.toFixed(2)})`,
+          neLevel,
+        };
+      }
+    }
+
+    // 10. Find ready tasks and dispatch
     const readyTasks = this.getReadyTasks(signals);
 
     if (readyTasks.length > 0) {
@@ -100,7 +116,7 @@ export class AttentionScheduler {
       return dispatch;
     }
 
-    // 9. Deadlock — tasks exist but none are ready
+    // 11. Deadlock — tasks exist but none are ready
     const action: SchedulerEscalate = {
       action: "escalate",
       reason: "No tasks have satisfied dependencies but the graph is not complete. Possible circular dependency or all remaining tasks are blocked.",

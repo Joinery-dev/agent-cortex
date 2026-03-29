@@ -163,6 +163,13 @@ export interface SubcorticalHooks {
    * Per-signal action/no-action feeds back to the mini cerebellum for cadence learning.
    */
   recordExteroceptiveBatchOutcome(actions: BatchAction[]): void;
+
+  /**
+   * Exteroception: signal pressure for NE risk computation (0–1).
+   * High = many unprocessed external signals piling up.
+   * Returns 0 when no exteroception system is wired.
+   */
+  getExteroceptivePressure(): number;
 }
 
 /**
@@ -301,5 +308,9 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
 
   recordExteroceptiveBatchOutcome(actions: BatchAction[]): void {
     log.debug("[stub] recordExteroceptiveBatchOutcome", { count: actions.length });
+  }
+
+  getExteroceptivePressure(): number {
+    return 0;
   }
 }
