@@ -16,6 +16,7 @@ import {
 } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitWarn } from "../events.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("evaluator");
 
@@ -267,6 +268,28 @@ export async function evaluate(
         acceptable: evaluation.acceptable,
         assessment: evaluation.assessment,
         degraded: !!evaluation.degraded,
+      });
+
+      // Record full evaluation content
+      const contentOutputs: import("../trace/types.js").ContentBlock[] = [
+        contentBlock(`Assessment (${evaluation.score}/10)`, evaluation.assessment),
+      ];
+      if (evaluation.suggestions?.length) {
+        contentOutputs.push(contentBlock("Suggestions", evaluation.suggestions.join("\n")));
+      }
+      if (evaluation.improvementPotential) {
+        const ip = evaluation.improvementPotential;
+        contentOutputs.push(contentBlock("Improvement potential", `${ip.level}: ${ip.description}`));
+      }
+      getContentStore().record({
+        eventSeq: null, kind: "evaluation", timestamp: new Date().toISOString(),
+        component: "evaluator", taskId: task.id,
+        inputs: [
+          contentBlock("Activation path", evaluation.activationPath.join(" > ")),
+          contentBlock("Parent perspective", entry.parentPerspective),
+        ],
+        outputs: contentOutputs,
+        routing: { destinations: ["gate (composite score)", "tension-detection", "working-memory"] },
       });
 
       return evaluation;

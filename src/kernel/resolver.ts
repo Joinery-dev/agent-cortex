@@ -8,6 +8,7 @@ import { resolverSystem, resolverUser } from "../llm/prompts.js";
 import { newId } from "../util/ids.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("resolver");
 
@@ -208,6 +209,22 @@ export async function resolve(
       strategy: result.strategy,
       satisfiesBoth: result.satisfiesBoth,
       revisedInstructions: result.revisedInstructions,
+    });
+
+    getContentStore().record({
+      eventSeq: null, kind: "tension-resolution", timestamp: new Date().toISOString(),
+      component: "resolver", taskId: null,
+      inputs: [
+        contentBlock("Tension", tension.description),
+        contentBlock(`Sense A: ${tension.senseA.path.join(" > ")}`, `Score: ${tension.senseA.score}/10, stake: ${(tension.senseA.stake ?? 0).toFixed(2)}`),
+        contentBlock(`Sense B: ${tension.senseB.path.join(" > ")}`, `Score: ${tension.senseB.score}/10, stake: ${(tension.senseB.stake ?? 0).toFixed(2)}`),
+      ],
+      outputs: [
+        contentBlock("Resolution strategy", result.strategy),
+        contentBlock("Revised instructions", result.revisedInstructions),
+        contentBlock("Satisfies both?", result.satisfiesBoth ? "Yes" : "No"),
+      ],
+      routing: { destinations: ["motor-cortex (revision context)", "gate (resolution quality)"] },
     });
 
     log.info("Tension resolved", {

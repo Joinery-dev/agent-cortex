@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Cortex — Trace Narrative</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --bg-card: #12121a;
+  --bg-hover: #1a1a26;
+  --bg-active: #222233;
+  --border: #2a2a3a;
+  --text: #e0e0ee;
+  --text-dim: #8888aa;
+  --text-bright: #ffffff;
+  --accent: #6c8cff;
+  --accent-dim: #4466cc;
+}
+
+body {
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ─── Header ─────────────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  flex-shrink: 0;
+}
+header h1 { font-size: 14px; font-weight: 600; color: var(--text-bright); }
+.stats { margin-left: auto; display: flex; gap: 12px; font-size: 11px; color: var(--text-dim); }
+.stats .v { color: var(--text-bright); font-weight: 600; }
+
+/* ─── Main 3-panel layout ────────────────────────────────── */
+.main {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ─── Left: Step list ────────────────────────────────────── */
+.step-list {
+  width: 300px;
+  min-width: 240px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.step-filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.step-filters select, .step-filters input {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+}
+.step-filters input { flex: 1; min-width: 100px; }
+
+.step {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
+  transition: background 0.1s;
+}
+.step:hover { background: var(--bg-hover); }
+.step.selected { background: var(--bg-active); border-left-color: var(--accent); }
+
+.step .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+.step .body { flex: 1; min-width: 0; }
+.step .headline {
+  font-size: 11px; font-weight: 500; line-height: 1.3;
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.step .meta { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+/* ─── Center: Narrative ──────────────────────────────────── */
+.narrative {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+}
+
+.narr-headline { font-size: 18px; font-weight: 600; color: var(--text-bright); margin-bottom: 8px; }
+.narr-summary { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 20px; max-width: 800px; }
+
+.section {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.section-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: var(--bg-card); cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--text); transition: background 0.15s;
+}
+.section-hdr:hover { background: var(--bg-hover); }
+.section-hdr .sz { font-size: 10px; color: var(--text-dim); font-weight: 400; }
+.section-hdr .chev { color: var(--text-dim); transition: transform 0.2s; }
+.section.open .chev { transform: rotate(90deg); }
+
+.section-body {
+  display: none; padding: 12px; background: var(--bg);
+  font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  max-height: 500px; overflow-y: auto;
+}
+.section.open .section-body { display: block; }
+
+.section-body.ct-prompt { color: #a29bfe; }
+.section-body.ct-response { color: #6bcb77; }
+.section-body.ct-json { color: #ffd93d; }
+.section-body.ct-code { color: #ff8c42; }
+.section-body.ct-prose { color: var(--text); }
+
+.preview-frame { width: 100%; height: 500px; border: 1px solid var(--border); border-radius: 4px; background: #fff; }
+.preview-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
+.preview-toggle button {
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 3px;
+  background: var(--bg-hover); color: var(--text-dim); cursor: pointer;
+  font-family: inherit; font-size: 11px;
+}
+.preview-toggle button.on { background: var(--accent-dim); color: var(--text-bright); border-color: var(--accent); }
+
+/* ─── Right: Context ─────────────────────────────────────── */
+.context {
+  width: 280px; min-width: 220px;
+  border-left: 1px solid var(--border);
+  overflow-y: auto; padding: 12px;
+  background: var(--bg-card); flex-shrink: 0;
+}
+.context h4 {
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase;
+  letter-spacing: 0.5px; margin-bottom: 6px; margin-top: 12px;
+}
+.context h4:first-child { margin-top: 0; }
+.ctx-row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 11px; }
+.ctx-label { color: var(--text-dim); }
+.ctx-value { color: var(--text); }
+.ctx-routing span { display: block; padding: 2px 0; color: var(--text); font-size: 11px; }
+
+.nav-btns { display: flex; gap: 8px; margin-top: 12px; }
+.nav-btns button {
+  flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-hover); color: var(--text); cursor: pointer; font-family: inherit; font-size: 11px;
+}
+.nav-btns button:hover { background: var(--bg-active); }
+.nav-btns button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.empty { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 14px; }
+
+/* ─── Stepper bar ────────────────────────────────────────── */
+.stepper {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-top: 1px solid var(--border);
+  background: var(--bg-card); flex-shrink: 0; font-size: 12px;
+}
+.stepper button {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-hover); color: var(--text); cursor: pointer;
+  font-family: inherit; font-size: 12px;
+}
+.stepper button:hover { background: var(--bg-active); border-color: var(--accent-dim); }
+.stepper button:disabled { opacity: 0.3; cursor: not-allowed; }
+.stepper button.active { background: var(--accent-dim); border-color: var(--accent); color: var(--text-bright); }
+.stepper select {
+  padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg-hover); color: var(--text); font-family: inherit; font-size: 12px;
+}
+.stepper .pos { color: var(--text-dim); min-width: 100px; }
+.stepper .pos .cur { color: var(--accent); font-weight: 600; }
+.stepper .sep { color: var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Agent Cortex Trace</h1>
+  <div class="stats">
+    <span>Steps: <span class="v" id="st-steps">0</span></span>
+    <span>Content: <span class="v" id="st-size">0 KB</span></span>
+    <span>Tasks: <span class="v" id="st-tasks">0</span></span>
+  </div>
+</header>
+
+<div class="main">
+  <div class="step-list" id="step-list">
+    <div class="step-filters">
+      <input type="text" id="flt-search" placeholder="Search steps...">
+      <select id="flt-kind">
+        <option value="">All kinds</option>
+        <option value="briefing">Briefing</option>
+        <option value="llm-call">LLM Call</option>
+        <option value="consultation">Consultation</option>
+        <option value="evaluation">Evaluation</option>
+        <option value="motor-plan">Motor Plan</option>
+        <option value="motor-work">Motor Work</option>
+        <option value="self-assessment">Self-Assessment</option>
+        <option value="conviction">Conviction</option>
+        <option value="tension-resolution">Resolution</option>
+      </select>
+    </div>
+    <div id="steps"></div>
+  </div>
+
+  <div class="narrative" id="narrative">
+    <div class="empty">Loading narratives...</div>
+  </div>
+
+  <div class="context" id="context">
+    <div class="empty">Select a step</div>
+  </div>
+</div>
+
+<div class="stepper">
+  <button id="s-replay" title="Enable replay mode">Replay</button>
+  <span class="sep">|</span>
+  <button id="s-start" disabled>&laquo;</button>
+  <button id="s-back" disabled>&lsaquo;</button>
+  <button id="s-fwd" disabled>&rsaquo;</button>
+  <button id="s-end" disabled>&raquo;</button>
+  <span class="sep">|</span>
+  <span class="pos"><span class="cur" id="s-pos">-</span> / <span id="s-total">0</span></span>
+  <button id="s-stop" disabled>Stop</button>
+</div>
+
+<script>
+const API = '';
+const RC = {
+  brainstem:'#ff6b6b', pfc:'#6c8cff', thalamus:'#ffd93d', 'sensory-cortex':'#6bcb77',
+  'motor-cortex':'#ff8c42', pns:'#c77dff', 'basal-ganglia':'#4ecdc4', cerebellum:'#ff6b9d',
+  hippocampus:'#45b7d1', amygdala:'#ff4757', dopamine:'#ffa502', plasticity:'#a29bfe',
+  ne:'#fd79a8', llm:'#00cec9', probes:'#55efc4', cost:'#fdcb6e', research:'#e17055',
+  exteroception:'#74b9ff', deliberation:'#dfe6e9', sandbox:'#636e72', visual:'#b2bec3',
+  vitals:'#ff7675', unknown:'#666'
+};
+
+let narrs = [];
+let sel = -1;
+let stepperOn = false;
+
+// ─── Fetch narratives ──────────────────────────────────────
+
+async function refresh() {
+  try {
+    const [nResp, sResp] = await Promise.all([
+      fetch(`${API}/trace/api/narrative/all`),
+      fetch(`${API}/trace/api/content/summary`),
+    ]);
+    narrs = await nResp.json();
+    const stats = await sResp.json();
+
+    const filtered = narrs.filter(n => n.kind !== 'structured-parse');
+    document.getElementById('st-steps').textContent = filtered.length;
+    document.getElementById('st-size').textContent = (stats.totalBytes / 1024).toFixed(0) + ' KB';
+    const tasks = new Set(Object.keys(stats.byTask || {}));
+    document.getElementById('st-tasks').textContent = tasks.size;
+
+    renderSteps(filtered);
+  } catch (e) {
+    console.error('Refresh failed:', e);
+  }
+}
+
+function getFiltered() {
+  let f = narrs.filter(n => n.kind !== 'structured-parse');
+  const kind = document.getElementById('flt-kind').value;
+  if (kind) f = f.filter(n => n.kind === kind);
+  const search = document.getElementById('flt-search').value.toLowerCase();
+  if (search) f = f.filter(n =>
+    n.headline.toLowerCase().includes(search) ||
+    n.summary.toLowerCase().includes(search) ||
+    n.actor.toLowerCase().includes(search)
+  );
+  return f;
+}
+
+function renderSteps(filtered) {
+  const container = document.getElementById('steps');
+  if (!filtered) filtered = getFiltered();
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="empty" style="height:200px">No steps yet</div>';
+    return;
+  }
+  let html = '';
+  for (let i = 0; i < filtered.length; i++) {
+    const n = filtered[i];
+    const c = RC[n.actorRegion] || '#666';
+    const t = new Date(n.timestamp).toISOString().slice(11, 19);
+    html += `<div class="step ${i === sel ? 'selected' : ''}" data-idx="${i}" onclick="pick(${i})">
+      <span class="dot" style="background:${c}"></span>
+      <div class="body">
+        <div class="headline" style="color:${c}">${esc(n.headline)}</div>
+        <div class="meta">${t} &middot; ${esc(n.actor)}</div>
+      </div>
+    </div>`;
+  }
+  container.innerHTML = html;
+}
+
+function pick(idx) {
+  const filtered = getFiltered();
+  if (idx < 0 || idx >= filtered.length) return;
+  sel = idx;
+  const n = filtered[idx];
+
+  // Highlight
+  document.querySelectorAll('.step').forEach((el, i) => el.classList.toggle('selected', i === idx));
+
+  // Render narrative center
+  renderNarrative(n);
+  renderContext(n, idx, filtered.length);
+
+  // Update stepper position
+  document.getElementById('s-pos').textContent = idx + 1;
+  document.getElementById('s-total').textContent = filtered.length;
+}
+
+function renderNarrative(n) {
+  const el = document.getElementById('narrative');
+  const c = RC[n.actorRegion] || '#666';
+
+  let html = `<div class="narr-headline" style="color:${c}">${esc(n.headline)}</div>
+    <div class="narr-summary">${esc(n.summary)}</div>`;
+
+  for (let si = 0; si < n.sections.length; si++) {
+    const sec = n.sections[si];
+    const sz = sec.byteSize < 1024 ? `${sec.byteSize} B` : `${(sec.byteSize/1024).toFixed(1)} KB`;
+    const open = sec.expandedByDefault ? 'open' : '';
+    const ct = 'ct-' + sec.contentType;
+    const sid = `sec-${n.contentId}-${si}`;
+
+    const isHtml = sec.contentType === 'code' && (
+      sec.content.includes('<!DOCTYPE') || sec.content.includes('<html') ||
+      (sec.content.includes('<head') && sec.content.includes('<body'))
+    );
+
+    if (isHtml) {
+      html += `<div class="section ${open}" id="${sid}">
+        <div class="section-hdr" onclick="this.parentElement.classList.toggle('open')">
+          <span>${esc(sec.label)}</span>
+          <span><span class="sz">${sz}</span> <span class="chev">&#9654;</span></span>
+        </div>
+        <div class="section-body ct-code">
+          <div class="preview-toggle">
+            <button class="on" onclick="togPreview('${sid}','visual',this)">Visual</button>
+            <button onclick="togPreview('${sid}','source',this)">Source</button>
+          </div>
+          <iframe class="preview-frame" id="${sid}-frame" sandbox="allow-scripts" srcdoc="${escAttr(sec.content)}"></iframe>
+          <pre id="${sid}-src" style="display:none;max-height:400px;overflow:auto">${esc(sec.content)}</pre>
+        </div>
+      </div>`;
+    } else {
+      html += `<div class="section ${open}">
+        <div class="section-hdr" onclick="this.parentElement.classList.toggle('open')">
+          <span>${esc(sec.label)}</span>
+          <span><span class="sz">${sz}</span> <span class="chev">&#9654;</span></span>
+        </div>
+        <div class="section-body ${ct}">${esc(sec.content)}</div>
+      </div>`;
+    }
+  }
+  el.innerHTML = html;
+}
+
+function renderContext(n, idx, total) {
+  const el = document.getElementById('context');
+  el.innerHTML = `
+    <h4>Operation</h4>
+    <div class="ctx-row"><span class="ctx-label">Kind</span><span class="ctx-value">${n.kind}</span></div>
+    <div class="ctx-row"><span class="ctx-label">Actor</span><span class="ctx-value">${esc(n.actor)}</span></div>
+    <div class="ctx-row"><span class="ctx-label">Region</span><span class="ctx-value">${n.actorRegion}</span></div>
+    <div class="ctx-row"><span class="ctx-label">Time</span><span class="ctx-value">${new Date(n.timestamp).toISOString().slice(11,23)}</span></div>
+    <div class="ctx-row"><span class="ctx-label">Content ID</span><span class="ctx-value">${n.contentId}</span></div>
+
+    <h4>Tokens & Cost</h4>
+    <div class="ctx-row"><span class="ctx-label">Tokens</span><span class="ctx-value" id="ctx-tok">-</span></div>
+    <div class="ctx-row"><span class="ctx-label">Cost</span><span class="ctx-value" id="ctx-cost">-</span></div>
+
+    <h4>Output routed to</h4>
+    <div class="ctx-routing" id="ctx-route"><span style="color:var(--text-dim)">Loading...</span></div>
+
+    <h4>Sections</h4>
+    <div class="ctx-row"><span class="ctx-label">Count</span><span class="ctx-value">${n.sections.length}</span></div>
+    <div class="ctx-row"><span class="ctx-label">Total</span><span class="ctx-value">${fmtB(n.sections.reduce((s,sec) => s + sec.byteSize, 0))}</span></div>
+
+    <div class="nav-btns">
+      <button onclick="pick(${idx-1})" ${idx<=0?'disabled':''}>&lsaquo; Prev</button>
+      <button onclick="pick(${idx+1})" ${idx>=total-1?'disabled':''}>Next &rsaquo;</button>
+    </div>
+
+    <h4>Position</h4>
+    <div class="ctx-row"><span class="ctx-label">Step</span><span class="ctx-value">${idx+1} / ${total}</span></div>
+  `;
+
+  // Fetch content entry for routing/cost
+  fetch(`${API}/trace/api/content/id/${n.contentId}`)
+    .then(r => r.json())
+    .then(c => {
+      if (c.routing?.destinations) {
+        document.getElementById('ctx-route').innerHTML = c.routing.destinations.map(d => `<span>${esc(d)}</span>`).join('');
+      } else {
+        document.getElementById('ctx-route').innerHTML = '<span style="color:var(--text-dim)">-</span>';
+      }
+      if (c.tokens) document.getElementById('ctx-tok').textContent = `${c.tokens.input.toLocaleString()} in / ${c.tokens.output.toLocaleString()} out`;
+      if (c.costDollars) document.getElementById('ctx-cost').textContent = `$${c.costDollars.toFixed(4)}`;
+    }).catch(() => {});
+}
+
+// ─── Visual preview toggle ──────────────────────────────────
+
+function togPreview(sid, mode, btn) {
+  const frame = document.getElementById(sid + '-frame');
+  const src = document.getElementById(sid + '-src');
+  if (!frame || !src) return;
+  frame.style.display = mode === 'visual' ? '' : 'none';
+  src.style.display = mode === 'source' ? '' : 'none';
+  btn.parentElement.querySelectorAll('button').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+}
+
+// ─── Stepper ────────────────────────────────────────────────
+
+document.getElementById('s-replay').addEventListener('click', () => {
+  stepperOn = true;
+  document.getElementById('s-replay').classList.add('active');
+  document.getElementById('s-start').disabled = false;
+  document.getElementById('s-back').disabled = false;
+  document.getElementById('s-fwd').disabled = false;
+  document.getElementById('s-end').disabled = false;
+  document.getElementById('s-stop').disabled = false;
+  if (sel < 0) pick(0);
+});
+
+document.getElementById('s-stop').addEventListener('click', () => {
+  stepperOn = false;
+  document.getElementById('s-replay').classList.remove('active');
+  document.getElementById('s-start').disabled = true;
+  document.getElementById('s-back').disabled = true;
+  document.getElementById('s-fwd').disabled = true;
+  document.getElementById('s-end').disabled = true;
+  document.getElementById('s-stop').disabled = true;
+});
+
+document.getElementById('s-fwd').addEventListener('click', () => { if (stepperOn) pick(sel + 1); });
+document.getElementById('s-back').addEventListener('click', () => { if (stepperOn) pick(sel - 1); });
+document.getElementById('s-start').addEventListener('click', () => { if (stepperOn) pick(0); });
+document.getElementById('s-end').addEventListener('click', () => { if (stepperOn) pick(getFiltered().length - 1); });
+
+// ─── Keyboard shortcuts ─────────────────────────────────────
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+  if (e.key === 'ArrowRight' || e.key === 'n') { e.preventDefault(); pick(sel + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'p') { e.preventDefault(); pick(sel - 1); }
+  else if (e.key === 'Home') { e.preventDefault(); pick(0); }
+  else if (e.key === 'End') { e.preventDefault(); pick(getFiltered().length - 1); }
+  else if (e.key === ' ') {
+    e.preventDefault();
+    if (!stepperOn) document.getElementById('s-replay').click();
+    else pick(sel + 1);
+  }
+  else if (e.key === 'Escape') document.getElementById('s-stop').click();
+});
+
+// ─── Filters ────────────────────────────────────────────────
+
+document.getElementById('flt-kind').addEventListener('change', () => { sel = -1; renderSteps(getFiltered()); });
+document.getElementById('flt-search').addEventListener('input', debounce(() => { sel = -1; renderSteps(getFiltered()); }, 200));
+
+// ─── Helpers ────────────────────────────────────────────────
+
+function esc(s) { return s ? s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+function escAttr(s) { return s ? s.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; }
+function fmtB(b) { return b < 1024 ? `${b} B` : b < 1048576 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`; }
+function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
+
+// ─── Init + auto-refresh ────────────────────────────────────
+
+refresh();
+setInterval(refresh, 5000);
+
+</script>
+</body>
+</html>

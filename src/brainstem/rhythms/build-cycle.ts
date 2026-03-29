@@ -37,6 +37,7 @@ import { addEvent } from "../../types/task.js";
 import { emit, emitInfo, emitWarn } from "../../events.js";
 import { createLogger } from "../../util/logger.js";
 import { estimateCallCost } from "../../types/cost.js";
+import { getContentStore, contentBlock } from "../../trace/content-store.js";
 
 const log = createLogger("build-cycle");
 import type { SubcorticalHooks } from "../stubs.js";
@@ -756,6 +757,29 @@ export function createBuildCycleDefinition(
         delta: conviction.delta,
         decidingStep: conviction.decidingStep,
         evidenceCount: conviction.evidence.length,
+      });
+
+      const evidenceText = conviction.evidence
+        .map((e) => `[${e.source}] ${e.description} (${e.valence}, magnitude=${e.magnitude.toFixed(2)})`)
+        .join("\n");
+      const shapingText = conviction.shaping.notes.length > 0
+        ? conviction.shaping.notes.join("\n")
+        : "(no shaping notes)";
+      getContentStore().record({
+        eventSeq: null, kind: "conviction", timestamp: new Date().toISOString(),
+        component: "conviction", taskId: ctx.task.id,
+        inputs: [
+          contentBlock("Composite score", `${integrated.composite.weightedMean.toFixed(1)}/10 (confidence: ${integrated.composite.confidence.toFixed(2)})`),
+          contentBlock("Cycle", `${cycle}`),
+        ],
+        outputs: [
+          contentBlock(`Verdict: ${conviction.verdict}`, `Level: ${conviction.level.toFixed(3)}, delta: ${conviction.delta.toFixed(3)}, deciding step: ${conviction.decidingStep}`),
+          contentBlock("Evidence", evidenceText),
+          contentBlock("Shaping", shapingText),
+          ...(conviction.shaping.reshapeGuidance ? [contentBlock("Reshape guidance", conviction.shaping.reshapeGuidance)] : []),
+          ...(conviction.shaping.escalationReason ? [contentBlock("Escalation reason", conviction.shaping.escalationReason)] : []),
+        ],
+        routing: { destinations: ["gate (conviction level)", "NE (conviction folds into arousal)", "thalamus (specification artistry)"] },
       });
 
       // Conviction escalate → short-circuit before gate strategy

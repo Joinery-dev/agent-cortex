@@ -51,6 +51,7 @@ import {
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
 import { newId } from "../util/ids.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("motor-cortex");
 
@@ -205,6 +206,21 @@ export class MotorCortex {
       isRevision,
     });
 
+    const planStepsText = plan.steps
+      .map((s, i) => `${i + 1}. ${s.description}${s.rationale ? ` — ${s.rationale}` : ""}`)
+      .join("\n");
+    getContentStore().record({
+      eventSeq: null, kind: "motor-plan", timestamp: new Date().toISOString(),
+      component: "motor-cortex", taskId,
+      inputs: [contentBlock("Briefing task", briefing.task.description)],
+      outputs: [
+        contentBlock("Approach", plan.approach),
+        contentBlock("Plan steps", planStepsText),
+        contentBlock("Confidence", `${(plan.confidence * 100).toFixed(0)}%`),
+      ],
+      routing: { destinations: ["primary-motor (build phase)"] },
+    });
+
     // ── Phase 2: Primary Motor ─────────────────────────
     let work: string;
     let agenticResult: AgenticMotorResult | undefined;
@@ -228,6 +244,14 @@ export class MotorCortex {
       turns: agenticResult?.turns,
     });
 
+    getContentStore().record({
+      eventSeq: null, kind: "motor-work", timestamp: new Date().toISOString(),
+      component: "motor-cortex", taskId,
+      inputs: [contentBlock("Approach", plan.approach)],
+      outputs: [contentBlock("Work product", work)],
+      routing: { destinations: ["evaluation (all active senses)", "proprioception"] },
+    });
+
     // ── Phase 3: Proprioception (optional) ─────────────
     let selfAssessment: SelfAssessment | undefined;
     if (opts?.enableProprioception !== false) {
@@ -238,6 +262,21 @@ export class MotorCortex {
         planAdherence: selfAssessment.planAdherence,
         confidence: selfAssessment.confidence,
         driftAreas: selfAssessment.driftAreas.length,
+      });
+
+      const driftText = selfAssessment.driftAreas
+        .map((d) => `[${d.severity}] ${d.planStep}: actual="${d.actualBehavior}"`)
+        .join("\n");
+      getContentStore().record({
+        eventSeq: null, kind: "self-assessment", timestamp: new Date().toISOString(),
+        component: "motor-cortex", taskId,
+        inputs: [contentBlock("Plan approach", plan.approach)],
+        outputs: [
+          contentBlock("Plan adherence", `${(selfAssessment.planAdherence * 100).toFixed(0)}%`),
+          contentBlock("Confidence", `${(selfAssessment.confidence * 100).toFixed(0)}%`),
+          ...(driftText ? [contentBlock("Drift areas", driftText)] : []),
+        ],
+        routing: { destinations: ["gate (conviction input)"] },
       });
     }
 

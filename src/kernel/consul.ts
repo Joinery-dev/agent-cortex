@@ -11,6 +11,7 @@ import { callStructured } from "../llm/structured.js";
 import { consultationSystem, consultationUser, reconsultationSystem, reconsultationUser } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitWarn } from "../events.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("consul");
 
@@ -78,6 +79,20 @@ export async function consult(
         evaluatorCount: result.evaluators.length,
         evaluators: result.evaluators,
         stake: result.stake,
+      });
+
+      getContentStore().record({
+        eventSeq: null, kind: "consultation", timestamp: new Date().toISOString(),
+        component: "consultation", taskId: briefing.task.id,
+        inputs: [
+          contentBlock(`${sense.name} system prompt`, consultationSystem(sense, subTree)),
+          contentBlock("Consultation briefing (user prompt)", userPrompt),
+        ],
+        outputs: [
+          contentBlock(`${sense.name} perspective`, result.perspective),
+          contentBlock("Evaluators selected", result.evaluators.join(", ")),
+        ],
+        routing: { destinations: ["evaluation-plan", "motor-cortex (via motor briefing)"] },
       });
 
       log.info(`${sense.name} perspective`, {

@@ -3,6 +3,7 @@ import { callWithFallback } from "./client.js";
 import type { Purpose } from "./client.js";
 import { createLogger } from "../util/logger.js";
 import { emitInfo, emitWarn, emitError } from "../events.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("llm-structured");
 
@@ -26,7 +27,25 @@ export async function callStructured<T>(
 
   try {
     const parsed = JSON.parse(result.text);
-    return schema.parse(parsed);
+    const validated = schema.parse(parsed);
+
+    // Record the parsed structured output for trace
+    const jsonText = JSON.stringify(validated, null, 2);
+    getContentStore().record({
+      eventSeq: null,
+      kind: "structured-parse",
+      timestamp: new Date().toISOString(),
+      component: purpose,
+      taskId: null,
+      inputs: [],
+      outputs: [
+        contentBlock(`Parsed ${purpose} result`, jsonText),
+      ],
+      purpose,
+      model,
+    });
+
+    return validated;
   } catch (firstError) {
     log.warn("Structured parse failed, retrying with correction prompt", {
       error: String(firstError),
@@ -51,6 +70,23 @@ export async function callStructured<T>(
         const parsed = JSON.parse(jsonMatch[1]);
         const validated = schema.parse(parsed);
         emitInfo("llm:retry-success", { purpose, model, attempt: 1, method: "fence-extraction" });
+
+        // Record the parsed structured output for trace
+        const jsonText = JSON.stringify(validated, null, 2);
+        getContentStore().record({
+          eventSeq: null,
+          kind: "structured-parse",
+          timestamp: new Date().toISOString(),
+          component: purpose,
+          taskId: null,
+          inputs: [],
+          outputs: [
+            contentBlock(`Parsed ${purpose} result`, jsonText),
+          ],
+          purpose,
+          model,
+        });
+
         return validated;
       } catch {
         // Fall through to retry
@@ -66,6 +102,23 @@ export async function callStructured<T>(
       const parsed = JSON.parse(retry.text);
       const validated = schema.parse(parsed);
       emitInfo("llm:retry-success", { purpose, model, attempt: 2, method: "correction-prompt" });
+
+      // Record the parsed structured output for trace
+      const jsonText = JSON.stringify(validated, null, 2);
+      getContentStore().record({
+        eventSeq: null,
+        kind: "structured-parse",
+        timestamp: new Date().toISOString(),
+        component: purpose,
+        taskId: null,
+        inputs: [],
+        outputs: [
+          contentBlock(`Parsed ${purpose} result`, jsonText),
+        ],
+        purpose,
+        model,
+      });
+
       return validated;
     } catch (secondError) {
       log.error("Structured parse failed on retry", {

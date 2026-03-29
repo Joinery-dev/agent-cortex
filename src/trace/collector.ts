@@ -54,7 +54,7 @@ const REGION_MAP: [string, BrainRegion][] = [
   ["runner:", "brainstem"],
   ["hippocampus:", "hippocampus"],
   ["episode:", "hippocampus"],
-  ["crystallize:", "hippocampus"],
+  ["potentiation:", "hippocampus"],
   ["cerebellum:", "cerebellum"],
   ["prediction:", "cerebellum"],
   ["forward-model:", "cerebellum"],

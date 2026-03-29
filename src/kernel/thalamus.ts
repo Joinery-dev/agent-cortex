@@ -74,6 +74,7 @@ import type { PeripheralNervousSystem } from "./pns.js";
 import type { SensoryCortex } from "../senses/cortex.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitWarn } from "../events.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("thalamus");
 
@@ -1252,6 +1253,14 @@ export class Thalamus {
       depth,
     });
 
+    getContentStore().record({
+      eventSeq: null, kind: "briefing", timestamp: new Date().toISOString(),
+      component: "thalamus", taskId,
+      inputs: [contentBlock("Gestalt sources", JSON.stringify(counts, null, 2))],
+      outputs: [contentBlock("Consultation briefing", JSON.stringify(briefing, null, 2))],
+      routing: { destinations: ["consultation (all active senses)"] },
+    });
+
     return briefing;
   }
 
@@ -1342,6 +1351,14 @@ export class Thalamus {
       taskId,
       enrichmentCounts: counts,
       depth: motorDepth,
+    });
+
+    getContentStore().record({
+      eventSeq: null, kind: "briefing", timestamp: new Date().toISOString(),
+      component: "thalamus", taskId,
+      inputs: [contentBlock("Gestalt sources", JSON.stringify(counts, null, 2))],
+      outputs: [contentBlock("Motor briefing", JSON.stringify(briefing, null, 2))],
+      routing: { destinations: ["motor-cortex (premotor → primary → proprioception)"] },
     });
 
     return briefing;
@@ -1437,6 +1454,14 @@ export class Thalamus {
       budgetPressure: evalBP,
     });
 
+    getContentStore().record({
+      eventSeq: null, kind: "briefing", timestamp: new Date().toISOString(),
+      component: "thalamus", taskId,
+      inputs: [contentBlock("Gestalt sources", JSON.stringify(counts, null, 2))],
+      outputs: [contentBlock(`Evaluation briefing (${receptorId})`, JSON.stringify(briefing, null, 2))],
+      routing: { destinations: [`evaluator (${receptorId})`] },
+    });
+
     return briefing;
   }
 
@@ -1495,6 +1520,14 @@ export class Thalamus {
       taskId,
       senseCount: senses.length,
       enrichmentCounts: counts,
+    });
+
+    getContentStore().record({
+      eventSeq: null, kind: "briefing", timestamp: new Date().toISOString(),
+      component: "thalamus", taskId,
+      inputs: [contentBlock("Gestalt sources", JSON.stringify(counts, null, 2))],
+      outputs: [contentBlock("Inhibition briefing", JSON.stringify(briefing, null, 2))],
+      routing: { destinations: ["basal-ganglia (inhibitor)"] },
     });
 
     return briefing;

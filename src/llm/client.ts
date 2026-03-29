@@ -3,6 +3,7 @@ import { createLogger } from "../util/logger.js";
 import { emitInfo, emitWarn, emitError } from "../events.js";
 import { computeCallCost } from "../types/cost.js";
 import type { CostRecord } from "../types/cost.js";
+import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("llm-client");
 
@@ -190,6 +191,26 @@ export async function call(
           timestamp: new Date(),
         });
       }
+
+      // Record full prompt/response content for trace
+      getContentStore().record({
+        eventSeq: null,
+        kind: "llm-call",
+        timestamp: new Date().toISOString(),
+        component: purpose,
+        taskId: currentTaskId,
+        inputs: [
+          contentBlock("System prompt", system),
+          contentBlock("User message", userMessage),
+        ],
+        outputs: [
+          contentBlock("LLM response", resultText),
+        ],
+        purpose,
+        model: sdkModel,
+        tokens: { input: usage.inputTokens, output: usage.outputTokens },
+        costDollars,
+      });
 
       return { text: resultText, usage, model: sdkModel, costDollars };
     } catch (err: unknown) {
@@ -409,6 +430,30 @@ export async function agenticCall(
       turns,
       toolCalls: toolTrace.length,
       durationMs,
+      costDollars,
+    });
+
+    // Record full agentic call content for trace
+    const toolTraceText = toolTrace
+      .map((t) => `[${t.toolName}] ${t.summary}`)
+      .join("\n");
+    getContentStore().record({
+      eventSeq: null,
+      kind: "llm-call",
+      timestamp: new Date().toISOString(),
+      component: purpose,
+      taskId: currentTaskId,
+      inputs: [
+        contentBlock("System prompt", system),
+        contentBlock("User message", userMessage),
+      ],
+      outputs: [
+        contentBlock("LLM response", resultText),
+        ...(toolTraceText ? [contentBlock("Tool trace", toolTraceText)] : []),
+      ],
+      purpose,
+      model: sdkModel,
+      tokens: { input: usage.inputTokens, output: usage.outputTokens },
       costDollars,
     });
 
