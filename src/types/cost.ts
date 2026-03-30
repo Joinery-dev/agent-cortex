@@ -2,7 +2,7 @@
  * Cost Budget — the metabolic constraint.
  *
  * Like the brain's metabolic budget forcing efficient neural representations,
- * a dollar budget forces the system to prioritize cognitive spending. A
+ * a dollar budget forces Cortex to prioritize cognitive spending. A
  * "box house" project (tight budget, constrained scope) breathes shallowly.
  * A "custom home" project (generous budget, open scope) breathes deeply.
  * Same architecture, different depth, determined by the economics of the work.
@@ -48,18 +48,32 @@ export const MODEL_PRICING: ModelPricing[] = [
 /**
  * Compute the dollar cost of a single LLM call.
  * Model should be the resolved alias ("haiku"/"sonnet"/"opus").
+ *
+ * When cache metrics are provided, cost is computed accurately:
+ *   - Cache read tokens: 10% of input price (90% discount)
+ *   - Cache creation tokens: 125% of input price (25% surcharge)
+ *   - Remaining tokens: standard input price
  */
 export function computeCallCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
+  cacheReadTokens?: number,
+  cacheCreationTokens?: number,
 ): number {
   const pricing = MODEL_PRICING.find((p) => model.includes(p.modelPattern));
   if (!pricing) return 0;
-  return (
-    (inputTokens / 1_000_000) * pricing.inputPer1M +
-    (outputTokens / 1_000_000) * pricing.outputPer1M
-  );
+
+  const cacheRead = cacheReadTokens ?? 0;
+  const cacheCreate = cacheCreationTokens ?? 0;
+  const uncachedInput = Math.max(0, inputTokens - cacheRead - cacheCreate);
+
+  const inputCost = (uncachedInput / 1_000_000) * pricing.inputPer1M;
+  const cacheReadCost = (cacheRead / 1_000_000) * pricing.inputPer1M * 0.1;
+  const cacheCreateCost = (cacheCreate / 1_000_000) * pricing.inputPer1M * 1.25;
+  const outputCost = (outputTokens / 1_000_000) * pricing.outputPer1M;
+
+  return inputCost + cacheReadCost + cacheCreateCost + outputCost;
 }
 
 /**
@@ -77,7 +91,7 @@ export function estimateCallCost(
 // ─── Cost Budget ────────────────────────────────────────────────
 
 /**
- * The project's dollar budget. Provided by the human at project start.
+ * The project's dollar budget. Provided by the Parsifal at project start.
  * Optional on ProjectIntent — unconstrained when absent.
  */
 export interface CostBudget {
@@ -113,6 +127,10 @@ export interface CostRecord {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens served from Anthropic's prompt cache (90% discount). */
+  cacheReadInputTokens?: number;
+  /** Input tokens used to create a new cache entry (25% surcharge). */
+  cacheCreationInputTokens?: number;
   /** Computed dollar cost. */
   cost: number;
   /** Which task this call was made for (null during planning). */
@@ -179,7 +197,7 @@ export interface ProjectCostEstimate {
  *
  * On cold start (no Cerebellum data), the Thalamus defaults to "standard."
  * As episodes accumulate with depth metadata, the Cerebellum discovers
- * the system's actual optimal briefing size empirically. The training
+ * Cortex's actual optimal briefing size empirically. The training
  * wheels come off as predictions improve.
  */
 export type BriefingDepth = "full" | "standard" | "compressed" | "minimal";
@@ -187,7 +205,7 @@ export type BriefingDepth = "full" | "standard" | "compressed" | "minimal";
 /**
  * Cold-start default: "standard" depth. Used when the Cerebellum has
  * no context fidelity data yet. Deliberately conservative — include
- * enough context to produce good results, let the system learn to
+ * enough context to produce good results, let Cortex learn to
  * compress over time.
  */
 export const COLD_START_DEPTH: BriefingDepth = "standard";

@@ -80,7 +80,7 @@ function createPausingRhythm(): RhythmDefinition<
       if (state.completedCycles === 0) {
         return {
           action: "pause",
-          reason: "Need human input on direction",
+          reason: "Need Parsifal input on direction",
           resumable: true,
           escalationContext: {
             source: "attention-scheduler",
@@ -113,7 +113,7 @@ function createPermanentPauseRhythm(): RhythmDefinition<
     async gate(): Promise<GateDecision<string>> {
       return {
         action: "pause",
-        reason: "Waiting for human",
+        reason: "Waiting for Parsifal",
         resumable: true,
       };
     },

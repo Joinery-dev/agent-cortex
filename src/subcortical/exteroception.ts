@@ -3,7 +3,7 @@
  *
  * A generic monitoring infrastructure that watches external sources
  * (npm advisories, API changelogs, deploy status — anything) and
- * feeds signals into the system through two paths:
+ * feeds signals into Cortex through two paths:
  *
  *   Urgent    → Amygdala alarm (immediate override)
  *   Non-urgent → in-memory store → batch-processed at between-tasks

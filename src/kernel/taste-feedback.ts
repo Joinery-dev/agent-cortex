@@ -2,7 +2,7 @@
  * Taste Feedback Loop — PFC Feature #24.
  *
  * Turns Drift Monitor's taste divergence detection into a conversation
- * with the human. Evaluated at phase gates (between-tasks slow path)
+ * with the Parsifal. Evaluated at phase gates (between-tasks slow path)
  * after deep analysis runs.
  *
  * The system earns the right to propose through:
@@ -10,7 +10,7 @@
  *   - Persistence (seeing the divergence across multiple deep analyses)
  *   - Strength (the divergence signal is not noise)
  *
- * A brand-new system doesn't propose. It barely knows the human.
+ * A brand-new system doesn't propose. It barely knows the Parsifal.
  *
  * Stateful: tracks divergence history across deep analyses and manages
  * pending proposals. Methods receive sources per call (same pattern as
@@ -67,7 +67,7 @@ function persistenceFactor(persistence: number): number {
 }
 
 /**
- * Maturity factor: how credible is the system's observation?
+ * Maturity factor: how credible is Cortex's observation?
  *
  * Uses cerebellum accuracy directly if available (most precise).
  * Falls back to inverting NE level (high NE = immature = low maturity).
@@ -113,7 +113,7 @@ export class TasteFeedbackLoop {
   /** Per-dimension divergence tracking across deep analyses. */
   private divergenceHistory = new Map<string, DivergenceRecord>();
 
-  /** Proposals awaiting human response. */
+  /** Proposals awaiting Parsifal response. */
   private pendingProposals = new Map<string, TasteProposal>();
 
   /** All proposals ever generated (for state/dashboard). */
@@ -145,7 +145,7 @@ export class TasteFeedbackLoop {
    * Called during between-tasks slow path after driftMonitor.deepAnalysis().
    *
    * Returns proposals for divergences that are strong enough, persistent
-   * enough, and the system is mature enough to surface. May return empty.
+   * enough, and Cortex is mature enough to surface. May return empty.
    */
   async evaluate(
     sources: TasteFeedbackSources,
@@ -318,7 +318,7 @@ export class TasteFeedbackLoop {
   // ── Response handling ──────────────────────────────────────────
 
   /**
-   * Record a human response to a pending proposal.
+   * Record a Parsifal response to a pending proposal.
    * Returns the proposal (with response attached) or null if not found.
    *
    * The caller is responsible for processing the response via

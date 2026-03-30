@@ -159,7 +159,8 @@ export type ContentKind =
   | "reconsultation"
   | "ne-computation"
   | "flexibility"
-  | "dopamine";
+  | "dopamine"
+  | "checkpoint";
 
 export interface ContentBlock {
   label: string;

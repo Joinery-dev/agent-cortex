@@ -1,7 +1,7 @@
 /**
  * Exteroception — External World Perception.
  *
- * The system's ability to perceive the external world independently of the
+ * Cortex's ability to perceive the external world independently of the
  * current task. A generic monitoring infrastructure that can watch anything
  * (npm advisories, API changelogs, deploy status, etc.).
  *

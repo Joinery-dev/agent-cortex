@@ -316,7 +316,7 @@ export async function inquire(
  * Format inquiry results into a human-readable message.
  * Groups questions by sense with context on why each matters.
  */
-export function formatInquiryForHuman(
+export function formatInquiryForParsifal(
   inquiries: SenseInquiry[],
   intent: import("../types/intent.js").ProjectIntent,
 ): string {
@@ -338,9 +338,9 @@ export function formatInquiryForHuman(
 }
 
 /**
- * Format the manifested future for human approval.
+ * Format the manifested future for Parsifal approval.
  */
-export function formatApprovalForHuman(
+export function formatApprovalForParsifal(
   future: import("../types/planner.js").ManifestedFuture,
 ): string {
   const sections: string[] = [];

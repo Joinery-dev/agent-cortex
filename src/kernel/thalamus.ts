@@ -21,7 +21,7 @@
  *              non-task-scoped consumers and during migration to gestalt path
  *
  * Briefings have three parts:
- *   core       — task + intent + taste (what the system always had)
+ *   core       — task + intent + taste (what Cortex always had)
  *   enrichment — WM data, PNS capabilities (what the Thalamus adds)
  *   meta       — transparency: what was included and why
  */
@@ -125,7 +125,7 @@ export class Thalamus {
 
   /**
    * Update the taste profile without changing the intent.
-   * Used by satisfaction-signal when a human response mutates
+   * Used by satisfaction-signal when a Parsifal response mutates
    * a taste dimension. Propagates to all future briefings.
    */
   updateTaste(taste: TasteProfile): void {
@@ -422,6 +422,11 @@ export class Thalamus {
   /** Retrieve a task's gestalt, or null if not assembled. */
   getGestalt(taskId: string): TaskGestalt | null {
     return this.gestalts.get(taskId) ?? null;
+  }
+
+  /** Inject a pre-computed gestalt (for checkpoint resume). */
+  restoreGestalt(taskId: string, gestalt: TaskGestalt): void {
+    this.gestalts.set(taskId, gestalt);
   }
 
   /**
@@ -1728,18 +1733,18 @@ export class Thalamus {
   // When the Motor Cortex hits ambiguity during building, it asks a
   // targeted question. The Thalamus routes it to the right sense based
   // on dimension matching and stake analysis. If no sense can answer,
-  // the question escalates to the user.
+  // the question escalates to the Parsifal.
 
   /**
-   * Route a mid-build question to the right sense or escalate to user.
+   * Route a mid-build question to the right sense or escalate to Parsifal.
    *
    * Deterministic routing:
    *   1. If targetDimension matches a sense name/ID → route to that sense
    *   2. If no match → find the sense with the highest stake in the task
-   *   3. If no sense has stake above threshold → route to user
+   *   3. If no sense has stake above threshold → route to Parsifal
    *
    * The minimum stake threshold (0.3) ensures we don't route questions to
-   * senses that are only marginally relevant. Better to ask the user than
+   * senses that are only marginally relevant. Better to ask the Parsifal than
    * get a low-confidence answer from a sense that doesn't really own the dimension.
    */
   routeBuildQuestion(
@@ -1809,22 +1814,22 @@ export class Thalamus {
       };
     }
 
-    // 3. No sense has sufficient stake — escalate to user
-    log.info("Build question escalating to user — no sense above stake threshold", {
+    // 3. No sense has sufficient stake — escalate to Parsifal
+    log.info("Build question escalating to Parsifal — no sense above stake threshold", {
       questionId: question.id,
       topStake: topSense?.stake,
     });
 
     emit("thalamus:question-routed", {
       questionId: question.id,
-      route: "user",
+      route: "parsifal",
       mechanism: "no-sense-above-threshold",
     });
 
     return {
       questionId: question.id,
-      route: "user",
-      rationale: `No sense has sufficient stake to answer (highest: ${topSense?.stake.toFixed(2) ?? "none"}). Escalating to user.`,
+      route: "parsifal",
+      rationale: `No sense has sufficient stake to answer (highest: ${topSense?.stake.toFixed(2) ?? "none"}). Escalating to Parsifal.`,
     };
   }
 

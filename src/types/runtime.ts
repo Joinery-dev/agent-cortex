@@ -1,9 +1,9 @@
 /**
  * Runtime & Project Profile — what kind of project this is and how to run it.
  *
- * The system discovers these at intake by reading the project with innate
- * tools (package.json, project structure, config files). The human doesn't
- * declare them — the system looks around and figures it out, just like a
+ * Cortex discovers these at intake by reading the project with innate
+ * tools (package.json, project structure, config files). The Parsifal doesn't
+ * declare them — Cortex looks around and figures it out, just like a
  * new engineer on day one.
  *
  * Three entry points:
@@ -13,7 +13,7 @@
  */
 
 // ── Project Profile ──────────────────────────────────────────────
-// Discovered by the system during intake. Represents "what kind of
+// Discovered by Cortex during intake. Represents "what kind of
 // project is this and how do I interact with it."
 
 export type ProjectKind =

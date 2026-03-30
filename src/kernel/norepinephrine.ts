@@ -27,7 +27,7 @@ export const DEFAULT_NE_WEIGHTS: NEWeights = {
   risk: 0.23,       // Steady contribution from task risk factors
   novelty: 0.23,    // Dominates for novel tasks even in a mature system
   conviction: 0.17, // Conviction erosion raises NE noticeably
-  urgency: 0.10,    // Human-declared urgency — the human → NE path
+  urgency: 0.10,    // Parsifal-declared urgency — the Parsifal → NE path
 };
 
 /**
@@ -47,7 +47,7 @@ const AVG_BLEND = 1.0 - MAX_BLEND;
  *   cerebellumAccuracy → 0.5 (unknown, not the Cerebellum's optimistic 0.8)
  *   bestSimilarity     → 0   (maximum novelty — no match found)
  *   convictionLevel    → 0.5 (neutral — conviction hasn't run yet)
- *   humanUrgency       → 0.25 (normal — no urgency declared)
+ *   parsifalUrgency       → 0.25 (normal — no urgency declared)
  *   risk               → all zeros (no risk factors present)
  *   amygdalaOverride   → false
  */
@@ -100,9 +100,9 @@ export function computeNE(
   //    Low conviction → high component → NE rises.
   const convictionComponent = 1.0 - (inputs.convictionLevel ?? 0.5);
 
-  // 5. Urgency component: direct mapping from human urgency.
+  // 5. Urgency component: direct mapping from Parsifal urgency.
   //    Absent → 0.25 (normal urgency).
-  const urgencyComponent = inputs.humanUrgency ?? 0.25;
+  const urgencyComponent = inputs.parsifalUrgency ?? 0.25;
 
   // Max-blend: weighted average + strongest single signal
   const weightedAvg =

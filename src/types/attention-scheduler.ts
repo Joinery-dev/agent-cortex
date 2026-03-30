@@ -56,7 +56,7 @@ export interface SchedulerEscalate {
   action: "escalate";
   reason: string;
   source: "attention-scheduler";
-  /** Specific questions for the human, if any. */
+  /** Specific questions for the Parsifal, if any. */
   questions: string[];
   /** What condition triggered this escalation. */
   escalationType: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift";
@@ -104,11 +104,11 @@ export interface SchedulerObserve {
 export interface SchedulerSignals {
   // ── Available now ────────────────────────────────────────────
 
-  /** The full task graph from the Planner (or human). */
+  /** The full task graph from the Planner (or Parsifal). */
   taskGraph: TaskGraphNode[];
   /** Tasks that have completed successfully. */
   completedTaskIds: Set<string>;
-  /** Tasks that escalated (failed or deferred to human). */
+  /** Tasks that escalated (failed or deferred to Parsifal). */
   escalatedTaskIds: Set<string>;
 
   /** Snapshot of Working Memory state. */
@@ -138,7 +138,7 @@ export interface SchedulerSignals {
   driftLevel?: number;
   /** Drift Monitor: textual explanation when drift is high. */
   driftSummary?: string;
-  /** Cognitive Flexibility (Phase 4): is the system perseverating? */
+  /** Cognitive Flexibility (Phase 4): is Cortex perseverating? */
   perseverating?: boolean;
   /** Prospective Memory: triggered conditions per ready task. Keyed by taskId. */
   prospectiveTriggers?: Map<string, Array<{ id: string; description: string }>>;
@@ -167,9 +167,9 @@ export interface SchedulerSignals {
   /** Most recent NE level from the last dispatched task. For observe threshold computation. */
   lastNELevel?: number;
 
-  // ── NE human urgency signal ────────────────────────────────
-  /** Mapped human urgency (0–1). From ProjectIntent.urgency via mapUrgencyToNE(). */
-  humanUrgency?: number;
+  // ── NE Parsifal urgency signal ────────────────────────────────
+  /** Mapped Parsifal urgency (0–1). From ProjectIntent.urgency via mapUrgencyToNE(). */
+  parsifalUrgency?: number;
 
   // ── Homeostasis PFC flags ───────────────────────────────────
   /** PFC intervention flags from homeostasis (learning signal degraded, tonic dopamine crashed, identity drift). */

@@ -1,5 +1,5 @@
 /**
- * Content store — records and indexes all substantive content flowing through the system.
+ * Content store — records and indexes all substantive content flowing through Cortex.
  * Persists to disk so content survives across restarts during development.
  */
 

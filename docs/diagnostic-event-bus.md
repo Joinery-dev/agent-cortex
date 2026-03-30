@@ -2,7 +2,7 @@
 
 ## Problem
 
-The system emits operational events everywhere (`emit("rhythm:phase-change", ...)`) but has no error detection, diagnostic context capture, or observability into *what went wrong and why*. When an LLM returns garbage, a pipeline gets null input, or the gate makes a bad judgment, there's no way to diagnose the failure after the fact.
+Cortex emits operational events everywhere (`emit("rhythm:phase-change", ...)`) but has no error detection, diagnostic context capture, or observability into *what went wrong and why*. When an LLM returns garbage, a pipeline gets null input, or the gate makes a bad judgment, there's no way to diagnose the failure after the fact.
 
 ## Design
 
@@ -141,11 +141,11 @@ diagnosticLoad: number;  // 0-1, rolling rate of warn+ events per minute
 **Thresholds:**
 - Below 0.3 → healthy (occasional warnings are normal)
 - 0.3-0.7 → elevated (something is systematically off)
-- Above 0.7 → critical (the system is failing frequently)
+- Above 0.7 → critical (Cortex is failing frequently)
 
 **Brainstem reflex responses:**
 - Elevated → spike NE (pay more attention to everything)
-- Critical → trigger rest cycle (recalibrate, prune, settle) or escalate to human
+- Critical → trigger rest cycle (recalibrate, prune, settle) or escalate to Parsifal
 
 ---
 
@@ -239,6 +239,6 @@ Steps 1-4 are the foundation. Steps 5-8 are incremental. Step 9 is nice-to-have.
 ## 9. What This Enables
 
 - **Post-mortem debugging:** When a task produces bad output, read the diagnostic log. See every gate decision, every LLM failure, every pipeline null, every conviction test — with the full context that led to each.
-- **System health monitoring:** Diagnostic load as a vital sign means the system reacts to its own failures. High error rate → rest cycle or escalation.
-- **Learning from failures:** Diagnostic events are themselves data. The Hippocampus could eventually record "this type of LLM failure correlates with this type of task" and the system could learn to avoid those situations.
-- **Human debugging:** When escalating to the human, include the diagnostic trail. Not just "scores are low" but "here's every decision that led here."
+- **System health monitoring:** Diagnostic load as a vital sign means Cortex reacts to its own failures. High error rate → rest cycle or escalation.
+- **Learning from failures:** Diagnostic events are themselves data. The Hippocampus could eventually record "this type of LLM failure correlates with this type of task" and Cortex could learn to avoid those situations.
+- **Parsifal debugging:** When escalating to the Parsifal, include the diagnostic trail. Not just "scores are low" but "here's every decision that led here."

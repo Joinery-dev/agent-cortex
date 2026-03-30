@@ -2,13 +2,13 @@
  * Cognitive Flexibility — PFC Feature #5.
  *
  * Acts on the conviction loop's "reshape" verdict. Diagnoses WHY
- * the system is stuck and prescribes a specific course correction.
+ * Cortex is stuck and prescribes a specific course correction.
  *
  * Four diagnoses, four actions:
  *   execution-problem  → targeted revision (approach is fine)
  *   strategy-limited   → full re-plan with different approach
  *   tension-evasion    → re-engage suppressed dimension
- *   irreconcilable     → escalate to human
+ *   irreconcilable     → escalate to Parsifal
  *
  * One LLM call per trigger. Fires only when conviction says "reshape."
  * Not stateful — the build-cycle accumulator carries approach history
@@ -56,11 +56,11 @@ export class CognitiveFlexibility {
   }
 
   /**
-   * Diagnose why the system is stuck and prescribe a course correction.
+   * Diagnose why Cortex is stuck and prescribe a course correction.
    *
    * Called from the build-cycle gate phase when the conviction loop
    * returns "reshape". Returns an assessment that the gate acts on:
-   * reset the strategy, escalate to human, or fall through to normal revision.
+   * reset the strategy, escalate to Parsifal, or fall through to normal revision.
    */
   async assess(context: FlexibilityContext): Promise<FlexibilityAssessment> {
     log.info("Assessing flexibility", {
@@ -139,7 +139,7 @@ export class CognitiveFlexibility {
    *   execution-problem  → individual tasks struggling, strategy is sound
    *   strategy-limited   → task graph itself is the bottleneck
    *   tension-evasion    → system is avoiding a dimension
-   *   irreconcilable     → needs human information to proceed
+   *   irreconcilable     → needs Parsifal information to proceed
    */
   assessDispatch(context: DispatchFlexibilityContext, neLevel?: number): FlexibilityAssessment {
     const {
@@ -243,7 +243,7 @@ export class CognitiveFlexibility {
       }
     }
 
-    // Heuristic 5: Open questions → needs human info
+    // Heuristic 5: Open questions → needs Parsifal info
     if (schedulerEscalation?.type === "open-questions") {
       log.info("Dispatch flexibility: too many open questions");
       return {

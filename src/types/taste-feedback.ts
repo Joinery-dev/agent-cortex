@@ -2,20 +2,20 @@
  * Taste Feedback Loop — PFC Feature #24.
  *
  * Turns Drift Monitor's taste divergence detection into a conversation
- * with the human. When demonstrated preferences (what actually scores well)
- * diverge from stated preferences (taste profile), the system proposes
+ * with the Parsifal. When demonstrated preferences (what actually scores well)
+ * diverge from stated preferences (taste profile), Cortex proposes
  * updates — not as a settings dialog, but as a partner observation:
  * "I noticed something about your preferences worth discussing."
  *
- * The system earns the right to propose through maturity (low NE, high
+ * Cortex earns the right to propose through maturity (low NE, high
  * prediction accuracy) and persistence (seeing the divergence across
  * multiple deep analyses). A brand-new system doesn't propose — it
- * barely knows the human.
+ * barely knows the Parsifal.
  *
  * Consumers:
  *   - BetweenTasksSlowPath calls evaluate() at phase gates
- *   - Escalation Pathways (#23) routes proposals to human
- *   - Satisfaction Signal (#25) receives the human's response
+ *   - Escalation Pathways (#23) routes proposals to Parsifal
+ *   - Satisfaction Signal (#25) receives the Parsifal's response
  */
 
 import type { TasteDivergenceItem, DriftAssessment } from "./drift-monitor.js";
@@ -40,7 +40,7 @@ export interface TasteFeedbackConfig {
   /** LLM model for framing proposals. */
   proposalModel: string;
   /**
-   * Maximum pending proposals. Don't overwhelm the human —
+   * Maximum pending proposals. Don't overwhelm the Parsifal —
    * surface the strongest divergences first.
    */
   maxPendingProposals: number;
@@ -109,7 +109,7 @@ export interface DivergenceRecord {
 export type ProposalStatus = "pending" | "responded" | "deferred" | "expired";
 
 /**
- * A proposal to discuss a taste divergence with the human.
+ * A proposal to discuss a taste divergence with the Parsifal.
  *
  * This is NOT "should we change setting X?" — it's "I've noticed
  * something about your preferences that's worth discussing."
@@ -142,7 +142,7 @@ export interface TasteProposal {
   createdAt: Date;
   /** Current lifecycle status. */
   status: ProposalStatus;
-  /** Human response, once received. */
+  /** Parsifal response, once received. */
   response?: SatisfactionResponse;
   /** Sense verification — did the relevant sense confirm the divergence? */
   senseVerification?: {
@@ -161,7 +161,7 @@ export interface TasteFeedbackState {
   pendingProposals: number;
   /** Total proposals generated across the project. */
   totalProposed: number;
-  /** Total proposals that received a human response. */
+  /** Total proposals that received a Parsifal response. */
   totalResponded: number;
   /** Tracked dimensions with active divergence. */
   trackedDimensions: number;

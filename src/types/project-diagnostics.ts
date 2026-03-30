@@ -9,9 +9,9 @@
  *   vision-problem      → manifested future was wrong/incomplete
  *   calibration-problem → evaluation system is miscalibrated
  *   taste-problem       → taste profile doesn't match reality
- *   environmental       → external constraints block progress (→ human)
+ *   environmental       → external constraints block progress (→ Parsifal)
  *
- * Only "environmental" escalates to the human. The others prescribe a
+ * Only "environmental" escalates to the Parsifal. The others prescribe a
  * self-heal action that the project rhythm applies before restarting.
  *
  * This is the project-level analog of Cognitive Flexibility (Feature #5):
@@ -82,7 +82,7 @@ export interface DiagnosticResult {
   reasoning: string;
   /** Prescribed self-heal action. Null when diagnosis is "environmental". */
   selfHealAction: SelfHealAction | null;
-  /** Present when diagnosis is "environmental" — context for human escalation. */
+  /** Present when diagnosis is "environmental" — context for Parsifal escalation. */
   escalationContext?: string;
 }
 

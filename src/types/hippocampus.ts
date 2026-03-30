@@ -85,7 +85,7 @@ export interface EpisodeNarrative {
   cycles: number;
 
   /** Final status. */
-  outcome: "complete" | "needs_revision" | "needs_human";
+  outcome: "complete" | "needs_revision" | "needs_parsifal";
 
   /** Final composite confidence (0–1). */
   confidence: number;
@@ -343,7 +343,7 @@ export interface PrincipleContradiction {
 /**
  * Hippocampus configuration — mechanism parameters, NOT value
  * judgments. These control how fast potentiation runs and how
- * much is stored, not what the system should care about.
+ * much is stored, not what Cortex should care about.
  * The Hole: build the mechanism, not the content.
  */
 export interface HippocampusConfig {

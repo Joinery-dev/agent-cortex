@@ -1,11 +1,11 @@
 /**
  * Prospective Memory — "remembering to remember."
  *
- * Future intentions attached to trigger conditions. The system holds
+ * Future intentions attached to trigger conditions. Cortex holds
  * an intention ("enforce perf budget on image-heavy tasks") and fires
  * it when matching context arrives. Project-scoped, in-memory only.
  *
- * Sources: human directives, planner annotations, conviction loop,
+ * Sources: Parsifal directives, planner annotations, conviction loop,
  * hippocampus learning. Cross-project intent is carried by hippocampus
  * principles, not by PM triggers.
  *
@@ -66,13 +66,13 @@ export interface TriggerCondition {
  * What to do when the trigger fires.
  *
  * `directive` always flows into briefings via the Thalamus.
- * If `question` is present, the system escalates to the human
+ * If `question` is present, Cortex escalates to the Parsifal
  * and waits for an answer before proceeding with the task.
  */
 export interface TriggerAction {
   /** Context/constraint injected into the task's briefings. */
   directive: string;
-  /** If present, escalate to human with this question before the task runs. */
+  /** If present, escalate to Parsifal with this question before the task runs. */
   question?: string;
 }
 

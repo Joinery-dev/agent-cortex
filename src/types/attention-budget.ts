@@ -1,5 +1,5 @@
 /**
- * Attention Budget — the system's cognitive investment plan for a task.
+ * Attention Budget — Cortex's cognitive investment plan for a task.
  *
  * Produced by the Attention Scheduler at dispatch. Consumed by the
  * sensory cortex gate. Recorded in Cerebellum episodes for learning.
@@ -12,7 +12,7 @@
  * Model tier, briefing depth, and explore breadth already have their
  * own modulation paths (ModelSelector, Thalamus, Explore). The
  * attention budget owns the iteration budget — how many outer cycles
- * the system will invest in this task.
+ * Cortex will invest in this task.
  *
  * This implements the architecture spec's mandate (Features 7, 18, 22)
  * that hardcoded cycle limits be replaced by learned stopping criteria.
@@ -75,7 +75,7 @@ export interface CyclePercentiles {
 // ─── Attention Budget ────────────────────────────────────────
 
 /**
- * The system's cognitive investment plan for a task.
+ * Cortex's cognitive investment plan for a task.
  *
  * Computed at dispatch (Phase 1) from NE + Cerebellum + task importance.
  * Optionally revised at sensory-cortex prepare (Phase 2) when the

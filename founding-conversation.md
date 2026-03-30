@@ -2,7 +2,7 @@
 
 *This captures the conversation that led to the Agent Cortex vision, starting from the frontier research phase.*
 
-> **Note (2026-03-29):** References to "autoresearch" below reflect the old pipeline's nightly benchmark optimization. This approach was investigated for Agent Cortex and determined not to fit — the system learns through its passive stack (episodes, potentiation, plasticity, dopamine) instead.
+> **Note (2026-03-29):** References to "autoresearch" below reflect the old pipeline's nightly benchmark optimization. This approach was investigated for Agent Cortex and determined not to fit — Cortex learns through its passive stack (episodes, potentiation, plasticity, dopamine) instead.
 
 ---
 
@@ -82,7 +82,7 @@ While waiting, started thinking about what nobody's talking about:
 
 ## Claude: Synthesis — what nobody is considering
 
-1. **The harness as the product interface** — the exec agent IS the product interface for non-developers
+1. **The harness as the product interface** — the PFC agent IS the product interface for non-developers
 2. **Business-aware agents** — a business model layer that informs every decision
 3. **Cross-project learning (meta-autoresearch)** — fleet-level pattern detection
 4. **Agents that negotiate, not just pass/fail** — conversation graph instead of state machine
@@ -112,7 +112,7 @@ Proposed: structured capture of human reactions as data about where intent was m
 
 A project could be anything - a personal assistant, a project, a business, or an entire LLM like Claude. It is about creating intent baselines and then dynamically updating them and delivering the correct intent through distillation to agents when they need it.
 
-And beyond that, building an exec agent that can automate most of this for humans - imbued with taste and character unique to the project, that can dynamically update the intent, elevating to humans and producing reports about decisions it made.
+And beyond that, building a PFC agent that can automate most of this for humans - imbued with taste and character unique to the project, that can dynamically update the intent, elevating to humans and producing reports about decisions it made.
 
 Bounce back ideas at me as if we are equals and you have things to add / push back on.
 
@@ -123,7 +123,7 @@ Bounce back ideas at me as if we are equals and you have things to add / push ba
 1. **Intent** — what the project is trying to achieve. Relatively stable. A painting contractor's website has the same fundamental intent for months.
 2. **Taste** — how decisions get made when intent doesn't specify. "Should the CTA be red or blue?" Evolves through human reactions.
 
-**Push back on exec autonomy:** The exec should autonomously decide "how" (taste decisions) but elevate "what" (intent decisions) to the human. The line: does this decision change *what* we're building, or *how* we're building it?
+**Push back on PFC autonomy:** The PFC should autonomously decide "how" (taste decisions) but elevate "what" (intent decisions) to the human. The line: does this decision change *what* we're building, or *how* we're building it?
 
 **The distillation problem is the real breakthrough:** For any given task, generate the minimal context that would cause the agent to make the same decision the human would make. Not "here's your task" — "here's what you need to know to make good judgment calls while doing your task."
 
@@ -131,7 +131,7 @@ Bounce back ideas at me as if we are equals and you have things to add / push ba
 
 **Question: Can taste be learned from one project?** Cross-project taste learning requires identity persistence — knowing that projects share a human.
 
-## Kevin: The exec should be allowed to shape "what" it produces
+## Kevin: The PFC should be allowed to shape "what" it produces
 
 This is where things are going. The better the agents get, the more this will happen. We should start working on improving that process now.
 
@@ -143,7 +143,7 @@ Taste profiles can be downloaded to executive/orchestrator agents like skills.
 
 ## Claude: Creative freedom through governed tension
 
-Agreed on exec shaping "what." The exec isn't a project manager taking orders. It's a **partner with domain expertise** that can propose better versions of what the human asked for.
+Agreed on PFC shaping "what." The PFC isn't a project manager taking orders. It's a **partner with domain expertise** that can propose better versions of what the human asked for.
 
 On giving agents breathing room — this goes against every harness in existence. The industry moves toward more constraint. We're going the opposite direction. The mechanism: **give the builder intent and taste, not a blueprint.**
 
@@ -153,9 +153,9 @@ The risk of inconsistency is solved by **Goodhart tension** — optimizing multi
 1. Builder has creative freedom
 2. Design review smooths inconsistencies BUT propagates good accidents
 3. QA checks functional correctness
-4. Exec monitors intent alignment
+4. PFC monitors intent alignment
 
-Four forces in tension. No single agent can game the system. This is a **governance model** — checks and balances, not a chain of command.
+Four forces in tension. No single agent can game Cortex. This is a **governance model** — checks and balances, not a chain of command.
 
 ### Taste profiles and habituation
 
@@ -216,7 +216,7 @@ The dimension library isn't a database of measures. It's a **library of personas
 
 ## Claude: What you're building is closer to an organizational mind.
 
-A design studio doesn't have a checklist for every project. It has designers with internalized taste, a creative director with a vision, a culture that shapes decisions. The "people" are personas, the "culture" is the dimension library, the "creative director" is the exec with project intent, the "institutional memory" is cross-project learning.
+A design studio doesn't have a checklist for every project. It has designers with internalized taste, a creative director with a vision, a culture that shapes decisions. The "people" are personas, the "culture" is the dimension library, the "creative director" is the PFC with project intent, the "institutional memory" is cross-project learning.
 
 The word "harness" implies the agent is a horse that needs controlling. What you're describing is raising a colleague.
 

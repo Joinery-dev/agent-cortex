@@ -69,7 +69,7 @@ export class DiagnosticLogWriter {
       const line = JSON.stringify(event) + "\n";
       await appendFile(this.logFile, line, "utf-8");
     } catch (err) {
-      // Diagnostic logging must never crash the system.
+      // Diagnostic logging must never crash Cortex.
       log.error("Failed to write diagnostic event", {
         type: event.type,
         error: String(err),

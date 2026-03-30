@@ -2,7 +2,7 @@ import type { SensePerspective } from "./sense.js";
 
 /**
  * The Consultation — produced when the council of active senses
- * weighs in on a task. The system's situational awareness document:
+ * weighs in on a task. Cortex's situational awareness document:
  * what matters, how much, and who will judge the result.
  */
 export interface Consultation {

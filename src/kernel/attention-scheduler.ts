@@ -468,7 +468,7 @@ export class AttentionScheduler {
         // bestSimilarity: not available at dispatch time
         // convictionLevel: not available at dispatch time
         risk,
-        humanUrgency: signals.humanUrgency,
+        parsifalUrgency: signals.parsifalUrgency,
       },
       this.neWeights,
     );

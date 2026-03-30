@@ -2,7 +2,7 @@
  * Visual Capture — Playwright screenshots + performance metrics.
  *
  * G5 infrastructure: enables the sensory cortex (especially Design sense)
- * to *see* what the system builds instead of guessing from code. Captures
+ * to *see* what Cortex builds instead of guessing from code. Captures
  * rendered pages and Core Web Vitals from a running dev server.
  *
  * Integration: build-cycle starts runtime → visual capture produces these

@@ -1,9 +1,9 @@
 /**
  * Replay Interceptor — serves cached LLM responses for fast replay.
  *
- * When "Resume From Here" is clicked, the system re-runs from the beginning
+ * When "Resume From Here" is clicked, Cortex re-runs from the beginning
  * using cached responses (no real API calls) up to the selected point,
- * then switches to live calls. This lets the user make code changes and
+ * then switches to live calls. This lets the Parsifal make code changes and
  * see how they affect behavior without re-running expensive LLM calls.
  *
  * Cache key: hash of (purpose, systemPrompt, userMessage).

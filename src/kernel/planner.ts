@@ -158,7 +158,7 @@ export class Planner {
       `language look like? What's the performance profile? What's the`,
       `user experience? What's the content strategy?`,
       ``,
-      `This vision becomes the destination the system builds toward.`,
+      `This vision becomes the destination Cortex builds toward.`,
       `Every future task will be evaluated against it. Make it concrete`,
       `enough to reason backward from.`,
     ].join("\n");

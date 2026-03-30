@@ -2,7 +2,7 @@
  * Peripheral Nervous System — the brain's interface with the world.
  *
  * Three responsibilities:
- * 1. Capability registry — what the system can perceive and do (queried by Thalamus)
+ * 1. Capability registry — what Cortex can perceive and do (queried by Thalamus)
  * 2. Intention execution — translates Motor Cortex intentions to tool calls
  * 3. Afferent routing — receives unsolicited signals from the world
  *
@@ -81,7 +81,7 @@ export class PeripheralNervousSystem {
       { sdkName: "WebSearch", name: "Web Search", description: "Search the web for information", direction: "afferent", category: "tool_output" },
       { sdkName: "WebFetch", name: "Web Fetch", description: "Fetch content from a URL", direction: "afferent", category: "tool_output" },
       { sdkName: "Agent", name: "Sub-Agent", description: "Spawn a sub-agent for parallel or specialized work", direction: "efferent", category: "tool_use" },
-      { sdkName: "AskUserQuestion", name: "Ask Human", description: "Escalate a question or decision to the human", direction: "efferent", category: "human_communication" },
+      { sdkName: "AskUserQuestion", name: "Ask Parsifal", description: "Escalate a question or decision to the Parsifal", direction: "efferent", category: "parsifal_communication" },
       { sdkName: "NotebookEdit", name: "Notebook Edit", description: "Create or modify Jupyter notebook cells", direction: "efferent", category: "file_system" },
     ];
 
@@ -404,24 +404,24 @@ export class PeripheralNervousSystem {
     intention.status = "executing";
 
     try {
-      // Communicate intentions targeting a human: warn that delivery is unimplemented.
-      // The type system supports this path (ArtifactRef "human" + Effect "send"),
+      // Communicate intentions targeting the Parsifal: warn that delivery is unimplemented.
+      // The type system supports this path (ArtifactRef "parsifal" + Effect "send"),
       // but PNS.execute() doesn't yet translate it into an AskUserQuestion call.
       if (intention.category === "communicate") {
-        const humanOps = intention.operations.filter(
-          (op) => op.target.kind === "human" && op.effect.type === "send",
+        const parsifalOps = intention.operations.filter(
+          (op) => op.target.kind === "parsifal" && op.effect.type === "send",
         );
-        if (humanOps.length > 0) {
-          log.warn("Communicate intention targets human but PNS delivery is not yet implemented", {
+        if (parsifalOps.length > 0) {
+          log.warn("Communicate intention targets Parsifal but PNS delivery is not yet implemented", {
             intentionId: intention.id,
             taskId: intention.taskId,
-            humanOps: humanOps.length,
+            parsifalOps: parsifalOps.length,
             description: intention.description,
           });
           emit("pns:communicate-unimplemented", {
             intentionId: intention.id,
             taskId: intention.taskId,
-            humanOps: humanOps.length,
+            parsifalOps: parsifalOps.length,
           });
         }
       }
@@ -543,7 +543,7 @@ export class PeripheralNervousSystem {
   }
 
   // ── Afferent Signal Reception ───────────────────────────────
-  // Unsolicited signals from the world: human feedback arrives,
+  // Unsolicited signals from the world: Parsifal feedback arrives,
   // environment changes, something breaks. These become Perceptions
   // with no intentionId — the Thalamus routes them to the right
   // consumer (Amygdala for urgent, Attention Scheduler for new input).
@@ -626,7 +626,7 @@ function describeArtifact(ref: ArtifactRef): string {
       return `${ref.method ?? "GET"} ${ref.endpoint}`;
     case "environment":
       return `env:${ref.aspect}`;
-    case "human":
-      return `human:${ref.channel}`;
+    case "parsifal":
+      return `parsifal:${ref.channel}`;
   }
 }

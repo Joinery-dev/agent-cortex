@@ -16,7 +16,7 @@
  *   high NE (≥0.7): threshold 0.2 (notice more)
  *   low NE (≤0.3): threshold 0.6 (only notice important)
  *
- * System health observations bypass NE entirely — the system must notice
+ * System health observations bypass NE entirely — Cortex must notice
  * its own malfunction regardless of arousal level.
  */
 
@@ -137,7 +137,7 @@ export function simulationRelevanceThreshold(neLevel: number): number {
 /**
  * Whether a proposed observation should be stored in WM.
  *
- * System health proposals always pass — the system must notice its own
+ * System health proposals always pass — Cortex must notice its own
  * malfunction regardless of arousal level. Task-relative proposals are
  * gated by the NE-modulated relevance threshold.
  */

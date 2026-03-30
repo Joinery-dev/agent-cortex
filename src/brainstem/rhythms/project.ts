@@ -9,7 +9,7 @@
  * When ProjectContext.tasks is empty, the Planner runs:
  *   Phase A: Manifestation — sensory cortex produces a concrete vision
  *   Phase B: Path Reasoning — LLM reasons backward to minimum task graph
- * When tasks are pre-provided (human-given), planning is skipped.
+ * When tasks are pre-provided (Parsifal-given), planning is skipped.
  *
  * Replan cascade (adaptive, triage-driven):
  *   On every drift trigger, ProjectDiagnostics.triage() reads conviction
@@ -80,7 +80,7 @@ import { newId } from "../../util/ids.js";
 import { allocateBudget } from "../../kernel/budget-allocator.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { setCostTaskId } from "../../llm/client.js";
-import { inquire, formatInquiryForHuman, formatApprovalForHuman } from "../../kernel/consul.js";
+import { inquire, formatInquiryForParsifal, formatApprovalForParsifal } from "../../kernel/consul.js";
 
 /** Options for the interactive parts of manifestation (inquiry + approval). */
 interface ManifestationInteraction {
@@ -90,7 +90,7 @@ interface ManifestationInteraction {
 }
 
 /**
- * Heuristic: is the user's response an approval or a redirect?
+ * Heuristic: is the Parsifal's response an approval or a redirect?
  * Short affirmatives → approval. Anything substantive → redirect.
  */
 function isApproval(response: string): boolean {
@@ -131,7 +131,7 @@ async function runManifestation(
         totalQuestions: withQuestions.reduce((sum, r) => sum + r.questions.length, 0),
       });
 
-      const formatted = formatInquiryForHuman(withQuestions, intent);
+      const formatted = formatInquiryForParsifal(withQuestions, intent);
       const answers = await interaction.askUser(formatted);
 
       // Build context string that flows into the manifestation task
@@ -145,7 +145,7 @@ async function runManifestation(
         `Questions asked:`,
         ...qaParts,
         ``,
-        `Human's answers:`,
+        `Parsifal's answers:`,
         answers,
       ].join("\n");
 
@@ -169,7 +169,7 @@ async function runManifestation(
     let redirectCount = 0;
 
     while (redirectCount < MAX_REDIRECTS) {
-      const approvalMessage = formatApprovalForHuman(future);
+      const approvalMessage = formatApprovalForParsifal(future);
       const response = await interaction.askUser(approvalMessage);
 
       if (isApproval(response)) {
@@ -192,7 +192,7 @@ async function runManifestation(
 
       const redirectContext = [
         inquiryContext ?? "",
-        `\nHuman feedback on vision (redirect ${redirectCount}):`,
+        `\nParsifal feedback on vision (redirect ${redirectCount}):`,
         response,
       ].filter(Boolean).join("\n");
 
@@ -340,7 +340,7 @@ export function createProjectDefinition(
 
       // ── Project Discovery: figure out what kind of project this is ──
       // Uses innate tools to read package.json, scan structure, identify frameworks.
-      // Produces a ProjectProfile that tells the system how to run, test, and build.
+      // Produces a ProjectProfile that tells Cortex how to run, test, and build.
       let projectProfile: ProjectProfile | undefined;
       if (pns) {
         try {
@@ -360,9 +360,9 @@ export function createProjectDefinition(
         }
       }
 
-      // Hydrate intent.runtime from discovered profile if human didn't provide one.
+      // Hydrate intent.runtime from discovered profile if the Parsifal didn't provide one.
       // This means everything downstream (build-cycle, evaluators) just reads
-      // intent.runtime and gets the right config whether human-provided or discovered.
+      // intent.runtime and gets the right config whether Parsifal-provided or discovered.
       if (projectProfile && projectProfile.runtimes.length > 0 && !context.intent.runtime) {
         context.intent.runtime = projectProfile.runtimes;
         log.info("Hydrated intent.runtime from discovered profile", {
@@ -412,7 +412,7 @@ export function createProjectDefinition(
         const capabilities = pns?.describeCapabilities();
         const planningNE = computeNE({
           cerebellumAccuracy: hooks.getCerebellumAccuracy(),
-          humanUrgency: mapUrgencyToNE(intent.urgency),
+          parsifalUrgency: mapUrgencyToNE(intent.urgency),
         });
 
         const hierarchicalPlan = await planner.reasonBackwardHierarchical(
@@ -795,7 +795,7 @@ export function createProjectDefinition(
 
           // ── Escalate ─────────────────────────────────────────
           if (route === "escalate") {
-            log.warn("Triage: escalating to human", {
+            log.warn("Triage: escalating to Parsifal", {
               firedRule: triageResult?.firedRule,
             });
             throw new EscalationError(state.id, {
@@ -842,7 +842,7 @@ export function createProjectDefinition(
               selfHealType: diagResult.selfHealAction?.type ?? "escalate",
             });
 
-            // Environmental → cannot self-heal, escalate to human
+            // Environmental → cannot self-heal, escalate to Parsifal
             if (diagResult.diagnosis === "environmental" || !diagResult.selfHealAction) {
               throw new EscalationError(state.id, {
                 action: "escalate",
@@ -913,7 +913,7 @@ export function createProjectDefinition(
             // Recompute NE at replan time — maturity may have shifted
             const replanNE = computeNE({
               cerebellumAccuracy: hooks.getCerebellumAccuracy(),
-              humanUrgency: mapUrgencyToNE(intent.urgency),
+              parsifalUrgency: mapUrgencyToNE(intent.urgency),
             });
 
             const replanResult = await planner.replan(
@@ -1038,7 +1038,7 @@ export function createProjectDefinition(
     },
 
     async gate(integrated, state) {
-      // Check if execute stored a pending escalation for human input
+      // Check if execute stored a pending escalation for Parsifal input
       const pending = state.accumulator.__pendingEscalation as {
         source: "drift-monitor" | "attention-scheduler" | "cognitive-flexibility" | "amygdala";
         severity: "advisory" | "blocking" | "urgent" | "emergency";
@@ -1049,7 +1049,7 @@ export function createProjectDefinition(
       } | undefined;
 
       if (pending) {
-        log.info("Gate: pausing for human escalation", {
+        log.info("Gate: pausing for Parsifal escalation", {
           source: pending.source,
           severity: pending.severity,
           reason: pending.reason,

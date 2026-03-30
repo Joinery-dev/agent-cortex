@@ -4,7 +4,7 @@
  * Holds future intentions with trigger conditions. When a task is
  * about to be dispatched, PM checks pending triggers against the
  * task context. Matching triggers produce directives (flow into
- * briefings) and/or questions (escalate to human).
+ * briefings) and/or questions (escalate to Parsifal).
  *
  * Hybrid matching:
  *   - Structural fast-path: matchAll, matchTaskIds (no LLM)

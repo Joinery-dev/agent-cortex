@@ -4,7 +4,7 @@ import type { DecisionRecord } from "./intent.js";
 
 export interface OrchestratorResult {
   taskId: string;
-  status: "complete" | "needs_revision" | "needs_human";
+  status: "complete" | "needs_revision" | "needs_parsifal";
   work: string;
   evaluations: SenseEvaluation[];
   tensions: Tension[];
@@ -63,11 +63,11 @@ export interface CortexConfig {
 // ─── Reliability configuration ───────────────────────────────────
 
 /**
- * Thresholds and timeouts that govern the system's reliability behavior.
+ * Thresholds and timeouts that govern Cortex's reliability behavior.
  * Every value has a documented rationale — no magic numbers.
  */
 export interface ReliabilityConfig {
-  /** Below this conviction level, escalate to human. 0.3 = system assesses <30% chance of success. */
+  /** Below this conviction level, escalate to the Parsifal. 0.3 = system assesses <30% chance of success. */
   convictionEscalateThreshold: number;
   /** Below this conviction level, reshape approach. 0.5 = coin-flip odds aren't a strategy. */
   convictionReshapeThreshold: number;
@@ -81,7 +81,7 @@ export interface ReliabilityConfig {
   diagnosticLoadElevated: number;
   /** Graph surgery blast radius above this triggers replan instead of direct surgery. */
   replanBlastRadiusThreshold: number;
-  /** TTL for paused rhythms in milliseconds. Prevents infinite waits on human input. */
+  /** TTL for paused rhythms in milliseconds. Prevents infinite waits on Parsifal input. */
   pauseTimeoutMs: number;
   /** Maximum rest cycles before forcing exit. Prevents rest loops when consolidation doesn't help. */
   maxRestCycles: number;

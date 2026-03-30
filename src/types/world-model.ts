@@ -1,7 +1,7 @@
 /**
  * World Model (Weltanschauung) — PFC's integrated understanding of reality.
  *
- * Not a data aggregation dashboard. The system's Weltanschauung — an
+ * Not a data aggregation dashboard. Cortex's Weltanschauung — an
  * integrated orientation toward reality that fuses cognition (what kind
  * of terrain is this), valuation (what matters here), and volition
  * (how to orient) into a coherent gestalt.
@@ -11,7 +11,7 @@
  * sources, not by procedural aggregation.
  *
  * Two scopes:
- *   cross-project — the system's general identity. Changes slowly across
+ *   cross-project — Cortex's general identity. Changes slowly across
  *     projects. Persists to disk. Portable.
  *   per-project — formed through experience in a specific project. Starts
  *     from cross-project + intent/taste, evolves at rhythm boundaries.
@@ -75,9 +75,9 @@ export interface Maxim {
 
 /** The full worldview at a point in time. */
 export interface Weltanschauung {
-  /** The system's general identity — what it has become across all projects. */
+  /** Cortex's general identity — what it has become across all projects. */
   crossProject: Maxim[];
-  /** What this specific project has taught the system. */
+  /** What this specific project has taught Cortex. */
   perProject: Maxim[];
   /** When this snapshot was computed. */
   synthesizedAt: Date;
@@ -122,7 +122,7 @@ export interface WorldModelSourcesSummary {
  * What the WorldModel reads from during rebuild(). Typed as interfaces
  * (not class refs) so the WorldModel depends on shapes, not implementations.
  *
- * All sources are optional except working memory — the system degrades
+ * All sources are optional except working memory — Cortex degrades
  * gracefully when learning systems aren't yet wired. The synthesis
  * prompt omits empty sections.
  */

@@ -1,7 +1,7 @@
 /**
  * Rhythm — the recursive heartbeat pattern.
  *
- * Every loop in the system follows the same four-phase cycle:
+ * Every loop in Cortex follows the same four-phase cycle:
  *   prepare → execute → integrate → gate
  *
  * Each phase maps to a brain region:
@@ -49,13 +49,13 @@ export interface GateEscalate {
 /**
  * Rhythm is paused — can be resumed later.
  * Used when a soft interrupt arrives at the gate, or when
- * awaiting external input (human response to escalation).
+ * awaiting external input (Parsifal response to escalation).
  */
 export interface GatePause {
   action: "pause";
   reason: string;
   resumable: true;
-  /** Present when the pause is due to an escalation that needs human input. */
+  /** Present when the pause is due to an escalation that needs Parsifal input. */
   escalationContext?: {
     source: import("./brainstem.js").EscalationSource;
     severity: import("./brainstem.js").Escalation["severity"];
@@ -86,7 +86,7 @@ export interface SoftInterrupt {
 
 /**
  * Hard interrupt — preemptive. Freezes the rhythm mid-phase.
- * Sources: Amygdala, human emergency.
+ * Sources: Amygdala, Parsifal emergency.
  * Requires state snapshot for later resumption.
  */
 export interface HardInterrupt {
@@ -158,7 +158,7 @@ export interface RhythmState<TContext, TResult> {
 
 /**
  * A rhythm definition is a template — it describes the four phases
- * for a particular level of the system. The brainstem instantiates
+ * for a particular level of Cortex. The brainstem instantiates
  * these into RhythmState objects when the rhythm starts.
  *
  * TContext: what the rhythm needs to start (e.g., ProjectIntent for project level)

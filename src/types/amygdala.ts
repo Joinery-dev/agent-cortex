@@ -6,15 +6,15 @@
  *      motor cortex intentions before PNS execution.
  *   2. An alarm receiver — other components raise alarms when they detect
  *      asymmetric-risk situations in their own domain.
- *   3. A response protocol — how to stop the system safely: hard-interrupt
- *      the runner, override NE, inhibit senses, escalate to human.
+ *   3. A response protocol — how to stop Cortex safely: hard-interrupt
+ *      the runner, override NE, inhibit senses, escalate to the Parsifal.
  *
  * The amygdala doesn't learn. It gets updated. The hippocampus crystallizes
  * episodes into principles; those get installed as new detectors.
  *
  * The plasticity weight `amygdala.threshold.urgency` (default 0.8) modulates
  * response aggressiveness, not detection sensitivity. Detectors still fire;
- * the system just doesn't panic as hard when mature.
+ * Cortex just doesn't panic as hard when mature.
  */
 
 import type { Intention } from "./pns.js";
@@ -61,7 +61,7 @@ export type ThreatCategory =
   | "security-antipattern" // hardcoded secrets, eval(), disabled auth
   | "data-loss-risk" // overwrites without backup, irreversible mutations
   | "scope-violation" // modifying artifacts outside declared scope
-  | "human-escalation"; // direct human input (highest priority)
+  | "parsifal-escalation"; // direct Parsifal input (highest priority)
 
 // ─── Alarm ─────────────────────────────────────────────────────
 
@@ -88,7 +88,7 @@ export interface Alarm {
  */
 export interface ThreatAssessment {
   id: string;
-  trigger: "pre-action-gate" | "alarm" | "human-escalation";
+  trigger: "pre-action-gate" | "alarm" | "parsifal-escalation";
   threats: DetectedThreat[];
   alarm?: Alarm;
   /** Effective severity after plasticity modulation. */

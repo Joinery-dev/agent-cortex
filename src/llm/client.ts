@@ -60,6 +60,10 @@ export type Purpose =
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
+  /** Input tokens served from Anthropic's prompt cache (90% discount). */
+  cacheReadInputTokens?: number;
+  /** Input tokens that created a new cache entry (25% surcharge). */
+  cacheCreationInputTokens?: number;
 }
 
 interface CallResult {
@@ -238,6 +242,8 @@ export async function call(
       let resultText = "";
       let inputTokens = 0;
       let outputTokens = 0;
+      let cacheReadTokens = 0;
+      let cacheCreationTokens = 0;
 
       for await (const message of conversation) {
         // Check abort between messages from the generator
@@ -248,8 +254,11 @@ export async function call(
         if (message.type === "result") {
           if (message.subtype === "success") {
             resultText = message.result;
-            inputTokens = message.usage?.input_tokens ?? 0;
-            outputTokens = message.usage?.output_tokens ?? 0;
+            const u = message.usage as Record<string, unknown> | undefined;
+            inputTokens = (u?.input_tokens as number) ?? 0;
+            outputTokens = (u?.output_tokens as number) ?? 0;
+            cacheReadTokens = (u?.cache_read_input_tokens as number) ?? 0;
+            cacheCreationTokens = (u?.cache_creation_input_tokens as number) ?? 0;
           } else {
             const errMsg = "errors" in message ? (message.errors as string[]).join("; ") : "Unknown SDK error";
             throw new Error(`SDK error: ${errMsg}`);
@@ -257,7 +266,12 @@ export async function call(
         }
       }
 
-      const usage: TokenUsage = { inputTokens, outputTokens };
+      const usage: TokenUsage = {
+        inputTokens,
+        outputTokens,
+        cacheReadInputTokens: cacheReadTokens || undefined,
+        cacheCreationInputTokens: cacheCreationTokens || undefined,
+      };
       totalUsage[purpose].inputTokens += usage.inputTokens;
       totalUsage[purpose].outputTokens += usage.outputTokens;
 
@@ -272,13 +286,15 @@ export async function call(
       }
 
       // Compute cost and notify tracker
-      const costDollars = computeCallCost(sdkModel, usage.inputTokens, usage.outputTokens);
+      const costDollars = computeCallCost(sdkModel, usage.inputTokens, usage.outputTokens, cacheReadTokens, cacheCreationTokens);
       if (costCallback) {
         costCallback({
           purpose,
           model: sdkModel,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
+          cacheReadInputTokens: cacheReadTokens || undefined,
+          cacheCreationInputTokens: cacheCreationTokens || undefined,
           cost: costDollars,
           taskId: currentTaskId,
           timestamp: new Date(),
@@ -511,6 +527,8 @@ export async function agenticCall(
       let resultText = "";
       let inputTokens = 0;
       let outputTokens = 0;
+      let cacheReadTokens = 0;
+      let cacheCreationTokens = 0;
       let turns = 0;
       const toolTrace: ToolUseTrace[] = [];
 
@@ -522,8 +540,11 @@ export async function agenticCall(
         if (message.type === "result") {
           if (message.subtype === "success") {
             resultText = message.result;
-            inputTokens = message.usage?.input_tokens ?? 0;
-            outputTokens = message.usage?.output_tokens ?? 0;
+            const u = message.usage as Record<string, unknown> | undefined;
+            inputTokens = (u?.input_tokens as number) ?? 0;
+            outputTokens = (u?.output_tokens as number) ?? 0;
+            cacheReadTokens = (u?.cache_read_input_tokens as number) ?? 0;
+            cacheCreationTokens = (u?.cache_creation_input_tokens as number) ?? 0;
             turns = (message as Record<string, unknown>).num_turns as number ?? 1;
           } else {
             const errMsg = "errors" in message
@@ -544,7 +565,12 @@ export async function agenticCall(
         }
       }
 
-      const usage: TokenUsage = { inputTokens, outputTokens };
+      const usage: TokenUsage = {
+        inputTokens,
+        outputTokens,
+        cacheReadInputTokens: cacheReadTokens || undefined,
+        cacheCreationInputTokens: cacheCreationTokens || undefined,
+      };
       totalUsage[purpose].inputTokens += usage.inputTokens;
       totalUsage[purpose].outputTokens += usage.outputTokens;
 
@@ -563,13 +589,15 @@ export async function agenticCall(
       });
 
       // Compute cost and notify tracker
-      const costDollars = computeCallCost(sdkModel, usage.inputTokens, usage.outputTokens);
+      const costDollars = computeCallCost(sdkModel, usage.inputTokens, usage.outputTokens, cacheReadTokens, cacheCreationTokens);
       if (costCallback) {
         costCallback({
           purpose,
           model: sdkModel,
           inputTokens: usage.inputTokens,
           outputTokens: usage.outputTokens,
+          cacheReadInputTokens: cacheReadTokens || undefined,
+          cacheCreationInputTokens: cacheCreationTokens || undefined,
           cost: costDollars,
           taskId: currentTaskId,
           timestamp: new Date(),
@@ -583,6 +611,8 @@ export async function agenticCall(
         toolCalls: toolTrace.length,
         durationMs,
         costDollars,
+        cacheReadInputTokens: cacheReadTokens || undefined,
+        cacheCreationInputTokens: cacheCreationTokens || undefined,
       });
 
       // Record full agentic call content for trace

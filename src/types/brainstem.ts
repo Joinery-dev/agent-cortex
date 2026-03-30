@@ -15,9 +15,9 @@
  *    accuracy, learning signal health, context capacity. If any vital sign
  *    falls out of range, the brainstem acts before the PFC even knows.
  *
- * 3. REST — inserts consolidation cycles when the system has accumulated
+ * 3. REST — inserts consolidation cycles when Cortex has accumulated
  *    enough unprocessed load. Like sleep: not a timer, but load-triggered.
- *    Norepinephrine at zero. No task execution. The system turns inward:
+ *    Norepinephrine at zero. No task execution. Cortex turns inward:
  *    potentiate episodes, prune working memory, decay weak connections,
  *    recalibrate prediction models.
  *
@@ -43,9 +43,9 @@ import type { Intention } from "./pns.js";
  * brainstem's outermost rhythm moves through.
  *
  * intake      → brief + intent + taste received, not yet decomposed
- * planning    → planner (or human) is decomposing into task graph
+ * planning    → planner (or Parsifal) is decomposing into task graph
  * executing   → task-dispatch rhythm is running
- * paused      → interrupted (escalation, hard interrupt, awaiting human)
+ * paused      → interrupted (escalation, hard interrupt, awaiting Parsifal)
  * completing  → final integration check, retrospective
  * delivered   → done, results handed off
  */
@@ -63,7 +63,7 @@ export type ProjectState =
 export interface ProjectContext {
   intent: ProjectIntent;
   taste: TasteProfile;
-  /** Task graph — provided by Planner or directly by human. */
+  /** Task graph — provided by Planner or directly by the Parsifal. */
   tasks: TaskGraphNode[];
 }
 
@@ -234,7 +234,7 @@ export type BetweenTasksResult =
 // ─── Escalation ─────────────────────────────────────────────────
 
 /**
- * The four escalation routes to the human.
+ * The four escalation routes to the Parsifal.
  * Each source maps to a brain region, each has different urgency semantics.
  */
 export type EscalationSource =
@@ -252,9 +252,9 @@ export interface Escalation {
   severity: "advisory" | "blocking" | "urgent" | "emergency";
   summary: string;
   detail: string;
-  /** What the system needs from the human to continue. */
+  /** What Cortex needs from the Parsifal to continue. */
   question?: string;
-  /** Options the system has identified, if any. */
+  /** Options Cortex has identified, if any. */
   proposedActions?: string[];
   createdAt: Date;
   resolvedAt?: Date;
@@ -262,14 +262,14 @@ export interface Escalation {
 }
 
 /**
- * What the human provides when resolving an escalation.
- * Structured enough for the system to act on, flexible enough
+ * What the Parsifal provides when resolving an escalation.
+ * Structured enough for Cortex to act on, flexible enough
  * for any kind of response.
  */
 export interface EscalationResolution {
   /** Free-form answer to the escalation's question(s). */
   answer: string;
-  /** If the human wants to redirect strategy, they say how. */
+  /** If the Parsifal wants to redirect strategy, they say how. */
   directive?: string;
   /** Which specific open question IDs this resolves (if any). */
   resolvedQuestionIds?: string[];
@@ -298,7 +298,7 @@ export function escalationToInterruptMode(
 // ─── Escalation delivery ────────────────────────────────────────
 
 /**
- * Delivery adapter for escalations. Transports the escalation to the human
+ * Delivery adapter for escalations. Transports the escalation to the Parsifal
  * and returns their resolution. The EscalationHandler is decoupled from
  * the transport — it just calls deliver() and awaits the response.
  *
@@ -308,7 +308,7 @@ export function escalationToInterruptMode(
  */
 export interface EscalationDeliveryAdapter {
   /**
-   * Deliver an escalation to the human and return their resolution.
+   * Deliver an escalation to the Parsifal and return their resolution.
    * Returns null if delivery is passive (resolution comes via external resolve()).
    */
   deliver(
@@ -366,7 +366,7 @@ export interface VitalSigns {
   /**
    * Are learning signals flowing and producing convergent updates? 0–1.
    * Low = dopamine is firing but weights aren't stabilizing, or
-   * crystallization keeps contradicting itself. The system is churning
+   * crystallization keeps contradicting itself. Cortex is churning
    * without learning. Brainstem flags this for PFC because it can't
    * fix a broken learning loop by reflex.
    */
@@ -374,14 +374,14 @@ export interface VitalSigns {
 
   /**
    * How volatile plastic connection weights have been recently. 0–1.
-   * High = weights are oscillating instead of converging. The system
+   * High = weights are oscillating instead of converging. Cortex
    * hasn't stabilized what it's learning. Triggers rest for decay/settling.
    */
   weightVolatility: number;
 
   /**
    * How far plastic weights have drifted from their initial values. 0–1.
-   * Mean normalized displacement across all weights. High = the system's
+   * Mean normalized displacement across all weights. High = Cortex's
    * learned identity has shifted dramatically from its starting point.
    * Could be healthy growth or runaway drift — PFC must evaluate.
    *
@@ -436,7 +436,7 @@ export const DEFAULT_VITAL_THRESHOLDS: VitalSignThresholds = {
 /**
  * The pressure signals that determine whether the brainstem inserts
  * a rest cycle instead of dispatching the next task. Rest happens
- * when the system NEEDS it, not on a schedule.
+ * when Cortex NEEDS it, not on a schedule.
  *
  * Each signal is 0–1. The brainstem combines them (weighted sum,
  * max, or threshold count — TBD during implementation) and compares
@@ -445,7 +445,7 @@ export const DEFAULT_VITAL_THRESHOLDS: VitalSignThresholds = {
 export interface ConsolidationLoad {
   /**
    * Uncrystallized episodes. How many raw task stories sit in the
-   * hippocampus without principles extracted. High = the system has
+   * hippocampus without principles extracted. High = Cortex has
    * lots of experience but hasn't made sense of it yet.
    */
   episodeDensity: number;
@@ -466,7 +466,7 @@ export interface ConsolidationLoad {
 
   /**
    * Plastic connection instability. Weights changing rapidly without
-   * converging. The system needs time to settle — decay weak connections,
+   * converging. Cortex needs time to settle — decay weak connections,
    * let strong ones stabilize.
    */
   weightInstability: number;
@@ -496,7 +496,7 @@ export interface ConsolidationLoad {
  *   gate:      is the load resolved, or do we need more rest?
  *
  * Norepinephrine drops to zero during rest. No task execution.
- * The system turns inward.
+ * Cortex turns inward.
  */
 
 /** What the rest rhythm needs to start. */
@@ -539,7 +539,7 @@ export interface RestCycleResult {
 /**
  * The breathing reflex is NOT an eviction engine. Anthropic's
  * server-side compaction handles conversation-time context management.
- * The breathing reflex is the system breathing differently based on
+ * The breathing reflex is Cortex breathing differently based on
  * the economics of the work — driven by a real dollar budget.
  *
  * Three mechanisms:
@@ -632,7 +632,7 @@ export interface CompactionConfig {
 }
 
 /**
- * What the system does when compaction fires.
+ * What Cortex does when compaction fires.
  * The Thalamus reassembles a gestalt from external stores
  * (WM, Hippocampus, World Model) and injects it post-compaction.
  */

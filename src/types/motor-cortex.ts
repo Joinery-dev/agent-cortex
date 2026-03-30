@@ -29,6 +29,10 @@ export interface MotorPlan {
   confidence: number;
   /** Planned intentions — what operations the build will perform. */
   plannedIntentions: PlannedIntention[];
+  /** Whether this task requires agentic execution (real tools, multi-turn).
+   *  When false, the text-only single-turn path is sufficient.
+   *  Decided by the premotor based on task complexity and tool requirements. */
+  requiresAgentic: boolean;
 }
 
 export interface PlanStep {
@@ -118,9 +122,9 @@ export interface DriftArea {
 /**
  * Mid-build question from Motor Cortex when it hits ambiguity in the specification.
  * The builder pauses, asks a specific question, and the Thalamus routes it
- * to the right sense — or escalates to the user if no sense can answer.
+ * to the right sense — or escalates to the Parsifal if no sense can answer.
  *
- * Parallels AskUserQuestion but the audience is internal: a sense, not the human.
+ * Parallels AskUserQuestion but the audience is internal: a sense, not the Parsifal.
  * The builder treats senses as domain experts it can consult mid-implementation,
  * the same way a developer asks a subject-matter expert on the team.
  */
@@ -138,13 +142,13 @@ export interface BuildQuestion {
 }
 
 /**
- * Answer to a BuildQuestion, from either a sense or the user.
+ * Answer to a BuildQuestion, from either a sense or the Parsifal.
  * When the Thalamus can route to a sense, the source is that sense.
- * When no sense can answer, the question escalates to the user.
+ * When no sense can answer, the question escalates to the Parsifal.
  */
 export interface BuildAnswer {
   questionId: string;
-  source: { type: "sense"; senseId: string } | { type: "user" };
+  source: { type: "sense"; senseId: string } | { type: "parsifal" };
   answer: string;
   /** How confident the source is in this answer [0-1]. */
   confidence: number;

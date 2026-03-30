@@ -35,14 +35,14 @@ console.log("\n1. Register trigger");
     condition: { description: "When booking page starts" },
     action: { directive: "Ask about Calendly", question: "Calendly or custom booking?" },
     persistence: "once",
-    source: "human",
+    source: "parsifal",
   });
 
   assert(typeof id === "string" && id.length > 0, "Returns non-empty ID");
   assert(pm.getPending().length === 1, "One pending trigger");
   assert(pm.getPending()[0].id === id, "Pending trigger has correct ID");
   assert(pm.getPending()[0].status === "pending", "Status is pending");
-  assert(pm.getPending()[0].source === "human", "Source is human");
+  assert(pm.getPending()[0].source === "parsifal", "Source is parsifal");
   assert(pm.getPending()[0].firedOn.length === 0, "No fired-on tasks yet");
 }
 
@@ -76,7 +76,7 @@ console.log("\n3. checkFastPath with matchAll");
     condition: { description: "Always enforce a11y", matchAll: true },
     action: { directive: "Accessibility is a hard constraint" },
     persistence: "per-match",
-    source: "human",
+    source: "parsifal",
   });
 
   const match1 = pm.checkFastPath("task-hero");
@@ -115,7 +115,7 @@ console.log("\n5. Once trigger fires → status becomes 'fired'");
     condition: { description: "Booking page", matchTaskIds: ["task-booking"] },
     action: { directive: "Use Calendly" },
     persistence: "once",
-    source: "human",
+    source: "parsifal",
   });
 
   // Use check() with a mock task — fast-path will match, no LLM needed
@@ -150,7 +150,7 @@ console.log("\n6. Per-match trigger fires → stays 'pending'");
     condition: { description: "All tasks", matchAll: true },
     action: { directive: "Enforce perf budget" },
     persistence: "per-match",
-    source: "human",
+    source: "parsifal",
   });
 
   const task1 = { id: "task-1", description: "First task", context: {} };
@@ -261,7 +261,7 @@ console.log("\n10. Trigger with question");
       question: "Calendly or custom? Don't overbuild.",
     },
     persistence: "once",
-    source: "human",
+    source: "parsifal",
   });
 
   const result = pm.checkFastPath("task-booking");

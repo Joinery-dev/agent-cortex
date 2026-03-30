@@ -230,7 +230,7 @@ export function scopeViolationDetector(): ThreatDetector {
  * effectiveSeverity = responseLevel >= 0.7 → "emergency", else "urgent"
  *
  * The plasticity weight modulates the RESPONSE, not detection.
- * Detectors still fire; the system just doesn't panic as hard when mature.
+ * Detectors still fire; Cortex just doesn't panic as hard when mature.
  */
 export function computeResponseLevel(
   threats: DetectedThreat[],

@@ -1,13 +1,13 @@
 # Worldview Catalog
 
-Every cognitive act the system performs, with the contract a worldview frame must fulfill.
+Every cognitive act Cortex performs, with the contract a worldview frame must fulfill.
 
 When you write a worldview, you write a frame for each act. The frame IS the prompt body — it replaces the default text entirely. The structural parts (JSON schemas, score ranges, output constraints) stay in code and are appended automatically.
 
 For each act below:
 - **What it does** — the cognitive purpose
-- **When it runs** — what triggers it in the system
-- **Inputs the LLM sees** — dynamic context assembled by the system
+- **When it runs** — what triggers it in Cortex
+- **Inputs the LLM sees** — dynamic context assembled by Cortex
 - **Output the LLM must produce** — exact JSON schema or output format
 - **Structural constraints** — rules the frame must honor (score ranges, enums, process steps)
 - **What the frame must convey** — the worldview-dependent part: identity, epistemology, orientation
@@ -450,7 +450,7 @@ Then: 1-3 sentence assessment in sense's voice
 
 ## reflection
 
-**What it does:** Synthesizes the system's accumulated experience into maxims — compressed wisdom that carries cognitive (terrain), axiological (values), and volitional (orientation) layers.
+**What it does:** Synthesizes Cortex's accumulated experience into maxims — compressed wisdom that carries cognitive (terrain), axiological (values), and volitional (orientation) layers.
 
 **When it runs:** At project start, after significant learning, at project completion. Two scopes: cross-project (portable identity) and per-project (terrain-specific understanding).
 

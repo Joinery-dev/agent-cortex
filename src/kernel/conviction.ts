@@ -29,7 +29,7 @@ const log = createLogger("conviction");
 // Defaults — overridable via ConvictionThresholds parameter.
 
 export interface ConvictionThresholds {
-  /** Below this, conviction is too low — escalate to human. */
+  /** Below this, conviction is too low — escalate to Parsifal. */
   escalateThreshold: number;
   /** Below this, conviction is weak — reshape approach. */
   reshapeThreshold: number;
@@ -242,7 +242,7 @@ function testBuildCycleNecessity(
     return {
       necessary: false,
       evidence,
-      reshapeGuidance: `Score oscillation detected on ${receptors}. The system is thrashing — revisions are undoing each other. Re-plan the approach from scratch.`,
+      reshapeGuidance: `Score oscillation detected on ${receptors}. Cortex is thrashing — revisions are undoing each other. Re-plan the approach from scratch.`,
       verdict: "reshape",
     };
   }
@@ -307,7 +307,7 @@ function testTaskDispatchNecessity(
     return {
       necessary: false,
       evidence,
-      reshapeGuidance: "Project reward environment is persistently poor. Consider strategy change or escalate for human guidance.",
+      reshapeGuidance: "Project reward environment is persistently poor. Consider strategy change or escalate for Parsifal guidance.",
       verdict: "reshape",
     };
   }
@@ -357,7 +357,7 @@ function testBuildCycleConviction(ctx: ConvictionContext, t: ConvictionThreshold
   }
 
   // Signal 2: World model orientation (weight 0.3)
-  // Having a worldview = the system has orientation. Absent = neutral.
+  // Having a worldview = Cortex has orientation. Absent = neutral.
   let maximSignal: number;
   if (ctx.worldModelMaxims && ctx.worldModelMaxims.length > 0) {
     maximSignal = 0.7;
@@ -439,7 +439,7 @@ function testBuildCycleConviction(ctx: ConvictionContext, t: ConvictionThreshold
 
   // Budget exhaustion: when the task is near/past the attention budget
   // ceiling, continued iteration isn't free. Conviction should reflect
-  // that the system is running out of runway.
+  // that Cortex is running out of runway.
   if (ctx.budgetProximity !== undefined && ctx.budgetProximity > 0.8) {
     const severity = (ctx.budgetProximity - 0.8) / 0.2; // 0 at 80%, 1 at 100%
     evidence.push({

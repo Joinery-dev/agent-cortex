@@ -1,8 +1,8 @@
 /**
- * Worldview — the ontological frame that shapes how the system thinks.
+ * Worldview — the ontological frame that shapes how Cortex thinks.
  *
  * A worldview is a complete cognitive personality: not vocabulary substitution,
- * but thought substitution. Every cognitive act the system performs — sensing,
+ * but thought substitution. Every cognitive act Cortex performs — sensing,
  * building, evaluating, resolving, learning, reflecting — is shaped by the
  * worldview's frames.
  *
@@ -34,7 +34,7 @@ export interface Term {
 export interface WorldviewFrames {
   /** How senses approach tasks. Used by: consultationSystem, reconsultationSystem, senseQuestionSystem. */
   consultation: string;
-  /** What "good" means. Used by: evaluatorSystem, evaluatorAgenticSystem. */
+  /** What "good" means. Used by: evaluatorBundleSystem, evaluatorAgenticBundleSystem (and legacy evaluatorSystem, evaluatorAgenticSystem). */
   evaluation: string;
   /** Who the builder is. Used by: motorCortexSystem, motorCortexAgenticSystem, revisionPrompt. */
   building: string;
@@ -60,7 +60,7 @@ export interface WorldviewFrames {
   simulation: string;
   /** What matters vs what doesn't. Used by: basalGangliaSystem. */
   relevance: string;
-  /** How the system relates to the human. Used by: tasteProposalSystem, escalationSenseAssessmentSystem, principleVerificationSystem. */
+  /** How Cortex relates to the Parsifal. Used by: tasteProposalSystem, escalationSenseAssessmentSystem, principleVerificationSystem. */
   partnership: string;
   /** How nodes relate. Used by: semanticMappingSystem, affinityAnalysisSystem. */
   wiring: string;

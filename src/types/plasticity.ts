@@ -11,9 +11,9 @@
  * Fixed connections define what CAN happen.
  * Plastic connections define what TENDS to happen.
  *
- * Plastic connections have meaningful defaults — reset them and the system
+ * Plastic connections have meaningful defaults — reset them and Cortex
  * works fine, it just hasn't formed an identity yet. The collection of all
- * plastic weights at a point in time is the system's identity portrait.
+ * plastic weights at a point in time is Cortex's identity portrait.
  *
  * Feature #20 defines the map. Feature #19 implements the runtime store.
  */
@@ -23,7 +23,7 @@
 /**
  * What can cause a plastic weight to change.
  *   dopamine      — prediction error signal from cerebellum
- *   satisfaction   — human approval/correction (Feature #25)
+ *   satisfaction   — Parsifal approval/correction (Feature #25)
  *   decay          — rest-cycle reversion toward category mean
  *   settle         — rest-cycle convergence of volatile weights
  *   registration   — initial value set when a connection is registered
@@ -152,7 +152,7 @@ export interface PlasticWeight {
  *   - Visualization in the dashboard
  *
  * If you save and load a ConnectionSnapshot, you're saving and loading
- * the system's personality.
+ * Cortex's personality.
  */
 export interface ConnectionSnapshot {
   weights: PlasticWeight[];
@@ -244,8 +244,8 @@ export interface FixedConnection {
 // ─── Connection Libraries ───────────────────────────────────────
 
 /**
- * All structural (fixed) connections in the system.
- * These ARE the architecture — removing one breaks the system.
+ * All structural (fixed) connections in Cortex.
+ * These ARE the architecture — removing one breaks Cortex.
  */
 export const FIXED_CONNECTIONS = [
   // Results flow
@@ -253,7 +253,7 @@ export const FIXED_CONNECTIONS = [
   // Thalamus sources (always reads from all available)
   { source: "WorkingMemory", target: "Thalamus", dataFlowing: "Accumulated context: scores, trends, patterns, inhibitions" },
   { source: "ProjectIntent", target: "Thalamus", dataFlowing: "Goals, constraints, success criteria" },
-  { source: "TasteProfile", target: "Thalamus", dataFlowing: "Human preferences and style" },
+  { source: "TasteProfile", target: "Thalamus", dataFlowing: "Parsifal preferences and style" },
   { source: "PNS", target: "Thalamus", dataFlowing: "Available capabilities and tool outputs" },
   // Thalamus routes to consumers
   { source: "Thalamus", target: "Consultation", dataFlowing: "ConsultationBriefing: task + enrichment + meta" },
@@ -276,11 +276,11 @@ export const FIXED_CONNECTIONS = [
   { source: "Brainstem", target: "PhaseHandlers", dataFlowing: "Rhythm lifecycle: prepare → execute → integrate → gate" },
   // Homeostasis
   { source: "VitalSigns", target: "Homeostasis", dataFlowing: "WM load, prediction accuracy, context capacity, weight volatility" },
-  // Human partnership
-  { source: "Escalation", target: "Human", dataFlowing: "Questions, proposals, drift alerts, urgent issues" },
+  // Parsifal partnership
+  { source: "Escalation", target: "Parsifal", dataFlowing: "Questions, proposals, drift alerts, urgent issues" },
   { source: "DriftMonitor", target: "TasteFeedbackLoop", dataFlowing: "Taste divergence items from deep analysis" },
-  { source: "TasteFeedbackLoop", target: "Escalation", dataFlowing: "Taste divergence proposals for human" },
-  { source: "Human", target: "SatisfactionSignal", dataFlowing: "Approval, correction, override responses" },
+  { source: "TasteFeedbackLoop", target: "Escalation", dataFlowing: "Taste divergence proposals for Parsifal" },
+  { source: "Parsifal", target: "SatisfactionSignal", dataFlowing: "Approval, correction, override responses" },
   { source: "SatisfactionSignal", target: "PlasticityStore", dataFlowing: "Satisfaction-driven weight deltas" },
   { source: "SatisfactionSignal", target: "TasteProfile", dataFlowing: "Taste profile mutations when approved" },
   // Drift → scheduling
@@ -288,9 +288,9 @@ export const FIXED_CONNECTIONS = [
 ] as const satisfies readonly FixedConnection[];
 
 /**
- * All plastic connections in the system — the identity map.
+ * All plastic connections in Cortex — the identity map.
  * Each weight starts at its default. Over time, dopamine + satisfaction
- * signals reshape them. The collection at any point IS the system's
+ * signals reshape them. The collection at any point IS Cortex's
  * learned personality.
  *
  * Decay toward category mean during rest — bland but stable.

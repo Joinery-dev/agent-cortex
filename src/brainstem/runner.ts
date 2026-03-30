@@ -18,12 +18,19 @@ import type {
   HardInterrupt,
 } from "../types/rhythm.js";
 import type { EscalationResolution } from "../types/brainstem.js";
+import type {
+  Checkpoint,
+  CheckpointConfig,
+  CheckpointProvider,
+} from "../types/checkpoint.js";
+import { DEFAULT_CHECKPOINT_CONFIG } from "../types/checkpoint.js";
 import { newId } from "../util/ids.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitError, emitCritical, bus } from "../events.js";
 import type { RhythmContext, EventDiagnosticContext } from "../events.js";
 import { EscalationError, RhythmAbortedError } from "./errors.js";
 import { getStepBarrier } from "../trace/step-barrier.js";
+import { getContentStore } from "../trace/content-store.js";
 
 const log = createLogger("rhythm-runner");
 
@@ -41,11 +48,24 @@ interface RunningRhythm<TContext, TResult> {
 
 export class RhythmRunnerImpl implements RhythmRunner {
   private running = new Map<string, RunningRhythm<unknown, unknown>>();
-  /** TTL for paused rhythms in milliseconds. Prevents infinite waits on human input. */
+  /** TTL for paused rhythms in milliseconds. Prevents infinite waits on Parsifal input. */
   private pauseTimeoutMs: number;
+  private checkpointConfig: CheckpointConfig;
+  private checkpointProvider: CheckpointProvider | null = null;
 
-  constructor(opts?: { pauseTimeoutMs?: number }) {
+  constructor(opts?: { pauseTimeoutMs?: number; checkpointConfig?: Partial<CheckpointConfig> }) {
     this.pauseTimeoutMs = opts?.pauseTimeoutMs ?? 30 * 60 * 1000; // 30 minutes default
+    this.checkpointConfig = { ...DEFAULT_CHECKPOINT_CONFIG, ...opts?.checkpointConfig };
+  }
+
+  /** Set the checkpoint provider (called by Brainstem after construction). */
+  setCheckpointProvider(provider: CheckpointProvider): void {
+    this.checkpointProvider = provider;
+  }
+
+  /** Update checkpoint config at runtime. */
+  setCheckpointConfig(config: Partial<CheckpointConfig>): void {
+    this.checkpointConfig = { ...this.checkpointConfig, ...config };
   }
 
   /** Get current state of a running rhythm (for observability). */
@@ -234,6 +254,11 @@ export class RhythmRunnerImpl implements RhythmRunner {
         () => definition.execute(prepared, state, this),
       );
 
+      // ── Checkpoint: pre-integrate ─────────────────────
+      if (this.shouldCheckpoint("pre-integrate", state)) {
+        await this.captureCheckpoint("pre-integrate", state, executed);
+      }
+
       // ── Integrate ───────────────────────────────────────
       this.checkAbort(signal, state);
       this.transitionPhase(state, "integrate");
@@ -273,7 +298,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
           bus.updateCycle(state.completedCycles);
           // No hardcoded cycle limit. Convergence is governed by the gate
           // strategy, collapse detection (Basal Ganglia), cognitive flexibility
-          // (Phase 4), and drift monitoring (Phase 4). If the system can't
+          // (Phase 4), and drift monitoring (Phase 4). If Cortex can't
           // converge, those diagnostic systems should detect why and either
           // change strategy or escalate — not silently return "best effort."
           break;
@@ -323,7 +348,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
                 }, { once: true });
               },
             ),
-            // TTL: prevent infinite waits on human input
+            // TTL: prevent infinite waits on Parsifal input
             new Promise<never>((_, reject) => {
               setTimeout(() => {
                 entry.pauseResolver = undefined;
@@ -338,13 +363,13 @@ export class RhythmRunnerImpl implements RhythmRunner {
                   {
                     component: "runner",
                     expected: `resume within ${pauseTimeoutMs}ms`,
-                    received: "timeout — no human response",
+                    received: "timeout — no Parsifal response",
                   },
                 );
                 reject(new RhythmAbortedError(
                   state.id,
                   "pause-timeout",
-                  `Pause TTL expired after ${pauseTimeoutMs}ms — no human response`,
+                  `Pause TTL expired after ${pauseTimeoutMs}ms — no Parsifal response`,
                 ));
               }, pauseTimeoutMs);
             }),
@@ -402,6 +427,104 @@ export class RhythmRunnerImpl implements RhythmRunner {
   }
 
   /**
+   * Run a rhythm's integrate → gate from a serialized checkpoint.
+   *
+   * This is the core of checkpoint resume: skips prepare + execute
+   * (whose output is captured in the checkpoint), runs integrate with
+   * fresh code (the whole point — evaluator changes take effect), then
+   * runs gate to produce a decision.
+   *
+   * Does NOT loop on "continue" decisions — v1 is single-pass.
+   * The caller gets the gate decision and can decide what to do.
+   */
+  async runFromCheckpoint<TCtx, TRes>(
+    checkpoint: Checkpoint,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    definition: RhythmDefinition<TCtx, TRes, any, any, any>,
+  ): Promise<{ integrated: unknown; gateDecision: GateDecision<TRes> }> {
+    const rhythmId = newId();
+    const abortController = new AbortController();
+
+    const state: RhythmState<TCtx, TRes> = {
+      id: rhythmId,
+      rhythmType: checkpoint.rhythmType,
+      phase: "integrate",
+      completedCycles: checkpoint.completedCycles,
+      initialContext: checkpoint.initialContext as TCtx,
+      accumulator: checkpoint.accumulator,
+      parentId: undefined,
+      activeChildren: [],
+      pendingInterrupts: [],
+      signal: abortController.signal,
+      startedAt: new Date(),
+      lastPhaseTransition: new Date(),
+    };
+
+    const rhythmContext: RhythmContext = {
+      rhythmId,
+      rhythmType: checkpoint.rhythmType,
+      phase: "integrate",
+      cycle: checkpoint.completedCycles,
+      parentRhythmId: undefined,
+    };
+
+    emit("rhythm:start", {
+      rhythmId,
+      rhythmType: checkpoint.rhythmType,
+      parentId: null,
+      resumedFromCheckpoint: checkpoint.id,
+    });
+
+    log.info("Running from checkpoint", {
+      rhythmId,
+      checkpointId: checkpoint.id,
+      kind: checkpoint.kind,
+      cycle: checkpoint.completedCycles,
+    });
+
+    bus.pushContext(rhythmContext);
+
+    try {
+      // ── Integrate (evaluation with current code) ──────────
+      this.transitionPhase(state, "integrate");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:integrate`);
+
+      const integrated = await this.runPhase(
+        "integrate", state, checkpoint.phaseOutput,
+        () => definition.integrate(checkpoint.phaseOutput as never, state),
+      );
+
+      // ── Gate (conviction + decision) ──────────────────────
+      this.transitionPhase(state, "gate");
+      await getStepBarrier().checkpoint(`phase:${state.rhythmType}:gate`);
+
+      const gateDecision = await this.runPhase(
+        "gate", state, integrated,
+        () => definition.gate(integrated as never, state),
+      );
+
+      emit("rhythm:gate-decision", {
+        rhythmId: state.id,
+        rhythmType: state.rhythmType,
+        action: gateDecision.action,
+        cycle: state.completedCycles,
+        reason: "reason" in gateDecision ? gateDecision.reason : undefined,
+        resumedFromCheckpoint: checkpoint.id,
+      });
+
+      log.info("Checkpoint resume complete", {
+        rhythmId,
+        action: gateDecision.action,
+        checkpointId: checkpoint.id,
+      });
+
+      return { integrated, gateDecision };
+    } finally {
+      bus.popContext();
+    }
+  }
+
+  /**
    * Run a single rhythm phase with error context capture.
    * On failure, emits a diagnostic event with the phase name,
    * phase input snapshot, and accumulator state, then re-throws.
@@ -450,6 +573,90 @@ export class RhythmRunnerImpl implements RhythmRunner {
       );
 
       throw err;
+    }
+  }
+
+  // ─── Checkpoint helpers ──────────────────────────────────────
+
+  private shouldCheckpoint<TCtx, TRes>(
+    kind: Checkpoint["kind"],
+    state: RhythmState<TCtx, TRes>,
+  ): boolean {
+    if (!this.checkpointConfig.enabled) return false;
+    if (!this.checkpointProvider) return false;
+    if (!this.checkpointConfig.kinds.includes(kind)) return false;
+    if (!this.checkpointConfig.rhythmTypes.includes(state.rhythmType)) return false;
+    return true;
+  }
+
+  private async captureCheckpoint<TCtx, TRes>(
+    kind: Checkpoint["kind"],
+    state: RhythmState<TCtx, TRes>,
+    phaseOutput: unknown,
+  ): Promise<void> {
+    const provider = this.checkpointProvider;
+    if (!provider) return;
+
+    try {
+      // Extract task identity from the context
+      const ctx = state.initialContext as Record<string, unknown>;
+      const task = ctx.task as { id?: string; description?: string } | undefined;
+      const taskId = task?.id ?? state.id;
+      const taskDescription = task?.description ?? state.rhythmType;
+
+      // Capture ambient state from services
+      const ambient = provider.captureAmbient(taskId);
+
+      // Get git commit hash (best-effort, non-blocking)
+      let gitCommit: string | undefined;
+      try {
+        const { execSync } = await import("node:child_process");
+        gitCommit = execSync("git rev-parse HEAD", { encoding: "utf-8", timeout: 2000 }).trim();
+      } catch {
+        // Not in a git repo or git not available — fine
+      }
+
+      const checkpoint: Checkpoint = {
+        id: newId(),
+        label: `${kind} ${taskId.slice(-12)} cycle-${state.completedCycles}`,
+        kind,
+        createdAt: new Date().toISOString(),
+        rhythmType: state.rhythmType,
+        cycle: state.completedCycles,
+        taskId,
+        taskDescription,
+        accumulator: { ...state.accumulator },
+        phaseOutput: phaseOutput as Record<string, unknown>,
+        initialContext: ctx,
+        completedCycles: state.completedCycles,
+        workingMemory: ambient.workingMemory,
+        plasticity: ambient.plasticity,
+        gestalt: ambient.gestalt,
+        gitCommit,
+        contentStoreSize: getContentStore().size,
+      };
+
+      await provider.store.save(checkpoint);
+      await provider.store.prune(this.checkpointConfig.maxCheckpoints);
+
+      // Also persist plasticity to disk as a side effect
+      emit("checkpoint:created", {
+        checkpointId: checkpoint.id,
+        kind,
+        rhythmType: state.rhythmType,
+        taskId,
+        cycle: state.completedCycles,
+      });
+
+      log.info("Checkpoint captured", {
+        id: checkpoint.id,
+        kind,
+        taskId: taskId.slice(-12),
+        cycle: state.completedCycles,
+      });
+    } catch (err) {
+      // Checkpoint failure should not abort the rhythm
+      log.warn("Checkpoint capture failed", { kind, error: String(err) });
     }
   }
 

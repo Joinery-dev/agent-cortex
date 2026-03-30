@@ -1,7 +1,7 @@
 /**
  * Peripheral Nervous System — I/O Boundary types.
  *
- * The PNS is the brain's interface with the world. It defines what the system
+ * The PNS is the brain's interface with the world. It defines what Cortex
  * can perceive (afferent) and do (efferent), and provides the intention→execution
  * pipeline that decouples cognition from tool implementation.
  *
@@ -42,7 +42,7 @@ export interface Intention {
 export type IntentionCategory =
   | "build" // create or modify artifacts
   | "observe" // read state without changing it
-  | "communicate" // interact with human
+  | "communicate" // interact with the Parsifal
   | "control"; // meta: undo, retry, pause
 
 export type IntentionStatus =
@@ -95,7 +95,7 @@ export type ArtifactRef =
   | { kind: "deployment"; target: string }
   | { kind: "api"; endpoint: string; method?: string }
   | { kind: "environment"; aspect: string }
-  | { kind: "human"; channel: string };
+  | { kind: "parsifal"; channel: string };
 
 export type Effect =
   | { type: "create"; content: string }
@@ -140,14 +140,14 @@ export interface SideEffect {
 export type PerceptionSource =
   | { kind: "efferent"; intentionId: string }
   | {
-      kind: "human";
+      kind: "parsifal";
       type: "feedback" | "approval" | "correction" | "answer";
     }
   | { kind: "environment"; type: "change" | "alert" | "event" }
   | { kind: "tool"; type: "result" | "error" };
 
 // ── Capability ──────────────────────────────────────────────────
-// What the system can perceive and do. The Thalamus queries the PNS
+// What Cortex can perceive and do. The Thalamus queries the PNS
 // capability registry to tell Motor Cortex what's available.
 
 export interface Capability {
@@ -195,7 +195,7 @@ export interface ActivatedToolSet {
 
 export type AfferentCategory =
   | "project_input" // briefs, taste, intent — arrives once at intake
-  | "human_feedback" // approvals, corrections — event-driven, async
+  | "parsifal_feedback" // approvals, corrections — event-driven, async
   | "tool_output" // file contents, API responses — request-response
   | "environment_state"; // what exists, what's deployed — pull-based
 
@@ -203,7 +203,7 @@ export type EfferentCategory =
   | "artifact_generation" // code, markup, config
   | "file_system" // read, write, create, modify
   | "tool_use" // API calls, shell commands, deployments
-  | "human_communication"; // escalations, proposals, questions
+  | "parsifal_communication"; // escalations, proposals, questions
 
 export type CapabilityCategory = AfferentCategory | EfferentCategory;
 

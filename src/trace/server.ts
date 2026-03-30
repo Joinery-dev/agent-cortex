@@ -522,6 +522,48 @@ export function handleTraceRequest(req: IncomingMessage, res: ServerResponse): b
     return true;
   }
 
+  // ── Checkpoint endpoints ─────────────────────────────────────
+
+  if (url === "/trace/api/checkpoints" && method === "GET") {
+    import("./checkpoint-store.js").then(({ CheckpointStore }) => {
+      const cpStore = new CheckpointStore();
+      cpStore.list().then((index) => json(res, index));
+    });
+    return true;
+  }
+
+  if (url === "/trace/api/checkpoints/latest" && method === "GET") {
+    import("./checkpoint-store.js").then(({ CheckpointStore }) => {
+      const cpStore = new CheckpointStore();
+      cpStore.latest("pre-integrate").then((checkpoint) => {
+        if (!checkpoint) json(res, { error: "No checkpoints available" }, 404);
+        else json(res, checkpoint);
+      });
+    });
+    return true;
+  }
+
+  if (url?.startsWith("/trace/api/checkpoints/") && url.endsWith("/resume") && method === "POST") {
+    const id = url.split("/")[4]; // /trace/api/checkpoints/{id}/resume
+    const ctrl = getExecutionController();
+    if (!ctrl) {
+      json(res, { error: "No execution controller registered" }, 400);
+      return true;
+    }
+    import("./checkpoint-store.js").then(({ CheckpointStore }) => {
+      const cpStore = new CheckpointStore();
+      cpStore.load(id).then((checkpoint) => {
+        if (!checkpoint) {
+          json(res, { error: `Checkpoint ${id} not found` }, 404);
+          return;
+        }
+        ctrl.resumeFromCheckpoint(checkpoint).catch(() => {});
+        json(res, { ok: true, checkpointId: id, label: checkpoint.label });
+      });
+    });
+    return true;
+  }
+
   if (url === "/trace/exec-stream") {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",

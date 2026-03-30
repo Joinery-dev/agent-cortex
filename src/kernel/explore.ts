@@ -132,7 +132,7 @@ function exploreUser(
     const ac = gestalt.speedOfLight.approachSpecific;
     if (ac.approachTags.length > 0) {
       sections.push(
-        `HISTORICAL APPROACH ARCHETYPES (what the system has used on similar tasks):\n` +
+        `HISTORICAL APPROACH ARCHETYPES (what Cortex has used on similar tasks):\n` +
         `Tags: ${ac.approachTags.join(", ")}\n` +
         `Approach is bottleneck: ${ac.approachIsBottleneck ? "YES — a different approach may unlock higher scores" : "no"}`
       );

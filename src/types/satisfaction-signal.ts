@@ -1,15 +1,15 @@
 /**
- * Satisfaction Signal — Human Partnership Feature #25.
+ * Satisfaction Signal — Parsifal Partnership Feature #25.
  *
- * Human approval, correction, or override flows to plasticity weights.
- * This is Goodhart's law protection — the system can't just optimize
- * its own internal scores. External human signal anchors learning
+ * Parsifal approval, correction, or override flows to plasticity weights.
+ * This is Goodhart's law protection — Cortex can't just optimize
+ * its own internal scores. External Parsifal signal anchors learning
  * to actual satisfaction, not metric gaming.
  *
- * The satisfaction signal is broader than taste: any human input that
+ * The satisfaction signal is broader than taste: any Parsifal input that
  * indicates approval or disapproval flows through here. But the
  * primary initial consumer is the Taste Feedback Loop (#24), where
- * the human responds to taste divergence proposals.
+ * the Parsifal responds to taste divergence proposals.
  *
  * Each response type maps to specific plasticity operations:
  *   "update"   → taste profile mutated, routing weight DOWN (system was right to deviate)
@@ -38,7 +38,7 @@
 export type TasteResponseType = "update" | "keep" | "nuanced" | "deferred";
 
 /**
- * The human's response to a specific taste proposal.
+ * The Parsifal's response to a specific taste proposal.
  */
 export interface SatisfactionResponse {
   /** Which proposal this responds to. */
@@ -46,13 +46,13 @@ export interface SatisfactionResponse {
   /** Which of the four response types. */
   type: TasteResponseType;
   /**
-   * Human's explanation or refinement.
+   * Parsifal's explanation or refinement.
    * Required for "nuanced" (must explain the new preference).
    * Optional for others (provides learning context).
    */
   detail?: string;
   /**
-   * For "nuanced" responses: the new preference value the human
+   * For "nuanced" responses: the new preference value the Parsifal
    * articulates. This is neither the stated nor the demonstrated —
    * it's the synthesis that emerged from the conversation.
    */
@@ -64,11 +64,11 @@ export interface SatisfactionResponse {
 // ─── Broader Satisfaction Signals ────────────────────────────────
 
 /**
- * What kind of human input this is.
+ * What kind of Parsifal input this is.
  *   taste-response    — response to a taste proposal (Feature #24)
- *   task-approval     — human approves a task's output
- *   task-correction   — human corrects a task's output
- *   general-feedback  — human provides general preference signal
+ *   task-approval     — Parsifal approves a task's output
+ *   task-correction   — Parsifal corrects a task's output
+ *   general-feedback  — Parsifal provides general preference signal
  */
 export type SatisfactionKind =
   | "taste-response"
@@ -77,8 +77,8 @@ export type SatisfactionKind =
   | "general-feedback";
 
 /**
- * A satisfaction signal from the human. The unified input type
- * for all human approval/correction/override signals.
+ * A satisfaction signal from the Parsifal. The unified input type
+ * for all Parsifal approval/correction/override signals.
  *
  * Shape varies by kind — taste-response carries a SatisfactionResponse,
  * task-approval carries task-level data. Only the relevant field is
@@ -86,13 +86,13 @@ export type SatisfactionKind =
  */
 export interface SatisfactionSignal {
   id: string;
-  /** What kind of human input this is. */
+  /** What kind of Parsifal input this is. */
   kind: SatisfactionKind;
   /** For taste-response signals: the structured response. */
   tasteResponse?: SatisfactionResponse;
   /** For task-level signals: approval or correction data. */
   taskSignal?: TaskSatisfactionSignal;
-  /** Raw human input text (always present for audit trail). */
+  /** Raw Parsifal input text (always present for audit trail). */
   raw: string;
   /** When the signal was received. */
   receivedAt: Date;
@@ -102,9 +102,9 @@ export interface SatisfactionSignal {
 export interface TaskSatisfactionSignal {
   /** Which task this applies to. */
   taskId: string;
-  /** Whether the human approves the output. */
+  /** Whether the Parsifal approves the output. */
   approved: boolean;
-  /** Human's notes on what was good or what needs correction. */
+  /** Parsifal's notes on what was good or what needs correction. */
   notes?: string;
 }
 
@@ -160,7 +160,7 @@ export interface SatisfactionSignalConfig {
   /**
    * Base delta magnitude for satisfaction-driven weight changes.
    * Scaled by proposal strength — stronger divergences produce
-   * larger weight adjustments when confirmed by the human.
+   * larger weight adjustments when confirmed by the Parsifal.
    */
   baseDelta: number;
   /**

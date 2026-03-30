@@ -10,7 +10,7 @@
  * budgetUtilization vital sign to HomeostasisMonitor.
  *
  * The budget is the metabolic constraint — like the brain's metabolic
- * budget forcing efficient neural representations, it forces the system
+ * budget forcing efficient neural representations, it forces Cortex
  * to prioritize cognitive spending.
  */
 

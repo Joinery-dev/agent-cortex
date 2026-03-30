@@ -17,7 +17,7 @@
  *      vision-problem      → manifested future was wrong/incomplete
  *      calibration-problem → evaluation system is miscalibrated
  *      taste-problem       → taste profile doesn't match reality
- *      environmental       → external constraints block progress (→ human)
+ *      environmental       → external constraints block progress (→ Parsifal)
  *
  * This is the project-level analog of Cognitive Flexibility (Feature #5):
  *   CogFlex asks "why is this task stuck?"
@@ -91,7 +91,7 @@ export class ProjectDiagnostics {
     if (replanCount >= maxReplans) {
       return {
         route: "escalate",
-        reasoning: `Replan cascade exhausted (${replanCount}/${maxReplans}). Escalating to human.`,
+        reasoning: `Replan cascade exhausted (${replanCount}/${maxReplans}). Escalating to Parsifal.`,
         firedRule: "max-replans",
       };
     }
@@ -157,7 +157,7 @@ export class ProjectDiagnostics {
         }
         return {
           route: "escalate",
-          reasoning: "Too many open questions persist after replan. Human input needed.",
+          reasoning: "Too many open questions persist after replan. Parsifal input needed.",
           firedRule: "scheduler-open-questions-persistent",
         };
       }
@@ -262,7 +262,7 @@ export class ProjectDiagnostics {
    *
    * Called when triage routes to "full-diagnostic". Returns a diagnosis
    * that the rhythm acts on: re-manifest, recalibrate, propose taste
-   * update, replan with a directive, or escalate to human.
+   * update, replan with a directive, or escalate to Parsifal.
    */
   async diagnose(context: DiagnosticContext): Promise<DiagnosticResult> {
     log.info("Diagnosing project-level drift", {

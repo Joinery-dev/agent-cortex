@@ -107,7 +107,7 @@ export interface ReceptorDopamine {
 
 /**
  * The dopamine signal — reward prediction error.
- * The most information-rich signal in the system.
+ * The most information-rich signal in Cortex.
  */
 export interface DopamineSignal {
   taskId: string;

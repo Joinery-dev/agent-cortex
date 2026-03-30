@@ -1,7 +1,7 @@
 import { z } from "zod";
-import type { SenseEvaluation, ObservationLevel } from "../types/sense.js";
+import type { Sense, SenseEvaluation, ObservationLevel } from "../types/sense.js";
 import type { VisualCaptureResult } from "../types/visual-capture.js";
-import type { Consultation } from "../types/consultation.js";
+import type { Consultation, EvaluationPlanEntry } from "../types/consultation.js";
 import type { Task } from "../types/task.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { Thalamus } from "./thalamus.js";
@@ -10,16 +10,19 @@ import { SensoryCortex } from "../senses/cortex.js";
 import { callStructured } from "../llm/structured.js";
 import { agenticCall } from "../llm/client.js";
 import {
-  evaluatorSystem,
-  evaluatorUser,
-  evaluatorAgenticSystem,
-  evaluatorAgenticUser,
+  evaluatorBundleSystem,
+  evaluatorBundleUser,
+  evaluatorAgenticBundleSystem,
+  evaluatorAgenticBundleUser,
 } from "../llm/prompts.js";
+import type { BundledReceptorInfo } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitWarn } from "../events.js";
 import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("evaluator");
+
+// ── Schemas ─────────────────────────────────────────────────────
 
 const EvaluationObservationSchema = z.object({
   kind: z.enum(["file-read", "search-result", "lint-output", "test-output", "runtime-check", "screenshot", "web-vitals", "other"]),
@@ -28,10 +31,17 @@ const EvaluationObservationSchema = z.object({
   interpretation: z.string(),
 });
 
-const EvaluationResult = z.object({
+/** Per-receptor result within a bundled sense evaluation. */
+const BundledReceptorEval = z.object({
+  receptorId: z.string(),
   score: z.number().min(1).max(10),
   acceptable: z.boolean(),
   assessment: z.string(),
+});
+
+/** One LLM call per sense — scores all its receptors at once. */
+const BundledEvaluationResult = z.object({
+  receptorEvaluations: z.array(BundledReceptorEval),
   tensions: z.array(
     z.object({
       withDimension: z.string(),
@@ -46,10 +56,7 @@ const EvaluationResult = z.object({
   observations: z.array(EvaluationObservationSchema).optional(),
 });
 
-interface EvaluatorEntry {
-  receptorId: string;
-  parentPerspective: string;
-}
+// ── Public types ────────────────────────────────────────────────
 
 /** Context for evaluating agentic builds — real files instead of a text blob. */
 export interface EvaluationContext {
@@ -88,6 +95,24 @@ export interface AgenticEvaluationOpts {
   neLevel: number;
 }
 
+// ── Internal types ──────────────────────────────────────────────
+
+/** A receptor that passed observation checks and is ready for evaluation. */
+interface ValidReceptor {
+  sense: Sense;
+  activationPath: string[];
+  trendContext?: string;
+  predictionContext?: string;
+}
+
+// ── Main entry point ────────────────────────────────────────────
+
+/**
+ * Evaluate work by consulting all active senses. Makes one LLM call per
+ * sense (not per receptor), with each call scoring all of that sense's
+ * nominated receptors. Returns individual SenseEvaluation objects — the
+ * downstream interface is unchanged.
+ */
 export async function evaluate(
   consultation: Consultation,
   task: Task,
@@ -98,232 +123,234 @@ export async function evaluate(
   evaluationContext?: EvaluationContext,
   agenticOpts?: AgenticEvaluationOpts,
 ): Promise<EvaluationOutcome> {
-  // Read evaluator list from consultation's pre-computed evaluation plan
-  const entries: EvaluatorEntry[] = consultation.evaluationPlan.map((entry) => ({
-    receptorId: entry.receptorId,
-    parentPerspective: entry.parentPerspective,
-  }));
+  // Group evaluation plan entries by parent sense — each group becomes one LLM call
+  const senseGroupMap = new Map<string, EvaluationPlanEntry[]>();
+  for (const entry of consultation.evaluationPlan) {
+    const group = senseGroupMap.get(entry.parentSenseId) ?? [];
+    group.push(entry);
+    senseGroupMap.set(entry.parentSenseId, group);
+  }
+
+  const totalReceptors = consultation.evaluationPlan.length;
 
   emit("evaluation:start", {
-    senseCount: entries.length,
-    senses: entries.map((e) => e.receptorId),
+    senseCount: totalReceptors,
+    senses: consultation.evaluationPlan.map((e) => e.receptorId),
+    bundledGroups: senseGroupMap.size,
   });
 
-  log.info("Evaluating work", {
-    senseCount: entries.length,
-    receptors: entries.map((e) => e.receptorId),
+  log.info("Evaluating work (bundled per-sense)", {
+    receptorCount: totalReceptors,
+    senseGroups: senseGroupMap.size,
+    senses: Array.from(senseGroupMap.keys()),
   });
 
-  // Track senses that couldn't evaluate — these feed the self-healing loop
   const skippedSenses: EvaluationOutcome["skippedSenses"] = [];
 
-  // Run all evaluations in parallel — concurrency is bounded globally
-  // by the LLM client semaphore, so individual evaluators queue naturally.
-  const evaluationPromises = entries.map(async (entry) => {
-    const sense = library.get(entry.receptorId);
-    if (!sense) {
-      log.warn(`Evaluator receptor not found: ${entry.receptorId}`);
-      skippedSenses.push({ senseId: entry.receptorId, reason: "Receptor not found in library" });
-      return null;
-    }
+  // Run one evaluation call per sense group — concurrency is bounded
+  // by the LLM client semaphore, so groups queue naturally.
+  const groupPromises = Array.from(senseGroupMap.entries()).map(
+    async ([senseId, entries]) => {
+      const parentPerspective = entries[0].parentPerspective;
 
-    const activationPath = library.getAncestorPath(sense.id);
+      // ── Collect valid receptors (library lookup + observation check) ──
+      const validReceptors: ValidReceptor[] = [];
+      let sharedSenseEnrichment: string | undefined;
 
-    // When thalamus is available, get per-receptor trend context + principles + prediction
-    let trendContext: string | undefined;
-    let predictionContext: string | undefined;
-    if (thalamus) {
-      // Derive from gestalt if available, fall back to direct read
-      const hasGestalt = thalamus.getGestalt(task.id) !== null;
-      const evalBriefing = hasGestalt
-        ? thalamus.forEvaluationFromGestalt(task.id, sense.id, activationPath)
-        : await thalamus.forEvaluation(task, sense.id, activationPath);
-      const parts: string[] = [];
-      if (evalBriefing.receptorTrends.length > 0) {
-        const trend = evalBriefing.receptorTrends[0];
-        parts.push(`YOUR RECENT TREND:\n- ${trend.direction} (current mean: ${trend.currentMean.toFixed(1)}, previous: ${trend.previousMean.toFixed(1)}, across ${trend.dataPoints} task(s))`);
-      }
-      if (evalBriefing.relevantPrinciples && evalBriefing.relevantPrinciples.length > 0) {
-        parts.push(`PRINCIPLES FROM EXPERIENCE:\n${evalBriefing.relevantPrinciples.map((p) => `- (${p.confidence.toFixed(2)} confidence) ${p.statement}`).join("\n")}`);
-      }
-      if (parts.length > 0) trendContext = parts.join("\n\n");
-      if (evalBriefing.prediction) {
-        predictionContext = `PREDICTED SCORE FOR THIS RECEPTOR:\n- Predicted: ${evalBriefing.prediction.predicted.toFixed(1)} (confidence: ${evalBriefing.prediction.confidence.toFixed(2)}, based on ${evalBriefing.prediction.basedOnEpisodes} similar task(s))`;
-      }
-      if (evalBriefing.senseCeiling) {
-        const sc = evalBriefing.senseCeiling;
-        let ceilingStr = `THEORETICAL CEILING: The theoretical maximum for your dimension on this task is ${sc.ceiling}/10 because: ${sc.ceilingRationale}. Score relative to what's achievable, not against an abstract ideal.`;
-        if (sc.bestAchieved !== null) {
-          ceilingStr += ` Best achieved on similar tasks: ${sc.bestAchieved.toFixed(1)}/10.`;
+      for (const entry of entries) {
+        const receptor = library.get(entry.receptorId);
+        if (!receptor) {
+          log.warn(`Evaluator receptor not found: ${entry.receptorId}`);
+          skippedSenses.push({ senseId: entry.receptorId, reason: "Receptor not found in library" });
+          continue;
         }
-        // Append to trendContext since they're contextual enrichment
-        trendContext = trendContext ? `${trendContext}\n\n${ceilingStr}` : ceilingStr;
-      }
-      if (evalBriefing.isBottleneck) {
-        const bottleneckStr = `BOTTLENECK: Your dimension is currently the constraint on the composite score. Be especially rigorous — improvements here have the highest leverage.`;
-        trendContext = trendContext ? `${trendContext}\n\n${bottleneckStr}` : bottleneckStr;
-      }
-    }
 
-    // ── Check minimum observation level ──
-    if (sense.minimumObservation) {
-      const currentLevel = determineObservationLevel(agenticOpts?.neLevel ?? 0, evaluationContext);
-      if (!meetsMinimum(currentLevel, sense.minimumObservation)) {
-        const reason = `Requires ${sense.minimumObservation} observation, only ${currentLevel} available`;
-        log.info(`Skipping evaluation: ${sense.id} — ${reason}`);
-        emit("evaluation:skipped", {
-          senseId: sense.id,
-          path: activationPath.join(" > "),
-          reason,
-        });
-        skippedSenses.push({ senseId: sense.id, reason });
-        return null;
-      }
-    }
+        const activationPath = library.getAncestorPath(receptor.id);
 
-    try {
-      // Decide: agentic (perception-based) or text-only evaluation
-      const shouldBeAgentic = agenticOpts && agenticOpts.neLevel >= 0.3;
-
-      let evaluation: SenseEvaluation;
-
-      if (shouldBeAgentic) {
-        // ── Agentic path: observe with real tools, then judge ──
-        const toolSet = agenticOpts.pns.activateToolsForTask(
-          task.description,
-          agenticOpts.neLevel,
-          "evaluator",
-        );
-
-        const maxTurns = agenticOpts.neLevel > 0.7 ? 10 : 6;
-
-        const agenticResult = await agenticCall(
-          "evaluation",
-          config.models.evaluation,
-          evaluatorAgenticSystem(sense, activationPath),
-          evaluatorAgenticUser(task, work, entry.parentPerspective, trendContext, predictionContext, evaluationContext),
-          toolSet,
-          { maxTurns },
-        );
-
-        // Parse structured JSON from the agentic session's final text
-        const parseResult = parseAgenticResult(agenticResult.summary);
-
-        evaluation = {
-          senseId: sense.id,
-          activationPath,
-          score: parseResult.result.score,
-          acceptable: parseResult.result.acceptable,
-          assessment: parseResult.result.assessment,
-          tensions: parseResult.result.tensions,
-          suggestions: parseResult.result.suggestions,
-          improvementPotential: parseResult.result.improvementPotential,
-          observations: parseResult.result.observations,
-          // Mark as degraded if parsing fell back — score is not trustworthy
-          degraded: parseResult.degraded
-            ? { reason: "Agentic evaluation JSON parse failed", source: "agentic-parse-failure" as const }
-            : undefined,
-        };
-      } else {
-        // ── Text-only path: enriched text blob, structured call ──
-        let evaluationWork = work;
-        if (evaluationContext) {
-          const sections: string[] = [work];
-          if (evaluationContext.changedFiles && evaluationContext.changedFiles.length > 0) {
-            sections.push(`\nFILES CHANGED:\n${evaluationContext.changedFiles.map((f) => `- ${f}`).join("\n")}`);
+        // Check minimum observation level
+        if (receptor.minimumObservation) {
+          const currentLevel = determineObservationLevel(agenticOpts?.neLevel ?? 0, evaluationContext);
+          if (!meetsMinimum(currentLevel, receptor.minimumObservation)) {
+            const reason = `Requires ${receptor.minimumObservation} observation, only ${currentLevel} available`;
+            log.info(`Skipping evaluation: ${receptor.id} — ${reason}`);
+            emit("evaluation:skipped", { senseId: receptor.id, path: activationPath.join(" > "), reason });
+            skippedSenses.push({ senseId: receptor.id, reason });
+            continue;
           }
-          if (evaluationContext.fileContents && evaluationContext.fileContents.size > 0) {
-            const fileEntries: string[] = [];
-            for (const [path, content] of evaluationContext.fileContents) {
-              fileEntries.push(`--- ${path} ---\n${content.slice(0, 3000)}`);
+        }
+
+        // Fetch per-receptor enrichment from thalamus
+        let trendContext: string | undefined;
+        let predictionContext: string | undefined;
+        if (thalamus) {
+          const hasGestalt = thalamus.getGestalt(task.id) !== null;
+          const evalBriefing = hasGestalt
+            ? thalamus.forEvaluationFromGestalt(task.id, receptor.id, activationPath)
+            : await thalamus.forEvaluation(task, receptor.id, activationPath);
+
+          const parts: string[] = [];
+          if (evalBriefing.receptorTrends.length > 0) {
+            const trend = evalBriefing.receptorTrends[0];
+            parts.push(`TREND: ${trend.direction} (current mean: ${trend.currentMean.toFixed(1)}, previous: ${trend.previousMean.toFixed(1)}, across ${trend.dataPoints} task(s))`);
+          }
+          if (evalBriefing.relevantPrinciples && evalBriefing.relevantPrinciples.length > 0) {
+            parts.push(`PRINCIPLES:\n${evalBriefing.relevantPrinciples.map((p) => `- (${p.confidence.toFixed(2)}) ${p.statement}`).join("\n")}`);
+          }
+          if (parts.length > 0) trendContext = parts.join("\n");
+
+          if (evalBriefing.prediction) {
+            predictionContext = `PREDICTED: ${evalBriefing.prediction.predicted.toFixed(1)} (confidence: ${evalBriefing.prediction.confidence.toFixed(2)}, based on ${evalBriefing.prediction.basedOnEpisodes} similar task(s))`;
+          }
+
+          // Sense-level enrichment — shared across all receptors in the group, computed once
+          if (sharedSenseEnrichment === undefined) {
+            const senseParts: string[] = [];
+            if (evalBriefing.senseCeiling) {
+              const sc = evalBriefing.senseCeiling;
+              let ceilingStr = `THEORETICAL CEILING: The theoretical maximum for your dimension on this task is ${sc.ceiling}/10 because: ${sc.ceilingRationale}. Score relative to what's achievable, not against an abstract ideal.`;
+              if (sc.bestAchieved !== null) {
+                ceilingStr += ` Best achieved on similar tasks: ${sc.bestAchieved.toFixed(1)}/10.`;
+              }
+              senseParts.push(ceilingStr);
             }
-            sections.push(`\nKEY FILE CONTENTS:\n${fileEntries.join("\n\n")}`);
+            if (evalBriefing.isBottleneck) {
+              senseParts.push(`BOTTLENECK: Your dimension is currently the constraint on the composite score. Be especially rigorous — improvements here have the highest leverage.`);
+            }
+            sharedSenseEnrichment = senseParts.length > 0 ? senseParts.join("\n\n") : "";
           }
-          if (evaluationContext.diff) {
-            sections.push(`\nDIFF:\n${evaluationContext.diff.slice(0, 5000)}`);
-          }
-          evaluationWork = sections.join("\n");
         }
 
-        const result = await callStructured(
-          "evaluation",
-          config.models.evaluation,
-          evaluatorSystem(sense, activationPath),
-          evaluatorUser(task, evaluationWork, entry.parentPerspective, trendContext, predictionContext),
-          EvaluationResult
+        validReceptors.push({ sense: receptor, activationPath, trendContext, predictionContext });
+      }
+
+      if (validReceptors.length === 0) return [];
+
+      // Get the parent sense for the system prompt identity
+      const parentSense = library.get(senseId);
+      if (!parentSense) {
+        log.warn(`Parent sense not found: ${senseId}`);
+        return [];
+      }
+
+      try {
+        const shouldBeAgentic = agenticOpts && agenticOpts.neLevel >= 0.3;
+
+        // Build receptor info for the prompt
+        const receptorsForPrompt: BundledReceptorInfo[] = validReceptors.map((r) => ({
+          id: r.sense.id,
+          name: r.sense.name,
+          sensitivity: r.sense.sensitivity,
+          activationPath: r.activationPath,
+        }));
+
+        // Build per-receptor enrichment for the user prompt
+        const receptorEnrichments = validReceptors
+          .map((r) => {
+            const parts: string[] = [];
+            if (r.trendContext) parts.push(r.trendContext);
+            if (r.predictionContext) parts.push(r.predictionContext);
+            return parts.length > 0 ? { receptorId: r.sense.id, context: parts.join("\n") } : null;
+          })
+          .filter((r): r is { receptorId: string; context: string } => r !== null);
+
+        const senseEnrichment = sharedSenseEnrichment || undefined;
+
+        let bundledResult: z.infer<typeof BundledEvaluationResult>;
+        let degraded = false;
+
+        if (shouldBeAgentic) {
+          // ── Agentic bundled path: observe with tools, then judge all receptors ──
+          const toolSet = agenticOpts.pns.activateToolsForTask(
+            task.description,
+            agenticOpts.neLevel,
+            "evaluator",
+          );
+          const maxTurns = agenticOpts.neLevel > 0.7 ? 10 : 6;
+
+          const agenticResult = await agenticCall(
+            "evaluation",
+            config.models.evaluation,
+            evaluatorAgenticBundleSystem(parentSense, receptorsForPrompt),
+            evaluatorAgenticBundleUser(
+              task, work, parentPerspective,
+              receptorEnrichments.length > 0 ? receptorEnrichments : undefined,
+              senseEnrichment,
+              evaluationContext,
+            ),
+            toolSet,
+            { maxTurns },
+          );
+
+          const parseResult = parseAgenticBundleResult(agenticResult.summary);
+          bundledResult = parseResult.result;
+          degraded = parseResult.degraded;
+        } else {
+          // ── Text-only bundled path: enriched work blob, one structured call ──
+          let evaluationWork = work;
+          if (evaluationContext) {
+            const sections: string[] = [work];
+            if (evaluationContext.changedFiles && evaluationContext.changedFiles.length > 0) {
+              sections.push(`\nFILES CHANGED:\n${evaluationContext.changedFiles.map((f) => `- ${f}`).join("\n")}`);
+            }
+            if (evaluationContext.fileContents && evaluationContext.fileContents.size > 0) {
+              const fileEntries: string[] = [];
+              for (const [path, content] of evaluationContext.fileContents) {
+                fileEntries.push(`--- ${path} ---\n${content.slice(0, 3000)}`);
+              }
+              sections.push(`\nKEY FILE CONTENTS:\n${fileEntries.join("\n\n")}`);
+            }
+            if (evaluationContext.diff) {
+              sections.push(`\nDIFF:\n${evaluationContext.diff.slice(0, 5000)}`);
+            }
+            evaluationWork = sections.join("\n");
+          }
+
+          bundledResult = await callStructured(
+            "evaluation",
+            config.models.evaluation,
+            evaluatorBundleSystem(parentSense, receptorsForPrompt),
+            evaluatorBundleUser(
+              task, evaluationWork, parentPerspective,
+              receptorEnrichments.length > 0 ? receptorEnrichments : undefined,
+              senseEnrichment,
+            ),
+            BundledEvaluationResult,
+          );
+        }
+
+        // ── Unpack bundled result into individual SenseEvaluation objects ──
+        return unpackBundledResult(
+          bundledResult, validReceptors, parentPerspective, task.id, degraded,
         );
-
-        evaluation = {
-          senseId: sense.id,
-          activationPath,
-          score: result.score,
-          acceptable: result.acceptable,
-          assessment: result.assessment,
-          tensions: result.tensions,
-          suggestions: result.suggestions,
-          improvementPotential: result.improvementPotential,
-          observations: result.observations,
-        };
+      } catch (err) {
+        log.warn(`Bundled evaluation failed for sense ${parentSense.name}`, { error: String(err) });
+        for (const receptor of validReceptors) {
+          emitWarn(
+            "evaluation:fallback:sense-dropped",
+            {
+              senseId: receptor.sense.id,
+              path: receptor.activationPath.join(" > "),
+              taskId: task.id,
+              error: String(err),
+            },
+            {
+              component: "evaluator",
+              expected: "SenseEvaluation",
+              received: "null (sense excluded from composite)",
+            },
+          );
+          skippedSenses.push({
+            senseId: receptor.sense.id,
+            reason: `Bundled evaluation threw: ${String(err).slice(0, 200)}`,
+          });
+        }
+        return [];
       }
-
-      emit("evaluation:score", {
-        path: evaluation.activationPath.join(" > "),
-        score: evaluation.score,
-        acceptable: evaluation.acceptable,
-        assessment: evaluation.assessment,
-        degraded: !!evaluation.degraded,
-      });
-
-      // Record full evaluation content
-      const contentOutputs: import("../trace/types.js").ContentBlock[] = [
-        contentBlock(`Assessment (${evaluation.score}/10)`, evaluation.assessment),
-      ];
-      if (evaluation.suggestions?.length) {
-        contentOutputs.push(contentBlock("Suggestions", evaluation.suggestions.join("\n")));
-      }
-      if (evaluation.improvementPotential) {
-        const ip = evaluation.improvementPotential;
-        contentOutputs.push(contentBlock("Improvement potential", `${ip.level}: ${ip.description}`));
-      }
-      getContentStore().record({
-        eventSeq: null, kind: "evaluation", timestamp: new Date().toISOString(),
-        component: "evaluator", taskId: task.id,
-        inputs: [
-          contentBlock("Activation path", evaluation.activationPath.join(" > ")),
-          contentBlock("Parent perspective", entry.parentPerspective),
-        ],
-        outputs: contentOutputs,
-        routing: { destinations: ["gate (composite score)", "tension-detection", "working-memory"] },
-      });
-
-      return evaluation;
-    } catch (err) {
-      log.warn(`Evaluation failed for ${activationPath.join(" > ")}`, {
-        error: String(err),
-      });
-      emitWarn(
-        "evaluation:fallback:sense-dropped",
-        {
-          senseId: sense.id,
-          path: activationPath.join(" > "),
-          taskId: task.id,
-          error: String(err),
-        },
-        {
-          component: "evaluator",
-          expected: "SenseEvaluation",
-          received: "null (sense excluded from composite)",
-        },
-      );
-      skippedSenses.push({ senseId: sense.id, reason: `Evaluation threw: ${String(err).slice(0, 200)}` });
-      return null;
-    }
-  });
-
-  const results = await Promise.all(evaluationPromises);
-  const evaluations = results.filter(
-    (r): r is SenseEvaluation => r !== null
+    },
   );
+
+  const groupResults = await Promise.all(groupPromises);
+  const evaluations = groupResults.flat();
   const degradedCount = evaluations.filter((e) => e.degraded).length;
 
   emit("evaluation:complete", {
@@ -334,20 +361,107 @@ export async function evaluate(
     })),
     degradedCount,
     skippedCount: skippedSenses.length,
-    totalSenses: entries.length,
+    totalSenses: totalReceptors,
+    bundledCalls: senseGroupMap.size,
   });
 
   log.info("Evaluations complete", {
-    total: entries.length,
+    total: totalReceptors,
     evaluated: evaluations.length,
     degraded: degradedCount,
     skipped: skippedSenses.length,
+    bundledCalls: senseGroupMap.size,
   });
 
   return { evaluations, skippedSenses, degradedCount };
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
+
+/**
+ * Unpack a bundled evaluation result into individual SenseEvaluation objects.
+ * Shared fields (tensions, suggestions, improvementPotential) are copied to
+ * each receptor. Missing receptors are marked as degraded.
+ */
+function unpackBundledResult(
+  bundled: z.infer<typeof BundledEvaluationResult>,
+  receptors: ValidReceptor[],
+  parentPerspective: string,
+  taskId: string,
+  degraded: boolean,
+): SenseEvaluation[] {
+  const evaluations: SenseEvaluation[] = [];
+
+  for (const receptor of receptors) {
+    const receptorResult = bundled.receptorEvaluations.find(
+      (r) => r.receptorId === receptor.sense.id,
+    );
+
+    const evaluation: SenseEvaluation = receptorResult
+      ? {
+          senseId: receptor.sense.id,
+          activationPath: receptor.activationPath,
+          score: receptorResult.score,
+          acceptable: receptorResult.acceptable,
+          assessment: receptorResult.assessment,
+          tensions: bundled.tensions,
+          suggestions: bundled.suggestions,
+          improvementPotential: bundled.improvementPotential,
+          observations: bundled.observations,
+          degraded: degraded
+            ? { reason: "Agentic evaluation JSON parse failed", source: "agentic-parse-failure" as const }
+            : undefined,
+        }
+      : {
+          senseId: receptor.sense.id,
+          activationPath: receptor.activationPath,
+          score: 5,
+          acceptable: false,
+          assessment: `[Receptor ${receptor.sense.id} not included in bundled evaluation response]`,
+          tensions: bundled.tensions,
+          suggestions: bundled.suggestions,
+          improvementPotential: bundled.improvementPotential,
+          degraded: {
+            reason: "Missing from bundled evaluation response",
+            source: "llm-failure" as const,
+          },
+        };
+
+    emit("evaluation:score", {
+      path: evaluation.activationPath.join(" > "),
+      score: evaluation.score,
+      acceptable: evaluation.acceptable,
+      assessment: evaluation.assessment,
+      degraded: !!evaluation.degraded,
+    });
+
+    // Record content trace
+    const contentOutputs: import("../trace/types.js").ContentBlock[] = [
+      contentBlock(`Assessment (${evaluation.score}/10)`, evaluation.assessment),
+    ];
+    if (evaluation.suggestions?.length) {
+      contentOutputs.push(contentBlock("Suggestions", evaluation.suggestions.join("\n")));
+    }
+    if (evaluation.improvementPotential) {
+      const ip = evaluation.improvementPotential;
+      contentOutputs.push(contentBlock("Improvement potential", `${ip.level}: ${ip.description}`));
+    }
+    getContentStore().record({
+      eventSeq: null, kind: "evaluation", timestamp: new Date().toISOString(),
+      component: "evaluator", taskId,
+      inputs: [
+        contentBlock("Activation path", evaluation.activationPath.join(" > ")),
+        contentBlock("Parent perspective", parentPerspective),
+      ],
+      outputs: contentOutputs,
+      routing: { destinations: ["gate (composite score)", "tension-detection", "working-memory"] },
+    });
+
+    evaluations.push(evaluation);
+  }
+
+  return evaluations;
+}
 
 /** Determine the current observation level from NE + runtime/sandbox availability. */
 function determineObservationLevel(
@@ -368,29 +482,24 @@ function meetsMinimum(current: ObservationLevel, minimum: ObservationLevel): boo
   return order.indexOf(current) >= order.indexOf(minimum);
 }
 
-interface AgenticParseResult {
-  result: z.infer<typeof EvaluationResult>;
-  /** True when the result came from the fallback path, not genuine parsing. */
+interface AgenticBundleParseResult {
+  result: z.infer<typeof BundledEvaluationResult>;
   degraded: boolean;
 }
 
-/** Extract structured EvaluationResult JSON from an agentic session's final text. */
-function parseAgenticResult(summary: string): AgenticParseResult {
-  // Try to find a JSON block in the response
-  const jsonMatch = summary.match(/\{[\s\S]*"score"[\s\S]*\}/);
+/** Extract bundled EvaluationResult JSON from an agentic session's final text. */
+function parseAgenticBundleResult(summary: string): AgenticBundleParseResult {
+  const jsonMatch = summary.match(/\{[\s\S]*"receptorEvaluations"[\s\S]*\}/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
-      return { result: EvaluationResult.parse(parsed), degraded: false };
+      return { result: BundledEvaluationResult.parse(parsed), degraded: false };
     } catch {
       // Fall through to degraded default
     }
   }
 
-  // Fallback: return a conservative default but mark it as degraded.
-  // The score is 5 because the type requires a number, but downstream
-  // consumers MUST check the degraded flag before trusting it.
-  log.warn("Failed to parse agentic evaluation result, returning degraded result", {
+  log.warn("Failed to parse agentic bundled evaluation result", {
     summaryLength: summary.length,
   });
   emitWarn(
@@ -401,18 +510,16 @@ function parseAgenticResult(summary: string): AgenticParseResult {
     },
     {
       component: "evaluator",
-      expected: "JSON with score field",
+      expected: "JSON with receptorEvaluations field",
       received: "unparseable agentic summary",
       rawResponse: summary.slice(0, 1000),
     },
   );
   return {
     result: {
-      score: 5,
-      acceptable: false,
-      assessment: summary.slice(0, 500),
+      receptorEvaluations: [],
       tensions: [],
-      suggestions: ["Evaluation parsing failed — manual review recommended"],
+      suggestions: ["Bundled evaluation parsing failed — manual review recommended"],
       improvementPotential: { level: "significant" as const },
     },
     degraded: true,

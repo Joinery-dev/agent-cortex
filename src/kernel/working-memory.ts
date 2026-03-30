@@ -895,6 +895,16 @@ export class WorkingMemory {
     return structuredClone(this.state);
   }
 
+  /** Restore state from a snapshot (inverse of snapshot). */
+  restore(snap: WorkingMemoryState): void {
+    this.state = structuredClone(snap);
+    log.info("Restored from snapshot", {
+      projectId: this.state.projectId,
+      tasks: this.state.tasks.length,
+      scoreHistory: this.state.scoreHistory.length,
+    });
+  }
+
   // ── Private Helpers ─────────────────────────────────────────────
 
   /**

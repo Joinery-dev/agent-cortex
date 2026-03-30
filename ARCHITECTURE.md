@@ -2,7 +2,7 @@
 
 28 features organized by brain region. Diagrams in `diagrams/`.
 
-**Organizing principle:** Brain regions are what the system does. Neurotransmitters are how it modulates itself. They're not new components — they're the signaling layer between components.
+**Organizing principle:** Brain regions are what Cortex does. Neurotransmitters are how it modulates itself. They're not new components — they're the signaling layer between components.
 
 ---
 
@@ -14,7 +14,7 @@ The fundamental operating cycle. Every project follows this heartbeat. The corte
 
 Six beats:
 
-1. **Intake** — project enters. Brief + intent + taste profile received from human.
+1. **Intake** — project enters. Brief + intent + taste profile received from Parsifal.
 2. **Planning** — Planner decomposes into task graph. Inhibitor sets project-level suppressions. Norepinephrine tags each task's risk/novelty level.
 3. **Task dispatch** — Attention Scheduler picks next task from graph. Prospective Memory checks triggers. Thalamus assembles enriched briefing from all sources.
 4. **Task execution** — Sensory Cortex runs: consult → explore? → build → evaluate → resolve. Results flow back to Working Memory, Hippocampus, Cerebellum, Basal Ganglia.
@@ -23,19 +23,19 @@ Six beats:
 
 At any point: escalation can interrupt the rhythm (drift alert, strategy failure, amygdala urgency).
 
-Steps 3–5 repeat for every task. The rhythm is the same; the modulation changes based on what the system has learned.
+Steps 3–5 repeat for every task. The rhythm is the same; the modulation changes based on what Cortex has learned.
 
 ---
 
 ## 🖐️ Peripheral Nervous System — I/O boundary
 
-The brain's interface with the world. Defines what the system can perceive (afferent) and what it can do (efferent). Without this, the cortex has thoughts but no body.
+The brain's interface with the world. Defines what Cortex can perceive (afferent) and what it can do (efferent). Without this, the cortex has thoughts but no body.
 
 ### 28. I/O Capabilities
 
 **Afferent (input):**
-- Project briefs, intent documents, taste profiles (from human)
-- Human feedback: approvals, corrections, answers to escalations
+- Project briefs, intent documents, taste profiles (from Parsifal)
+- Parsifal feedback: approvals, corrections, answers to escalations
 - Tool outputs: file contents, API responses, test results, build logs
 - Environment state: what exists, what's deployed, what's broken
 
@@ -43,7 +43,7 @@ The brain's interface with the world. Defines what the system can perceive (affe
 - Artifact generation: code, markup, copy, configuration
 - File system: read, write, create, modify files
 - Tool use: API calls, shell commands, deployments
-- Human communication: escalations, proposals, status updates, questions
+- Parsifal communication: escalations, proposals, status updates, questions
 
 **Architectural principle:** The Motor Cortex doesn't call tools directly. It produces *intentions* — "write this file," "call this API." The PNS translates intentions into actual tool calls. This decouples the builder's cognition from specific tool implementations. A Motor Cortex that can think about "deploy this" doesn't need to know whether deployment means Vercel, AWS, or a local server.
 
@@ -61,14 +61,14 @@ The PFC has a reasoning discipline that governs all of its components. This isn'
 3. **Tests speed of light:** How close to the ceiling are we? Optimize execution, or rearchitect from scratch?
 4. **Shapes downstream:** What should consumers know about this decision? Update the forward briefing.
 
-This loop runs continuously. New information (evaluation scores, dopamine signals, human feedback, episodes) is tested against the current manifestation at every gate. Large dopamine signals trigger a conviction test — does the manifested future still hold? If conviction persists, the system continues with the new information integrated. If conviction is challenged by genuine evidence, the PFC reshapes the manifestation and re-seeds all forward briefings. If conviction breaks, it escalates.
+This loop runs continuously. New information (evaluation scores, dopamine signals, Parsifal feedback, episodes) is tested against the current manifestation at every gate. Large dopamine signals trigger a conviction test — does the manifested future still hold? If conviction persists, Cortex continues with the new information integrated. If conviction is challenged by genuine evidence, the PFC reshapes the manifestation and re-seeds all forward briefings. If conviction breaks, it escalates.
 
 **Three directions of awareness.** The PFC doesn't just manage internal components. It manages the entire supply chain:
 - **Inward:** Are our components performing? Are senses producing useful evaluations? Is the Motor Cortex converging? Are patterns crystallizing? Pruning complexity — conventions that aren't holding, decisions that are no longer relevant.
-- **Forward:** What's coming next? What will the next task need? Prospective preparation — seeding the future into every briefing so the system runs ahead of itself.
-- **Outward:** What does the environment need to provide? Is the intent clear enough? Are the right tools available? Does the human need to make a decision? Is the taste profile accurate given what we've learned? This is what turns the system from an executor into a partner — shaping upstream inputs, not just consuming them.
+- **Forward:** What's coming next? What will the next task need? Prospective preparation — seeding the future into every briefing so Cortex runs ahead of itself.
+- **Outward:** What does the environment need to provide? Is the intent clear enough? Are the right tools available? Does the Parsifal need to make a decision? Is the taste profile accurate given what we've learned? This is what turns Cortex from an executor into a partner — shaping upstream inputs, not just consuming them.
 
-**The world model.** The PFC maintains an integrated representation of reality — not where we're going (that's the manifested future), but where we are and what surrounds us. The manifested future is an abstraction without the world model. With it, the manifested future is a concrete destination because the system knows the terrain.
+**The world model.** The PFC maintains an integrated representation of reality — not where we're going (that's the manifested future), but where we are and what surrounds us. The manifested future is an abstraction without the world model. With it, the manifested future is a concrete destination because Cortex knows the terrain.
 
 The world model integrates all sources into a single coherent picture:
 - Working Memory (patterns, score trends, conventions, inhibitions, open questions)
@@ -85,12 +85,12 @@ When a task arrives, the Thalamus produces a **task gestalt**: the world model +
 
 Three layers: **world model** (PFC maintains, rebuilt at boundaries) → **task gestalt** (Thalamus assembles per-task from world model + task features) → **consumer briefings** (Thalamus extracts per-component from gestalt).
 
-The conviction loop runs against the world model, not against raw signals. When new information arrives (dopamine signal, human feedback, environment change), the world model updates first. Then the PFC tests: does the manifested future still make sense given the updated terrain?
+The conviction loop runs against the world model, not against raw signals. When new information arrives (dopamine signal, Parsifal feedback, environment change), the world model updates first. Then the PFC tests: does the manifested future still make sense given the updated terrain?
 
 ### 1. Planner
 Two phases, not one. Planning is itself a task that runs through the sensory cortex loop.
 
-**Phase A: Manifestation.** Before decomposing anything, the system imagines the completed outcome concretely. This runs as a sensory-cortex rhythm: the senses consult on what must be true about the finished artifact from their perspective (Design manifests the visual language, Performance manifests the load profile, Security manifests the threat surface). The Motor Cortex synthesizes these into a **manifested future** — concrete enough that the system can reason backward from it. The senses then evaluate whether the manifested future satisfies the intent. Tensions about the *vision* get resolved before a single task is planned.
+**Phase A: Manifestation.** Before decomposing anything, Cortex imagines the completed outcome concretely. This runs as a sensory-cortex rhythm: the senses consult on what must be true about the finished artifact from their perspective (Design manifests the visual language, Performance manifests the load profile, Security manifests the threat surface). The Motor Cortex synthesizes these into a **manifested future** — concrete enough that Cortex can reason backward from it. The senses then evaluate whether the manifested future satisfies the intent. Tensions about the *vision* get resolved before a single task is planned.
 
 **Phase B: Path reasoning.** Given the manifested future, reason backward to the minimum path. Every proposed step passes Jensen's three gates: Does it need to exist? Does it need to be this? Does it need to take this long? The task graph emerges from backward reasoning, not forward decomposition. Integration checks at phase gates verify cross-task coherence against the manifested future.
 
@@ -114,13 +114,13 @@ Detects perseveration — same approach, no improvement across cycles. Distingui
 Compares cumulative trajectory against original intent. Catches slow divergence that no single task reveals. Also compares stated preferences (taste profile) against demonstrated preferences (what actually scores well). Proposes taste updates when they diverge.
 
 ### 7. Attention Scheduler
-Drives the whole system. Picks next task based on dependencies + drift signals + confidence. Checks prospective triggers before dispatch. Decides what needs human input. Determines explore or exploit. Absorbs the role of the old orchestrator — there is no central controller, just the PFC deciding what happens next.
+Drives the whole system. Picks next task based on dependencies + drift signals + confidence. Checks prospective triggers before dispatch. Decides what needs Parsifal input. Determines explore or exploit. Absorbs the role of the old orchestrator — there is no central controller, just the PFC deciding what happens next.
 
-**Prospective preparation.** The Scheduler doesn't just decide what's next — it prepares the system for what's next. During the between-tasks phase, the Scheduler consumes Cerebellum predictions (score forecasts, ceiling estimates), Hippocampus episodes (what happened last time with similar tasks), the task graph (what's coming, what phase gate is approaching), and the strategic intent. It synthesizes all of this into a **forward briefing** that the Thalamus dissolves into every consumer's context for the upcoming task.
+**Prospective preparation.** The Scheduler doesn't just decide what's next — it prepares Cortex for what's next. During the between-tasks phase, the Scheduler consumes Cerebellum predictions (score forecasts, ceiling estimates), Hippocampus episodes (what happened last time with similar tasks), the task graph (what's coming, what phase gate is approaching), and the strategic intent. It synthesizes all of this into a **forward briefing** that the Thalamus dissolves into every consumer's context for the upcoming task.
 
-The senses don't read the roadmap. They don't need to. By the time Design receives its consultation briefing for task 8, the PFC has already seeded it: "this is the third of four image-heavy pages, tension between visual richness and load time is predicted, the established pattern is dark/bold, the phase gate after this task checks cross-page visual consistency." The system runs slightly ahead of itself — every component operates with a forward model of what's coming, shaped by the one component that sees the full picture.
+The senses don't read the roadmap. They don't need to. By the time Design receives its consultation briefing for task 8, the PFC has already seeded it: "this is the third of four image-heavy pages, tension between visual richness and load time is predicted, the established pattern is dark/bold, the phase gate after this task checks cross-page visual consistency." Cortex runs slightly ahead of itself — every component operates with a forward model of what's coming, shaped by the one component that sees the full picture.
 
-This is how the system avoids starting from scratch on each task. Not through memory alone (that's the Hippocampus), but through anticipation — the PFC pre-positioning the entire system before the work begins.
+This is how Cortex avoids starting from scratch on each task. Not through memory alone (that's the Hippocampus), but through anticipation — the PFC pre-positioning Cortex before the work begins.
 
 ---
 
@@ -168,7 +168,7 @@ Without the efference copy, the senses might consult and conclude "we need a hig
 The builder formulates a `BuildQuestion` with the specific question, build context, and optionally the target dimension. The Thalamus routes it:
 1. If `targetDimension` matches a sense with sufficient stake → route to that sense
 2. If no dimension match → route to the highest-stake sense
-3. If no sense has sufficient stake → escalate to the user (same mechanism, different audience — unified escalation path)
+3. If no sense has sufficient stake → escalate to the Parsifal (same mechanism, different audience — unified escalation path)
 
 The sense receives a lightweight `SenseQuestionBriefing` (not a full consultation) containing the question, its original perspective, and task context. It answers from its dimension's perspective — a targeted response, not a mini-evaluation.
 
@@ -219,7 +219,7 @@ Also gates the explore/leverage decision:
 Trained by eval scores via dopamine signal.
 
 ### 17. Amygdala
-Priority override. Bypasses normal scheduling. Security vulnerability found → reconfigure Thalamus immediately. Breaking change detected → interrupt current task. Human escalation → override attention queue. Talks directly to Inhibitor (override suppression list) and Thalamus (urgent reconfiguration), not through the PFC.
+Priority override. Bypasses normal scheduling. Security vulnerability found → reconfigure Thalamus immediately. Breaking change detected → interrupt current task. Parsifal escalation → override attention queue. Talks directly to Inhibitor (override suppression list) and Thalamus (urgent reconfiguration), not through the PFC.
 
 ### 18. Cerebellum
 Prediction engine and speed-of-light calculator. Two roles:
@@ -231,9 +231,9 @@ Prediction engine and speed-of-light calculator. Two roles:
 - Far from ceiling → the approach is the bottleneck (rearchitect from scratch)
 - Ceiling too low → escalate (constraints need to change, or fundamentally different strategy needed)
 
-Cognitive dimensions tracked: build convergence (predicted cycles to acceptance), tension resolution quality (can this approach satisfy competing senses?), evaluation accuracy (distance from human satisfaction), context fidelity (signal preservation through Thalamus).
+Cognitive dimensions tracked: build convergence (predicted cycles to acceptance), tension resolution quality (can this approach satisfy competing senses?), evaluation accuracy (distance from Parsifal satisfaction), context fidelity (signal preservation through Thalamus).
 
-This is what replaces hardcoded cycle limits. The gate doesn't stop because a counter expired — it stops because the Cerebellum says the system is near its speed of light, or rearchitects because it says the ceiling is too low.
+This is what replaces hardcoded cycle limits. The gate doesn't stop because a counter expired — it stops because the Cerebellum says Cortex is near its speed of light, or rearchitects because it says the ceiling is too low.
 
 Primarily connected to Motor Cortex (it's a motor coordination organ — predicts where your hand will be, corrects mid-movement). The ceiling estimates flow to the gate (stopping criteria) and to Cognitive Flexibility (is the approach worth continuing?).
 
@@ -242,7 +242,7 @@ Primarily connected to Motor Cortex (it's a motor coordination organ — predict
 ## 🧬 Plasticity — connections reshape with experience
 
 ### 19. Connection Weights
-Every plastic connection has a learned weight. Per-sense evaluation influence — how much Design's score matters relative to Performance's. Strengthens what works, weakens what doesn't. This is how the system's identity forms over time. A system that has built 50 marketing sites will have different weights than one that has built 50 API backends.
+Every plastic connection has a learned weight. Per-sense evaluation influence — how much Design's score matters relative to Performance's. Strengthens what works, weakens what doesn't. This is how Cortex's identity forms over time. A Cortex that has built 50 marketing sites will have different weights than one that has built 50 API backends.
 
 ### 20. Fixed vs. Plastic Connections
 Two kinds of wiring:
@@ -254,7 +254,7 @@ Two kinds of wiring:
 ## Neurotransmitter Signals — the wiring between nodes
 
 ### 21. Dopamine
-Reward prediction error: `cerebellum.predicted - sensory.actual = signal`. Not "reward" — reward PREDICTION ERROR. Fires when reality surprises the system, not when things go as expected.
+Reward prediction error: `cerebellum.predicted - sensory.actual = signal`. Not "reward" — reward PREDICTION ERROR. Fires when reality surprises Cortex, not when things go as expected.
 
 - Cerebellum predicted 7, actual 7 → no signal, no learning needed
 - Cerebellum predicted 7, actual 3 → large negative → hippocampus records significant episode, basal ganglia weakens the routine that led here
@@ -271,10 +271,10 @@ Arousal/thoroughness dial. Continuous, not binary (that's the Amygdala). Modulat
 - **Low** → fewer senses, higher thresholds, fast-tracked
 
 Computed from multiple signals:
-- **Task novelty** — how different this task is from anything the system has seen (Cerebellum episode similarity)
+- **Task novelty** — how different this task is from anything Cortex has seen (Cerebellum episode similarity)
 - **Task risk** — stakes, constraint tightness, phase gate proximity
-- **Prediction accuracy** — the Cerebellum's overall calibration. This is the developmental signal: a poorly-calibrated system (few episodes, low accuracy) has high baseline NE because everything is uncertain. As the system matures and predictions improve, baseline NE drops. The training wheels come off automatically as the system learns.
-- **Conviction level** — low conviction from the PFC reasoning loop raises NE. The system pays more attention when its own reasoning isn't convincing itself.
+- **Prediction accuracy** — the Cerebellum's overall calibration. This is the developmental signal: a poorly-calibrated Cortex (few episodes, low accuracy) has high baseline NE because everything is uncertain. As Cortex matures and predictions improve, baseline NE drops. The training wheels come off automatically as Cortex learns.
+- **Conviction level** — low conviction from the PFC reasoning loop raises NE. Cortex pays more attention when its own reasoning isn't convincing itself.
 
 Spiked by Amygdala for urgent situations. This is both the difference between careful evaluation of an auth system and quick approval of a copy change, AND the difference between a system on its first project and a system that has built fifty.
 
@@ -282,10 +282,10 @@ NE also modulates the Thalamus's specification artistry. High NE → prescriptiv
 
 ---
 
-## Human Partnership
+## Parsifal Partnership
 
 ### 23. Escalation Pathways
-Four routes to human:
+Four routes to Parsifal:
 - **Drift Monitor** → drift alerts, taste divergence detected
 - **Attention Scheduler** → proposals, prospective questions
 - **Cognitive Flexibility** → strategy failure, needs new direction
@@ -295,7 +295,7 @@ Four routes to human:
 Drift Monitor detects when demonstrated preferences (what actually scores well across tasks) diverge from stated preferences (taste profile). Proposes updates: "You said warm tones but cool tones consistently score higher on your own intent measures. Want to update?"
 
 ### 25. Satisfaction Signal
-Human approval, correction, or override flows to plasticity weights. This is Goodhart's law protection — the system can't just optimize its own internal scores. External human signal anchors the learning to actual satisfaction, not metric gaming.
+Parsifal approval, correction, or override flows to plasticity weights. This is Goodhart's law protection — Cortex can't just optimize its own internal scores. External Parsifal signal anchors the learning to actual satisfaction, not metric gaming.
 
 ### 26. Per-Sense Project Summaries
 Each sense maintains its own running narrative of the project from its perspective. Not centralized in Working Memory — distributed within each sense. Design knows the visual language. Performance knows which page types are risky. When a sense weighs in on task 8, it doesn't start from scratch — it has continuity from its own perspective across all previous tasks.

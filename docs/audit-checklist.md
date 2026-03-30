@@ -1,6 +1,6 @@
 # Agent Cortex — Comprehensive Audit Checklist
 
-> **Purpose:** Every independently auditable aspect of the system. Work through one section at a time, verify against actual code.
+> **Purpose:** Every independently auditable aspect of Cortex. Work through one section at a time, verify against actual code.
 >
 > **Last updated:** 2026-03-29. Includes shaela ontology, graph builder pipeline, exteroception, nursery, and all NE expansion changes.
 
@@ -140,9 +140,9 @@
 - [ ] **K2. Revision cycle** — gate reject → resolutions → premotor revise → rebuild → re-eval → gate accept.
 - [ ] **K3. Strategy reset** — conviction reshape → cog flex → shouldReset → discard sandbox → fresh approach.
 - [ ] **K4. Learning loop** — eval → dopamine → projections → hippocampus records → potentiation → principle → next task's thalamus briefing.
-- [ ] **K5. Escalation** — trigger → handler → human briefing → sense assessments → human response → resume.
+- [ ] **K5. Escalation** — trigger → handler → Parsifal briefing → sense assessments → Parsifal response → resume.
 - [ ] **K6. Rest cycle** — homeostasis trigger (including arousal fatigue) → rest rhythm → consolidation → resume → cumulativeNE reset.
-- [ ] **K7. Taste feedback** — drift detect → propose (gated) → sense verify → human responds → satisfaction signal → plasticity.
+- [ ] **K7. Taste feedback** — drift detect → propose (gated) → sense verify → Parsifal responds → satisfaction signal → plasticity.
 - [ ] **K8. Sandbox lifecycle** — create → build → merge/discard/leave.
 - [ ] **K9. Proactive discovery** — observation → WM → quick triage → amend proposal / flag deep synthesis → graph surgery.
 - [ ] **K10. Nursery** — phase complete → scheduler dispatches → surface area scan → stress scenarios → execute → findings → graph surgery.

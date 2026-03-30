@@ -2,7 +2,7 @@
  * Step Barrier — async checkpoint for pause/step execution control.
  *
  * When enabled, every call to checkpoint() blocks until release() is called.
- * This lets the user advance the system one operation at a time from the
+ * This lets the Parsifal advance Cortex one operation at a time from the
  * trace dashboard.
  *
  * Injected at two points:

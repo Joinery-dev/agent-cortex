@@ -1,9 +1,9 @@
 /**
- * Satisfaction Signal — Human Partnership Feature #25.
+ * Satisfaction Signal — Parsifal Partnership Feature #25.
  *
- * Receives human input (approval, correction, override) and translates
+ * Receives Parsifal input (approval, correction, override) and translates
  * it into plasticity weight updates. This is Goodhart's law protection:
- * the system can't just optimize its own internal scores. The human's
+ * Cortex can't just optimize its own internal scores. The Parsifal's
  * actual satisfaction anchors learning to reality.
  *
  * Two processing paths:
@@ -51,7 +51,7 @@ const SENSE_WEIGHT_PREFIX = "evaluator.sense-weight.";
 /**
  * Map a taste proposal response to plasticity operations.
  *
- * This is the heart of the learning loop. Given the human's response
+ * This is the heart of the learning loop. Given the Parsifal's response
  * to a taste divergence proposal, compute which weights change and
  * whether the taste profile should be mutated.
  *
@@ -141,8 +141,8 @@ function processUpdate(
  * high scores didn't mean high satisfaction.
  *
  * Plasticity: push thalamus.routing.taste UP (be more faithful to
- * stated preferences). This is the system learning to trust the
- * human's stated preference over its own measurements.
+ * stated preferences). This is Cortex learning to trust the
+ * Parsifal's stated preference over its own measurements.
  */
 function processKeep(
   _response: SatisfactionResponse,
@@ -185,17 +185,17 @@ function processKeep(
  * to question stated preferences was correct, but the right answer
  * wasn't what the data showed — it was something new. Reward the
  * instinct with slightly more interpretive freedom, but less than
- * a full "update" since the system's demonstrated preference wasn't
+ * a full "update" since Cortex's demonstrated preference wasn't
  * the right answer either.
  *
- * TasteProfile: mutate to the human's articulated new value.
+ * TasteProfile: mutate to the Parsifal's articulated new value.
  */
 function processNuanced(
   response: SatisfactionResponse,
   proposal: TasteProposal,
   config: SatisfactionSignalConfig,
 ): PlasticityMapping {
-  // Half the delta of a full "update" — the system was right to
+  // Half the delta of a full "update" — Cortex was right to
   // question but wrong about the answer
   const delta = computeDelta(config, proposal.proposalStrength) * 0.5;
 
@@ -207,9 +207,9 @@ function processNuanced(
     },
   ];
 
-  // The human's articulated preference replaces the divergent dimensions.
+  // The Parsifal's articulated preference replaces the divergent dimensions.
   // For nuanced responses, response.newPreference is the synthesis.
-  // If the human only provided detail but no explicit newPreference,
+  // If the Parsifal only provided detail but no explicit newPreference,
   // use their detail as the new value.
   const newValue = response.newPreference ?? response.detail ?? proposal.divergences[0]?.demonstrated ?? "";
   const primaryDivergence = proposal.divergences[0];
@@ -257,7 +257,7 @@ function processDeferred(): PlasticityMapping {
 /**
  * Process a task-level approval or correction signal.
  *
- * Task approval validates the system's judgment: small positive delta
+ * Task approval validates Cortex's judgment: small positive delta
  * to evaluation-influence weights. Task correction indicates the
  * system's internal scores misled it: small negative delta.
  *
@@ -363,7 +363,7 @@ export function applyTasteUpdate(
 /**
  * Compute the delta magnitude for a taste response.
  * Scaled by proposal strength — stronger divergences produce
- * larger adjustments when confirmed by the human.
+ * larger adjustments when confirmed by the Parsifal.
  */
 function computeDelta(
   config: SatisfactionSignalConfig,

@@ -71,7 +71,7 @@ export const DEFAULT_TONIC_CONFIG: TonicConfig = {
  *
  * In the brain: surprising events (large |dopamine|) get encoded more
  * strongly. Negative tonic increases consolidation urgency — when things
- * are going badly, the system needs to extract lessons faster.
+ * are going badly, Cortex needs to extract lessons faster.
  */
 export interface HippocampalProjection {
   /**

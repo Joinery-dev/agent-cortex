@@ -49,7 +49,7 @@ function mockResult(
         description: "Test decision",
         reasoning: "Testing",
         confidence: 0.8,
-        requiresHumanReview: false,
+        requiresParsifalReview: false,
       },
     ],
   };

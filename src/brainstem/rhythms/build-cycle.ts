@@ -217,7 +217,7 @@ function createQuestionHandler(
     });
     return {
       questionId: question.id,
-      source: { type: "user" },
+      source: { type: "parsifal" },
       answer: "No sense could answer this question with sufficient confidence.",
       confidence: 0,
       rationale: routing.rationale,
@@ -334,7 +334,7 @@ export function createBuildCycleDefinition(
       }
 
       // Wire the mid-build question handler: Motor Cortex can ask senses
-      // (or the user) clarifying questions when it hits ambiguity.
+      // (or the Parsifal) clarifying questions when it hits ambiguity.
       const questionHandler = createQuestionHandler(
         thalamus, library, config,
         state.initialContext.consultation,
@@ -435,7 +435,7 @@ export function createBuildCycleDefinition(
           // ── Proprioception gate: should we pause and self-check? ──
           // When checkpoint fires, run a lightweight proprioception on
           // work produced so far. This is the micro-rhythm within execute:
-          // the system looks at itself before continuing.
+          // Cortex looks at itself before continuing.
           if (pns.shouldCheckpoint(intention, ntSignals)) {
             const checkpointReason = intention.checkpoint ? "explicit" : "neurotransmitter";
             emit("pns:checkpoint", {
@@ -900,7 +900,7 @@ export function createBuildCycleDefinition(
         convictionLevel: conviction.level,
         risk: gateRisk,
         amygdalaOverride: acc.amygdalaOverride,
-        humanUrgency: mapUrgencyToNE(ctx.intent?.urgency),
+        parsifalUrgency: mapUrgencyToNE(ctx.intent?.urgency),
       });
       acc.effectiveNE = effectiveNEResult.ne;
 

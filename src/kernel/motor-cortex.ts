@@ -85,6 +85,7 @@ const MotorPlanSchema: z.ZodType<MotorPlan> = z.object({
   risks: z.array(PlanRiskSchema),
   confidence: z.number().min(0).max(1),
   plannedIntentions: z.array(PlannedIntentionSchema),
+  requiresAgentic: z.boolean().default(true),
 });
 
 const RevisionStrategySchema = z.union([
@@ -99,6 +100,7 @@ const RevisionPlanSchema: z.ZodType<RevisionPlan> = z.object({
   risks: z.array(PlanRiskSchema),
   confidence: z.number().min(0).max(1),
   plannedIntentions: z.array(PlannedIntentionSchema),
+  requiresAgentic: z.boolean().default(true),
   revisionStrategy: RevisionStrategySchema,
   delta: z.string(),
 });
@@ -159,7 +161,7 @@ export interface MotorCortexOpts {
   signal?: AbortSignal;
   /**
    * Mid-build sense consultation callback. When the builder hits ambiguity,
-   * it calls this to ask a specific sense (or the user) a clarifying question.
+   * it calls this to ask a specific sense (or the Parsifal) a clarifying question.
    * Wired up by the build-cycle rhythm, which routes through the Thalamus.
    * The Motor Cortex stays decoupled from routing — it just asks and gets an answer.
    */
@@ -201,6 +203,8 @@ export class MotorCortex {
       steps: plan.steps.length,
       confidence: plan.confidence,
       isRevision,
+      requiresAgentic: plan.requiresAgentic,
+      willUseAgentic: plan.requiresAgentic && !!this.pns,
     });
 
     const planStepsText = plan.steps
@@ -221,16 +225,30 @@ export class MotorCortex {
     // ── Phase 2: Primary Motor ─────────────────────────
     let work: string;
     let agenticResult: AgenticMotorResult | undefined;
+    const useAgentic = plan.requiresAgentic && !!this.pns;
 
-    if (this.pns) {
+    if (useAgentic) {
       // Agentic mode: real tools, multi-turn. The builder acts in the world.
       agenticResult = await this.primaryProduceAgentic(
         briefing, plan, opts?.previousWork, opts?.neLevel, opts?.signal,
       );
       work = agenticResult.summary;
     } else {
-      // Legacy mode: single-turn text artifact.
+      // Text-only mode: single-turn artifact. Used when premotor determines
+      // the task doesn't need real tool execution, or when PNS is absent.
       work = await this.primaryProduce(briefing, plan, opts?.previousWork);
+      if (!plan.requiresAgentic && this.pns) {
+        emit("motor:text-only-shortcut", {
+          taskId,
+          planConfidence: plan.confidence,
+          steps: plan.steps.length,
+          reason: "premotor determined task does not require agentic execution",
+        });
+        log.info("Skipping agentic motor — premotor says text-only is sufficient", {
+          taskId,
+          planConfidence: plan.confidence,
+        });
+      }
     }
 
     emit("motor:build-complete", {

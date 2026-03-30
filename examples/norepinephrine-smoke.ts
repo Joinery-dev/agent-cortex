@@ -375,9 +375,9 @@ console.log("\n14. Recency of failure raises NE");
   assertApprox(afterSuccess.ne, baseline.ne, 0.01, "Recent success (0) has no effect on NE");
 }
 
-// ─── 15. Human urgency ─────────────────────────────────────────
+// ─── 15. Parsifal urgency ─────────────────────────────────────────
 
-console.log("\n15. Human urgency input");
+console.log("\n15. Parsifal urgency input");
 {
   assertApprox(mapUrgencyToNE("low"), 0.0, 0.01, "low → 0.0");
   assertApprox(mapUrgencyToNE("normal"), 0.25, 0.01, "normal → 0.25");
@@ -385,8 +385,8 @@ console.log("\n15. Human urgency input");
   assertApprox(mapUrgencyToNE("critical"), 1.0, 0.01, "critical → 1.0");
   assertApprox(mapUrgencyToNE(undefined), 0.25, 0.01, "undefined → 0.25 (normal)");
 
-  const lowUrgency = computeNE({ humanUrgency: 0.0 });
-  const criticalUrgency = computeNE({ humanUrgency: 1.0 });
+  const lowUrgency = computeNE({ parsifalUrgency: 0.0 });
+  const criticalUrgency = computeNE({ parsifalUrgency: 1.0 });
   assert(criticalUrgency.ne > lowUrgency.ne, `Critical urgency raises NE: ${criticalUrgency.ne.toFixed(3)} > ${lowUrgency.ne.toFixed(3)}`);
 }
 

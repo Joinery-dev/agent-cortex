@@ -77,7 +77,7 @@ export class EscalationHandler {
 
   /**
    * Create an escalation, assemble its briefing, and store it.
-   * Called by rhythm code when it decides to pause for human input.
+   * Called by rhythm code when it decides to pause for Parsifal input.
    */
   async createEscalation(params: {
     source: EscalationSource;
@@ -117,7 +117,7 @@ export class EscalationHandler {
       wmQuestionId = q.id;
     }
 
-    // Assemble human-facing briefing via Thalamus
+    // Assemble Parsifal-facing briefing via Thalamus
     const briefing = await this.thalamus.forEscalation(
       escalation,
       params.rhythmState,
@@ -152,7 +152,7 @@ export class EscalationHandler {
     // If a delivery adapter is set, attempt active delivery.
     // Fire-and-forget: the runner is already entering its pause await,
     // so the adapter delivers asynchronously and auto-resolves when
-    // the human responds.
+    // the Parsifal responds.
     if (this.deliveryAdapter) {
       this.deliveryAdapter.deliver(escalation, briefing).then((resolution) => {
         if (resolution) {
@@ -170,7 +170,7 @@ export class EscalationHandler {
   }
 
   /**
-   * Resolve an escalation with the human's response.
+   * Resolve an escalation with the Parsifal's response.
    * Resolves questions in WM, then resumes the paused rhythm.
    */
   resolve(escalationId: string, resolution: EscalationResolution): void {

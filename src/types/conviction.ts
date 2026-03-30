@@ -101,8 +101,8 @@ export interface ConvictionResult {
   verdict: "proceed" | "reshape" | "escalate";
   /**
    * Continuous conviction level (0–1). For NE modulation (Phase 4).
-   * High = the system believes in what it's doing.
-   * Low = the system's own reasoning isn't convincing itself.
+   * High = Cortex believes in what it's doing.
+   * Low = Cortex's own reasoning isn't convincing itself.
    */
   level: number;
   /**
@@ -165,7 +165,7 @@ export interface ConvictionShaping {
   notes: string[];
   /** If reshape: what specifically should change. */
   reshapeGuidance?: string;
-  /** If escalate: what the human needs to know. */
+  /** If escalate: what the Parsifal needs to know. */
   escalationReason?: string;
 }
 

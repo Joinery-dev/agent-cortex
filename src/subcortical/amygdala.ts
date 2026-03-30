@@ -6,7 +6,7 @@
  *      motor cortex intentions before PNS execution.
  *   2. Alarm receiver — other components raise alarms when they detect
  *      asymmetric-risk situations in their own domain.
- *   3. Response protocol — how to stop the system safely.
+ *   3. Response protocol — how to stop Cortex safely.
  *
  * The amygdala doesn't learn. It gets updated. The hippocampus
  * crystallizes episodes into principles; those get installed as
@@ -212,30 +212,30 @@ export class Amygdala {
     return assessment;
   }
 
-  // ── Human Escalation ───────────────────────────────────────────
+  // ── Parsifal Escalation ────────────────────────────────────────
 
   /**
-   * Human directly escalated. Always fires at maximum severity.
+   * Parsifal directly escalated. Always fires at maximum severity.
    *
    * This is both an alarm AND the most important training signal.
-   * Every human escalation is a false negative — the amygdala
+   * Every Parsifal escalation is a false negative — the amygdala
    * should have caught it but didn't. The hippocampus learns from
    * the episode; the result is a new detector installed later.
    */
-  receiveHumanEscalation(
+  receiveParsifalEscalation(
     description: string,
     context: Record<string, unknown>,
   ): ThreatAssessment {
     const assessment: ThreatAssessment = {
       id: newId(),
-      trigger: "human-escalation",
+      trigger: "parsifal-escalation",
       threats: [
         {
-          detectorId: "human",
+          detectorId: "parsifal",
           intentionId: "n/a",
           description,
           signalStrength: 1.0,
-          category: "human-escalation",
+          category: "parsifal-escalation",
         },
       ],
       effectiveSeverity: "emergency",
@@ -246,13 +246,13 @@ export class Amygdala {
 
     this.recordAssessment(assessment);
 
-    emit("amygdala:human-escalation", {
+    emit("amygdala:parsifal-escalation", {
       assessmentId: assessment.id,
       description,
       context,
     });
 
-    log.warn("Human escalation received", { description });
+    log.warn("Parsifal escalation received", { description });
 
     return assessment;
   }
@@ -265,9 +265,9 @@ export class Amygdala {
    * Sequence matters — minimize damage before doing anything else:
    *   1. Block intentions (prevent the dangerous action)
    *   2. Interrupt runner (stop future work)
-   *   3. Override NE (make the system pay full attention)
+   *   3. Override NE (make Cortex pay full attention)
    *   4. Inhibit compromised senses (if applicable)
-   *   5. Add open question (escalate to human for deliberate response)
+   *   5. Add open question (escalate to the Parsifal for deliberate response)
    */
   executeResponse(
     assessment: ThreatAssessment,
@@ -305,7 +305,7 @@ export class Amygdala {
     // 3. Override NE (signal is read by NE computation at next gate)
     actions.push({ kind: "override-ne" });
 
-    // 4. Add open question for human (the PFC plans the response)
+    // 4. Add open question for the Parsifal (the PFC plans the response)
     const questionText = this.formatQuestion(assessment);
     deps.wm.addQuestion(questionText, `Amygdala assessment ${assessment.id}`);
     actions.push({
@@ -364,8 +364,8 @@ export class Amygdala {
   }
 
   private formatReason(assessment: ThreatAssessment): string {
-    if (assessment.trigger === "human-escalation") {
-      return `Human escalation: ${assessment.threats[0]?.description ?? "urgent"}`;
+    if (assessment.trigger === "parsifal-escalation") {
+      return `Parsifal escalation: ${assessment.threats[0]?.description ?? "urgent"}`;
     }
     if (assessment.trigger === "alarm" && assessment.alarm) {
       return `Alarm from ${assessment.alarm.source}: ${assessment.alarm.description}`;
@@ -377,8 +377,8 @@ export class Amygdala {
   }
 
   private formatQuestion(assessment: ThreatAssessment): string {
-    if (assessment.trigger === "human-escalation") {
-      return `Human escalated: ${assessment.threats[0]?.description ?? "urgent issue"}. How should we proceed?`;
+    if (assessment.trigger === "parsifal-escalation") {
+      return `Parsifal escalated: ${assessment.threats[0]?.description ?? "urgent issue"}. How should we proceed?`;
     }
     if (assessment.trigger === "alarm" && assessment.alarm) {
       return `${assessment.alarm.source} raised alarm: ${assessment.alarm.description}. How should we proceed?`;

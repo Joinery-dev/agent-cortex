@@ -1,5 +1,5 @@
 /**
- * Trace module — observe everything the system does.
+ * Trace module — observe everything Cortex does.
  *
  * Collector captures events, ContentStore tracks content,
  * Stepper enables replay, Narrator makes it human-readable,

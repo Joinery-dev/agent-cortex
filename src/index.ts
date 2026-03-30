@@ -21,8 +21,10 @@ export interface CortexOptions {
   config?: Partial<CortexConfig>;
   logLevel?: LogLevel;
   dashboard?: boolean | number; // true = port 3000, number = custom port
-  /** Ontological frame that shapes how the system thinks. Defaults to shaela. */
+  /** Ontological frame that shapes how Cortex thinks. Defaults to shaela. */
   worldview?: Worldview;
+  /** Callback for user interaction (inquiry questions, vision approval, escalations). */
+  askUser?: (question: string) => Promise<string>;
 }
 
 export class Cortex {
@@ -47,6 +49,11 @@ export class Cortex {
     // Initialize cost tracking if the intent has a budget
     if (this.intent.budget) {
       this.brainstem.initCostTracking(this.intent.budget);
+    }
+
+    // Wire user interaction callback for inquiry, approval, and escalations
+    if (options.askUser) {
+      this.brainstem.setAskUser(options.askUser);
     }
 
     if (options.logLevel) {

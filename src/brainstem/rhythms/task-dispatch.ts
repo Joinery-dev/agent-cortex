@@ -111,7 +111,7 @@ interface IntegratedDispatch {
   allComplete: boolean;
   completedTasks: string[];
   escalatedTasks: string[];
-  /** Non-null when the Scheduler wants to escalate to the human. */
+  /** Non-null when the Scheduler wants to escalate to the Parsifal. */
   schedulerEscalation?: { reason: string; questions: string[]; escalationType: "perseveration" | "cratering" | "deadlock" | "open-questions" | "drift" };
   /** Non-null when the Scheduler wants to replan. */
   replanRequest?: string;
@@ -125,7 +125,7 @@ interface IntegratedDispatch {
   appliedSurgery?: SurgeryResult;
   /** Deep synthesis determined blast radius too high → replan instead. */
   synthesisReplanRequired?: boolean;
-  /** Non-null when nursery fix cycles exceeded the max — escalate to human. */
+  /** Non-null when nursery fix cycles exceeded the max — escalate to Parsifal. */
   nurseryStuck?: { phaseGroup: string; cycle: number; findingCount: number };
 }
 
@@ -212,7 +212,7 @@ function assembleSignals(
   const driftSummary = driftAssessment?.driftSummary;
 
   // Perseveration detection (Phase 4): if the last 2 completed tasks
-  // both exhausted their cycle budget with low confidence, the system
+  // both exhausted their cycle budget with low confidence, Cortex
   // is struggling across tasks — not just within one.
   let perseverating: boolean | undefined;
   if (acc.completedTasks.size >= 2) {
@@ -309,8 +309,8 @@ function assembleSignals(
     lastTaskDopamine: acc.lastDopamine,
     // NE ambient level: last dispatched task's NE (for observe threshold)
     lastNELevel: acc.lastNELevel,
-    // NE human urgency: mapped from ProjectIntent.urgency
-    humanUrgency: mapUrgencyToNE(context.intent.urgency),
+    // NE Parsifal urgency: mapped from ProjectIntent.urgency
+    parsifalUrgency: mapUrgencyToNE(context.intent.urgency),
     taskBudgets: costTracker ? (() => {
       const budgets = new Map<string, { allocated: number; spent: number; remaining: number }>();
       for (const node of graph) {
@@ -1786,7 +1786,7 @@ export function createTaskDispatchDefinition(
         });
       } else if (schedulerEscalationSignal) {
         // Conviction said "proceed" despite scheduler wanting to escalate.
-        // The system overrode the scheduler — log for observability.
+        // Cortex overrode the scheduler — log for observability.
         log.info("Conviction overrode scheduler escalation", {
           schedulerType: schedulerEscalationSignal.type,
           convictionLevel: conviction.level.toFixed(3),

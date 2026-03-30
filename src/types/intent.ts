@@ -9,13 +9,13 @@ export interface ProjectIntent {
   driftLog: DriftEntry[];
   /**
    * Dollar budget for this project. Optional — unconstrained when absent.
-   * The budget is the metabolic constraint that forces the system to
+   * The budget is the metabolic constraint that forces Cortex to
    * prioritize cognitive spending across tasks.
    */
   budget?: import("./cost.js").CostBudget;
   /** Runtime configuration — how to start the project for observation (dev server, API, etc.). */
   runtime?: import("./runtime.js").RuntimeConfig[];
-  /** Human-declared urgency. Defaults to "normal" when absent. */
+  /** Parsifal-declared urgency. Defaults to "normal" when absent. */
   urgency?: "low" | "normal" | "high" | "critical";
 }
 
@@ -35,8 +35,8 @@ export interface DecisionRecord {
   description: string;
   reasoning: string;
   confidence: number;
-  requiresHumanReview: boolean;
-  humanVerdict?: "approved" | "rejected" | "modified";
+  requiresParsifalReview: boolean;
+  parsifalVerdict?: "approved" | "rejected" | "modified";
 }
 
 export interface DriftEntry {

@@ -70,10 +70,10 @@ Four parallel review agents audited the entire codebase. Key findings:
 
 ## Jensen Huang / Lex Fridman #494 — Architecture Breakthroughs
 
-The interview reshaped multiple layers of the architecture. Five major insights were extracted and baked into the system:
+The interview reshaped multiple layers of the architecture. Five major insights were extracted and baked into Cortex:
 
 ### 1. Extreme Co-Design + "As Complex as Necessary"
-Added as foundational principles in CLAUDE.md. The architecture of the system mirrors what it produces. Components attack problems simultaneously, hear each other's constraints, resolve trade-offs through synthesis. Applied at three levels: the system itself, the build process, and the organization of work.
+Added as foundational principles in CLAUDE.md. Cortex's architecture mirrors what it produces. Components attack problems simultaneously, hear each other's constraints, resolve trade-offs through synthesis. Applied at three levels: Cortex itself, the build process, and the organization of work.
 
 ### 2. First Principles, Not Continuous Improvement
 "If something takes 74 days, don't make it 72 — strip it back to zero." The premotor distinguishes execution-error (amend plan) from plan-error (re-plan from scratch). Cognitive Flexibility forces full strategy resets. Every approach is questioned before being improved.
@@ -84,7 +84,7 @@ Jensen compares every metric against what physics allows. For Cortex: the Cerebe
 **V1 + V2 implemented:** Per-sense ceilings from consultation, Cerebellum aggregation with historical best-achieved, approach classification for bottleneck detection. Flows into briefings, not gates — it's a calibration tool for reasoning.
 
 ### 4. Prospective Preparation
-"By the time I announce it, everybody's kind of bought in." The PFC synthesizes Cerebellum predictions + Hippocampus episodes + task graph + intent into forward briefings during between-tasks. The Thalamus dissolves these into every consumer's context. The system runs slightly ahead of itself.
+"By the time I announce it, everybody's kind of bought in." The PFC synthesizes Cerebellum predictions + Hippocampus episodes + task graph + intent into forward briefings during between-tasks. The Thalamus dissolves these into every consumer's context. Cortex runs slightly ahead of itself.
 
 ### 5. Planning as Manifestation
 "You manifest a future so convincing there's no way it won't happen." The Planner has two phases: (A) Manifestation — senses imagine the completed outcome through a sensory-cortex rhythm. (B) Path reasoning — reason backward from the manifested future to the minimum task graph. Planning is a task, not a special phase. Nests recursively.
@@ -96,7 +96,7 @@ The conviction loop runs at every gate: necessity → conviction → speed-of-li
 The PFC maintains an integrated representation of reality — where we are, not where we're going. Three layers: world model (rebuilt at rhythm boundaries) → task gestalt (Thalamus assembles per-task) → consumer briefings (extracted per-component). The conviction loop runs against the world model.
 
 ### 8. NE as Training Wheels
-Norepinephrine baseline tracks system maturity via Cerebellum prediction accuracy. Immature system (few episodes, low accuracy) = high baseline NE = careful mode. Mature system = low NE = fast-track. Training wheels come off automatically — and come back when the system encounters unfamiliar territory.
+Norepinephrine baseline tracks Cortex maturity via Cerebellum prediction accuracy. Immature Cortex (few episodes, low accuracy) = high baseline NE = careful mode. Mature Cortex = low NE = fast-track. Training wheels come off automatically — and come back when Cortex encounters unfamiliar territory.
 
 ### 9. Specification Artistry
 "I under specify it on purpose to enable 43,000 people to make it even better than what I imagined." The Thalamus modulates specification depth: high NE + high conviction → prescriptive briefings. Low NE + low conviction → invitational briefings that leave room for the builder to exceed the specification.
@@ -155,15 +155,15 @@ From a global level, using the thinking and reasoning we have been employing thr
 
 **Missing — three genuine gaps:**
 
-**PNS real execution.** This is the elephant in the room. The system can reason, plan, evaluate, learn, predict, manifest futures, resolve tensions — but it can't *do anything*. PNS.execute() is a skeleton. Motor Cortex produces intentions with empty operations. The entire system produces a string artifact via a single LLM call. For the system to actually be the software engineer Jensen describes, it needs to execute real operations — write files, run tests, call APIs, read codebases. Everything we've built is the brain. The body doesn't exist yet. This isn't a feature to add — it's the transition from architecture to working system.
+**PNS real execution.** This is the elephant in the room. Cortex can reason, plan, evaluate, learn, predict, manifest futures, resolve tensions — but it can't *do anything*. PNS.execute() is a skeleton. Motor Cortex produces intentions with empty operations. Cortex produces a string artifact via a single LLM call. For Cortex to actually be the software engineer Jensen describes, it needs to execute real operations — write files, run tests, call APIs, read codebases. Everything we've built is the brain. The body doesn't exist yet. This isn't a feature to add — it's the transition from architecture to working system.
 
-**Context window management (the breathing reflex).** Types exist (ContextSlot, ContextTransition) but runtime doesn't. As the system takes on real projects with many tasks, context pressure will be immediate. The Thalamus does contextual extraction (not concatenation), which helps. But active eviction, warmup, and cooldown — the brainstem managing what's in context like breathing manages oxygen — isn't built. This becomes critical the moment PNS execution is real and the system is actually working with large codebases.
+**Context window management (the breathing reflex).** Types exist (ContextSlot, ContextTransition) but runtime doesn't. As Cortex takes on real projects with many tasks, context pressure will be immediate. The Thalamus does contextual extraction (not concatenation), which helps. But active eviction, warmup, and cooldown — the brainstem managing what's in context like breathing manages oxygen — isn't built. This becomes critical the moment PNS execution is real and Cortex is actually working with large codebases.
 
 **Integration verification at phase gates.** The Planner spec says "integration checks at phase gates verify cross-task coherence." The phase gate exists in the rhythm. But nobody actually checks that task 1's header and task 5's footer are visually consistent, use the same API patterns, and don't conflict. This is the quality control that distinguishes "5 individually good artifacts" from "a coherent project." The senses evaluate individual artifacts. Nobody evaluates the whole.
 
 **One gap that's more subtle:**
 
-**Proactive problem discovery.** Jensen says "looking for new problems to solve." The system works on tasks it's given. It doesn't look around and say "based on what I've learned about this project, here's a problem you should address that you haven't asked about." The Drift Monitor catches divergence reactively. The Taste Feedback Loop proposes updates. But neither proactively surfaces: "the performance scores suggest you need a caching layer you haven't planned for" or "the pattern across these tasks suggests the API design will be a bottleneck in phase 3." The outward direction of PFC awareness is designed but doesn't include *generating new work items.*
+**Proactive problem discovery.** Jensen says "looking for new problems to solve." Cortex works on tasks it's given. It doesn't look around and say "based on what I've learned about this project, here's a problem you should address that you haven't asked about." The Drift Monitor catches divergence reactively. The Taste Feedback Loop proposes updates. But neither proactively surfaces: "the performance scores suggest you need a caching layer you haven't planned for" or "the pattern across these tasks suggests the API design will be a bottleneck in phase 3." The outward direction of PFC awareness is designed but doesn't include *generating new work items.*
 
 **Possibly unnecessary — 2-3 features that may be covered by other work:**
 
@@ -173,6 +173,6 @@ From a global level, using the thinking and reasoning we have been employing thr
 
 **Fixed vs Plastic Connections (#20) as a "feature" is misleading.** It's a type file — the connection map that Plasticity reads. It was necessary design work but it's really Plasticity's prerequisite, not a standalone feature. Counting it as a feature inflates the feature count without adding architectural substance.
 
-**Amygdala (#17) might overlap with existing infrastructure.** The runner already supports hard interrupts. The Scheduler already has an escalation cascade with priority levels. The question is: what detects urgency *automatically*? If the trigger is the human saying "this is urgent," that's just scheduler input. The Amygdala adds value only if the system can *detect* danger itself — security vulnerability in generated code, breaking API change, compliance violation. That's a pre-execution scan capability. The build-cycle already has a rudimentary version (intention scanning before PNS execution). The question is whether to promote this to a full component or leave it as build-cycle logic.
+**Amygdala (#17) might overlap with existing infrastructure.** The runner already supports hard interrupts. The Scheduler already has an escalation cascade with priority levels. The question is: what detects urgency *automatically*? If the trigger is the Parsifal saying "this is urgent," that's just scheduler input. The Amygdala adds value only if Cortex can *detect* danger itself — security vulnerability in generated code, breaking API change, compliance violation. That's a pre-execution scan capability. The build-cycle already has a rudimentary version (intention scanning before PNS execution). The question is whether to promote this to a full component or leave it as build-cycle logic.
 
-**Honest assessment:** We don't have unnecessary features — but we might have 2-3 features (Resolution Rework, Amygdala, Fixed vs Plastic as standalone) that are either already covered by other work or don't justify being separate numbered features. And the biggest missing piece isn't a feature at all — it's the PNS becoming real, which transforms the system from an architecture into a working engineer.
+**Honest assessment:** We don't have unnecessary features — but we might have 2-3 features (Resolution Rework, Amygdala, Fixed vs Plastic as standalone) that are either already covered by other work or don't justify being separate numbered features. And the biggest missing piece isn't a feature at all — it's the PNS becoming real, which transforms Cortex from an architecture into a working engineer.

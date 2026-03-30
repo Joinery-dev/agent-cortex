@@ -167,7 +167,7 @@ export interface WMTask {
 // ─── Patterns ───────────────────────────────────────────────────
 
 /**
- * An observation about what the system has established.
+ * An observation about what Cortex has established.
  * Minimal by design — no categories, no structure. The description
  * is freeform natural language. Detection mechanism is left to
  * emerge from the implementation; callers invoke recordPattern()
@@ -178,14 +178,14 @@ export interface EstablishedPattern {
   /** Freeform description, e.g. "Dark + bold visual language". */
   description: string;
   establishedAt: Date;
-  /** How confident the system is that this pattern holds. 0–1. */
+  /** How confident Cortex is that this pattern holds. 0–1. */
   confidence: number;
 }
 
 // ─── Open questions ─────────────────────────────────────────────
 
 /**
- * A question that needs answering — for the human or for future tasks.
+ * A question that needs answering — for the Parsifal or for future tasks.
  * Created by escalation pathways, amygdala urgency, or any component
  * that surfaces an unresolved issue.
  */
@@ -241,7 +241,7 @@ export interface WorkingMemoryState {
   scoreHistory: ScoreSnapshot[];
   /** Key decisions made across tasks. Reuses DecisionRecord from intent.ts. */
   decisions: DecisionRecord[];
-  /** Patterns the system has established. */
+  /** Patterns Cortex has established. */
   patterns: EstablishedPattern[];
   /** Senses currently inhibited. */
   inhibitedSenses: InhibitedSense[];

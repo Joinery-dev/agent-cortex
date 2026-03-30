@@ -8,7 +8,7 @@
  *
  * Cold start (training wheels): when the Cerebellum has no model-quality
  * data, the selector uses the configured default from CortexConfig.
- * This is conservative — the system starts expensive and learns to
+ * This is conservative — Cortex starts expensive and learns to
  * economize as episodes accumulate.
  *
  * Budget pressure doesn't hardcode downgrade rules. It lowers the

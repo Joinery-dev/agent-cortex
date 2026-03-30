@@ -10,7 +10,7 @@
  *   - Basal Ganglia: routine updates (future — reads striatal projection)
  *
  * Each subsystem is optional — missing systems fall through to
- * no-op behavior. This lets the system grow incrementally.
+ * no-op behavior. This lets Cortex grow incrementally.
  */
 
 import type { SubcorticalHooks } from "../brainstem/stubs.js";

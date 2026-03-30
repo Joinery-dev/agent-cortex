@@ -55,7 +55,7 @@ export interface TaskGestalt {
 
   // ── World Model Layer ─────────────────────────────────────
   /**
-   * The system's Weltanschauung at gestalt assembly time.
+   * Cortex's Weltanschauung at gestalt assembly time.
    * Null on cold start (no world model yet) — consumers degrade
    * gracefully, just like they do today with optional maxims.
    */

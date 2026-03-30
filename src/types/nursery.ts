@@ -1,7 +1,7 @@
 /**
  * Nursery — runtime stress-testing of completed phase artifacts.
  *
- * The nursery is the system's interoception: feeling its code running.
+ * The nursery is Cortex's interoception: feeling its code running.
  * After a phase gate passes, the nursery exercises artifacts at runtime
  * and observes what happens. Graduation = absence of findings, not a
  * score threshold.

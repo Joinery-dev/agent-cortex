@@ -1,7 +1,7 @@
 /**
- * Rest-Cycle Rhythm — consolidation when the system needs it.
+ * Rest-Cycle Rhythm — consolidation when Cortex needs it.
  *
- * Norepinephrine drops to zero. No task execution. The system turns inward.
+ * Norepinephrine drops to zero. No task execution. Cortex turns inward.
  * Same four-phase pattern as every other rhythm.
  *
  * Currently a stub — logs which consolidation processes would run.
@@ -153,7 +153,7 @@ export function createRestCycleDefinition(
     },
 
     async integrate(executed, _state) {
-      // Reset cumulative NE fatigue — the system has rested
+      // Reset cumulative NE fatigue — Cortex has rested
       resetCumulativeNE?.();
 
       const vitalsAfter = getVitals();

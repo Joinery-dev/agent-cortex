@@ -180,7 +180,7 @@ export interface SubcorticalHooks {
 }
 
 /**
- * No-op implementation. Logs what would happen so the system is
+ * No-op implementation. Logs what would happen so Cortex is
  * observable during Phase 1/2 before learning systems exist.
  */
 export class NoOpSubcorticalHooks implements SubcorticalHooks {

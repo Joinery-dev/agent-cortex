@@ -1,12 +1,12 @@
 /**
- * Escalation Delivery Adapters — transport layer for human escalations.
+ * Escalation Delivery Adapters — transport layer for Parsifal escalations.
  *
  * The EscalationHandler produces rich briefings. These adapters decide
- * HOW to get them to the human and return the response.
+ * HOW to get them to the Parsifal and return the response.
  *
  * EventBusDeliveryAdapter: passive — the event bus already emits
  *   "escalation:created", external code (dashboard, CLI) picks it up
- *   and calls EscalationHandler.resolve() when the human answers.
+ *   and calls EscalationHandler.resolve() when the Parsifal answers.
  *
  * AgentSdkDeliveryAdapter: active — calls an askUser callback (typically
  *   wired to the Agent SDK's AskUserQuestion tool) and auto-resolves.
@@ -25,7 +25,7 @@ const log = createLogger("delivery-adapter");
 // ── Formatter ────────────────────────────────────────────────────
 // Pure function: EscalationBriefing → human-readable string.
 
-export function formatEscalationForHuman(
+export function formatEscalationForParsifal(
   escalation: Escalation,
   briefing: EscalationBriefing,
 ): string {
@@ -87,7 +87,7 @@ export class EventBusDeliveryAdapter implements EscalationDeliveryAdapter {
     _briefing: EscalationBriefing,
   ): Promise<EscalationResolution | null> {
     // Passive: external code listens to "escalation:created" event
-    // and calls EscalationHandler.resolve() when the human answers.
+    // and calls EscalationHandler.resolve() when the Parsifal answers.
     return null;
   }
 }
@@ -110,9 +110,9 @@ export class AgentSdkDeliveryAdapter implements EscalationDeliveryAdapter {
     escalation: Escalation,
     briefing: EscalationBriefing,
   ): Promise<EscalationResolution> {
-    const message = formatEscalationForHuman(escalation, briefing);
+    const message = formatEscalationForParsifal(escalation, briefing);
 
-    log.info("Delivering escalation to human via SDK", {
+    log.info("Delivering escalation to Parsifal via SDK", {
       escalationId: escalation.id,
       severity: escalation.severity,
     });

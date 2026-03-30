@@ -1,7 +1,7 @@
 /**
  * Cognitive Flexibility — PFC Feature #5.
  *
- * Detects perseveration and diagnoses WHY the system is stuck.
+ * Detects perseveration and diagnoses WHY Cortex is stuck.
  * Fires when the conviction loop returns "reshape" — the signal
  * that something is wrong. Cognitive Flexibility determines WHAT
  * is wrong and WHAT to do about it.
@@ -13,7 +13,7 @@
  *   irreconcilable     → task constraints make goals impossible
  *
  * Each diagnosis leads to a different action: targeted revision,
- * full strategy reset, re-engagement, or escalation to human.
+ * full strategy reset, re-engagement, or escalation to the Parsifal.
  */
 
 import type { ConvictionResult } from "./conviction.js";
@@ -72,13 +72,13 @@ export interface ApproachHistoryEntry {
 /** What Cognitive Flexibility produces. */
 export interface FlexibilityAssessment {
   diagnosis: FlexibilityDiagnosis;
-  /** Human-readable explanation of why the system is stuck. */
+  /** Human-readable explanation of why Cortex is stuck. */
   reasoning: string;
   /** True → force re-plan (not revision). False → more targeted revision. */
   shouldReset: boolean;
   /** Present when shouldReset is true. */
   resetDirective?: ResetDirective;
-  /** True → escalate to human. Overrides shouldReset. */
+  /** True → escalate to the Parsifal. Overrides shouldReset. */
   shouldEscalate: boolean;
   /** Present when shouldEscalate is true. */
   escalationContext?: string;

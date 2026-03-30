@@ -7,7 +7,7 @@
  *   Mid-project — code exists, work remains
  *   Existing — full project
  *
- * This is the system's "day one" at a new job: open the repo, read
+ * This is Cortex's "day one" at a new job: open the repo, read
  * package.json, check the structure, find the dev command, understand
  * the tech stack.
  */

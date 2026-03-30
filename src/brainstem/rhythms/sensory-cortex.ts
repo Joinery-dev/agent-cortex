@@ -368,7 +368,7 @@ export function createSensoryCortexDefinition(
           cerebellumAccuracy: hooks.getCerebellumAccuracy(),
           bestSimilarity: prediction?.bestSimilarity,
           risk: riskFactors,
-          humanUrgency: mapUrgencyToNE(context.intent?.urgency),
+          parsifalUrgency: mapUrgencyToNE(context.intent?.urgency),
         });
 
         emit("ne:novelty-enriched", {
@@ -533,7 +533,7 @@ export function createSensoryCortexDefinition(
         ? "complete"
         : confidence >= 0.6
           ? "complete"
-          : "needs_human";
+          : "needs_parsifal";
 
       const decisionLog: DecisionRecord[] = [
         {
@@ -542,7 +542,7 @@ export function createSensoryCortexDefinition(
           description: "consultation",
           reasoning: `Consulted ${consultation.perspectives.length} senses (generation ${consultation.generation})`,
           confidence: 0.9,
-          requiresHumanReview: false,
+          requiresParsifalReview: false,
         },
         {
           id: newId(),
@@ -552,7 +552,7 @@ export function createSensoryCortexDefinition(
             ? `Build accepted in ${executed.cycles} inner cycle(s), outer cycle ${outerCycle}.`
             : `Reached max inner cycles (${executed.cycles}), outer cycle ${outerCycle}. Confidence: ${confidence.toFixed(2)}`,
           confidence,
-          requiresHumanReview: confidence < 0.5,
+          requiresParsifalReview: confidence < 0.5,
         },
       ];
 

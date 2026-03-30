@@ -53,7 +53,7 @@ export const DEFAULT_PLANNER_CONFIG: PlannerConfig = {
 // ─── Phase A: Manifestation ─────────────────────────────────────
 
 /**
- * The concrete future the system is building toward.
+ * The concrete future Cortex is building toward.
  *
  * Extracted from sensory cortex output after Phase A. The manifested
  * future is the anchor for everything downstream:
@@ -459,9 +459,9 @@ export interface PfcReviewResult {
 /**
  * A question that couldn't have been asked before the shalem existed.
  *
- * After completion, the system's understanding has changed enough to
+ * After completion, Cortex's understanding has changed enough to
  * see questions it couldn't see before. These surface to the
- * question-asker as proposals — the system signals, it doesn't chase
+ * question-asker as proposals — Cortex signals, it doesn't chase
  * its own curiosity without permission.
  */
 export interface GenerativeQuestion {
@@ -482,6 +482,6 @@ export interface GenerativeQuestion {
 export interface GenerativeCompletionResult {
   /** Questions that emerged from the shalem. */
   questions: GenerativeQuestion[];
-  /** The reasoning trace — how the system arrived at these questions. */
+  /** The reasoning trace — how Cortex arrived at these questions. */
   reasoning: string;
 }

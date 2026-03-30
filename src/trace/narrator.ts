@@ -1,7 +1,7 @@
 /**
  * Narrator — transforms raw ContentEntry records into human-readable StepNarrative.
  * Each content kind has a specialized narrator that extracts the most meaningful
- * information and presents it in a way that makes the system's thinking visible.
+ * information and presents it in a way that makes Cortex's thinking visible.
  */
 
 import type {
@@ -818,6 +818,7 @@ const KIND_NARRATORS: Record<ContentKind, (entry: ContentEntry) => StepNarrative
   "ne-computation": narrateGeneric,
   flexibility: narrateGeneric,
   dopamine: narrateGeneric,
+  checkpoint: narrateGeneric,
 };
 
 export function narrate(entry: ContentEntry): StepNarrative {

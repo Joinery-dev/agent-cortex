@@ -112,6 +112,40 @@ export class ExecutionController {
       });
   }
 
+  /**
+   * Resume from a checkpoint — run integrate + gate with current code.
+   * Unlike replayFrom(), this doesn't re-run the entire project. It
+   * restores state from the checkpoint and runs only the remaining phases.
+   */
+  async resumeFromCheckpoint(checkpoint: import("../types/checkpoint.js").Checkpoint): Promise<void> {
+    log.info("Resuming from checkpoint", {
+      checkpointId: checkpoint.id,
+      kind: checkpoint.kind,
+      taskId: checkpoint.taskId,
+    });
+
+    emit("exec:checkpoint-resume-started", { checkpointId: checkpoint.id });
+
+    this.runPromise = this.brainstem.runFromCheckpoint(checkpoint)
+      .then(({ gateDecision }) => {
+        log.info("Checkpoint resume completed", {
+          action: gateDecision.action,
+          checkpointId: checkpoint.id,
+        });
+        emit("exec:checkpoint-resume-complete", {
+          checkpointId: checkpoint.id,
+          action: gateDecision.action,
+        });
+      })
+      .catch((err) => {
+        log.error("Checkpoint resume failed", { error: String(err) });
+        emit("exec:checkpoint-resume-failed", {
+          checkpointId: checkpoint.id,
+          error: String(err),
+        });
+      });
+  }
+
   /** Start the initial project run. Called by the run script. */
   async startRun(): Promise<void> {
     this.runPromise = this.brainstem.runProject(this.projectContext)

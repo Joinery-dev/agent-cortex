@@ -38,11 +38,11 @@ But the current generation of harnesses — including ours — all share the sam
 
 ### 1. The harness as the product interface
 
-Every harness assumes a developer at the keyboard. But our exec discovery loop already has a natural language conversation with a human. What if the human isn't a developer?
+Every harness assumes a developer at the keyboard. But our PFC discovery loop already has a natural language conversation with a Parsifal. What if the Parsifal isn't a developer?
 
-A painting contractor says "I need a website for my business." The exec loop asks the right questions. The pipeline builds it. The human reviews screenshots. Never touches code.
+A painting contractor says "I need a website for my business." The PFC loop asks the right questions. The pipeline builds it. The Parsifal reviews screenshots. Never touches code.
 
-The harness isn't a dev tool. It's a product delivery system where the exec agent IS the product interface.
+The harness isn't a dev tool. It's a product delivery system where the PFC agent IS the product interface.
 
 ### 2. Business-aware agents
 
@@ -78,7 +78,7 @@ Instead of testing agent output with more AI, verify it with mathematical proofs
 
 ## Self-improvement landscape (historical research)
 
-Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI Self-Evolving Agents, MASS, STO). Conclusion: these approaches require rebuilding the system around replay and config-overlay experimentation. Doesn't fit Agent Cortex's architecture. The system learns through its passive learning stack instead — episodes, potentiation, plasticity weights, and dopamine-driven gradients.
+Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI Self-Evolving Agents, MASS, STO). Conclusion: these approaches require rebuilding the system around replay and config-overlay experimentation. Doesn't fit Agent Cortex's architecture. Cortex learns through its passive learning stack instead — episodes, potentiation, plasticity weights, and dopamine-driven gradients.
 
 ---
 
@@ -90,7 +90,7 @@ Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI S
 
 The breakthrough is simple: **the harness should be a learning system that gets better at understanding intent, not just better at executing tasks.** Everything else follows from that.
 
-Current harnesses — including ours — optimize execution. Better agents, better prompts, better coordination. But the actual failure modes are upstream (we don't understand what the human wants deeply enough) and downstream (we don't learn from our own failures structurally). Fixing execution when the input is wrong just produces wrong things faster.
+Current harnesses — including ours — optimize execution. Better agents, better prompts, better coordination. But the actual failure modes are upstream (we don't understand what the Parsifal wants deeply enough) and downstream (we don't learn from our own failures structurally). Fixing execution when the input is wrong just produces wrong things faster.
 
 ### The four layers
 
@@ -112,27 +112,27 @@ CONTEXT LAYER (briefings)
   What each agent needs right now for this specific task
 ```
 
-Intent sits above all three. It informs how state is interpreted ("this task technically works but doesn't match the intent"). It informs how protocols behave ("for this project, QA should focus on mobile because the clients are on phones"). It informs what goes in briefings ("the builder needs to know this is for an older demographic who prefer larger text").
+Intent sits above all three. It informs how state is interpreted ("this task technically works but doesn't match the intent"). It informs how protocols behave ("for this project, QA should focus on mobile because the Parsifal's clients are on phones"). It informs what goes in briefings ("the builder needs to know this is for an older demographic who prefer larger text").
 
 ### Project Intent
 
 A project isn't just code. It's a painting contractor's website. It's a personal assistant. It's a SaaS platform. The intent layer captures *why* the project exists and *what good looks like* — not just what features to build.
 
-Project intent is created during the exec discovery phase and is a **living document** that the exec updates as the project evolves. It includes:
+Project intent is created during the PFC discovery phase and is a **living document** that the PFC updates as the project evolves. It includes:
 - Who the project serves and what problem it solves
-- What success looks like from the human's perspective
+- What success looks like from the Parsifal's perspective
 - Key constraints and priorities
 - The vision, diagrams, and illustrations as the optimized target outcome
 
-The exec doesn't just execute intent — it **improves intent**. It's a partner with domain expertise that can propose better versions of what the human asked for. "You asked for a contact form, but based on everything I know about your business, you actually need a booking system with availability slots, and here's why."
+The PFC doesn't just execute intent — it **improves intent**. It's a partner with domain expertise that can propose better versions of what the Parsifal asked for. "You asked for a contact form, but based on everything I know about your business, you actually need a booking system with availability slots, and here's why."
 
-The human has veto power. The exec has proposal power. The exec doesn't need permission for every decision. It needs **accountability** for every decision.
+The Parsifal has veto power. The PFC has proposal power. The PFC doesn't need permission for every decision. It needs **accountability** for every decision.
 
 ### Taste Profiles
 
 Taste is how decisions get made when the intent doesn't specify. "Should the CTA be red or blue?" Intent doesn't answer that. Taste does.
 
-A taste profile captures the accumulated pattern of a human's preferences:
+A taste profile captures the accumulated pattern of a Parsifal's preferences:
 
 ```
 Visual: warm earth tones, serif headings, generous whitespace, rounded corners
@@ -142,9 +142,9 @@ Patterns: always wants a contact form, iterates on headlines most
 ```
 
 Taste profiles are:
-- **Portable across projects** — the human's preferences travel with them
+- **Portable across projects** — the Parsifal's preferences travel with them
 - **Community-shareable** — "download the 'minimalist SaaS' taste profile" as a starting point
-- **Refined over time** — every human reaction teaches the system about their preferences
+- **Refined over time** — every Parsifal reaction teaches Cortex about their preferences
 - **Never delivered as a static file** — dissolved into briefings contextually (see below)
 
 ### The habituation problem and contextual dissolution
@@ -154,10 +154,10 @@ Static instruction files (AGENTS.md, taste profiles, protocol docs) get habituat
 The solution: taste and intent are **source materials for the distiller**, never documents the agent reads directly. The agent never sees "Taste Profile: Kevin." Instead:
 
 For a builder working on the header:
-> "This site serves painting contractors. The feel is warm and professional — think rust, forest green, cream. The header should make it easy to get a quote. The client prefers generous whitespace and rounded corners."
+> "This site serves painting contractors. The feel is warm and professional — think rust, forest green, cream. The header should make it easy to get a quote. The Parsifal prefers generous whitespace and rounded corners."
 
 For a builder working on the API:
-> "Keep it simple. The client prefers straightforward over clever. Standard REST patterns, no over-engineering."
+> "Keep it simple. The Parsifal prefers straightforward over clever. Standard REST patterns, no over-engineering."
 
 Every briefing is unique because it's the intersection of *this task* and *the relevant slice of intent and taste*. The distiller performs **contextual judgment** about what this agent needs to know right now to make good decisions — not a summary, but a curated perspective.
 
@@ -167,7 +167,7 @@ This is the real breakthrough in briefing: not "here's your task" but **"here's 
 
 The industry is moving toward more constraint — tighter prompts, more guardrails, stricter schemas. We're going the opposite direction: **give agents intent and taste, not blueprints.**
 
-Instead of "create a 64px header with logo left, 5 nav links center, CTA right," you say "this is a warm, professional site for a painting contractor. The header should feel welcoming and make it easy to get a quote. Here's the visual language. Here's what the client cares about. Build it."
+Instead of "create a 64px header with logo left, 5 nav links center, CTA right," you say "this is a warm, professional site for a painting contractor. The header should feel welcoming and make it easy to get a quote. Here's the visual language. Here's what the Parsifal cares about. Build it."
 
 The builder makes *design decisions informed by intent* instead of mechanically executing a spec. The output might be better than what the PM would have specified, because the builder can see the code and the intent simultaneously.
 
@@ -176,17 +176,17 @@ The risk is inconsistency. The solution is **Goodhart tension** — optimizing m
 1. **Builder** has creative freedom within intent + taste
 2. **Design review** smooths inconsistencies BUT also recognizes when a deviation is *better* and propagates it across the project
 3. **QA** checks functional correctness independently
-4. **Exec** monitors intent alignment across everything
+4. **PFC** monitors intent alignment across everything
 
-Four forces in tension. No single agent can game the system because they're evaluated on orthogonal axes. The builder can't just "pass QA" because design review might flag it. Design review can't just enforce uniformity because it's also looking for improvements to adopt. QA can't be too rigid because the exec might say "that's technically wrong per the spec but better for the intent."
+Four forces in tension. No single agent can game Cortex because they're evaluated on orthogonal axes. The builder can't just "pass QA" because design review might flag it. Design review can't just enforce uniformity because it's also looking for improvements to adopt. QA can't be too rigid because the PFC might say "that's technically wrong per the spec but better for the intent."
 
 This is a **governance model** — checks and balances, not a chain of command.
 
 ### Intent Drift Detection
 
-The human's intent drifts. They start wanting a simple website and gradually scope-creep into wanting a full CRM. They don't announce this — it happens through a series of small requests that each seem reasonable.
+The Parsifal's intent drifts. They start wanting a simple website and gradually scope-creep into wanting a full CRM. They don't announce this — it happens through a series of small requests that each seem reasonable.
 
-The exec tracks the delta between the original project intent and the accumulated changes. Not to block drift — sometimes drift is good — but to make it visible:
+The PFC tracks the delta between the original project intent and the accumulated changes. Not to block drift — sometimes drift is good — but to make it visible:
 
 > "You started with a 5-page marketing site. Based on your requests, this is now a 12-page site with user accounts, a dashboard, and payment processing. Want to re-scope, or is this the real project now?"
 
@@ -194,33 +194,33 @@ Good human project managers do this instinctively. No agent does it. Ours will.
 
 ### Attention-Proportional Reporting
 
-The exec makes hundreds of autonomous decisions per project. The human can't review them all. The solution: **confidence-scored decision logging with attention-proportional surfacing.**
+The PFC makes hundreds of autonomous decisions per project. The Parsifal can't review them all. The solution: **confidence-scored decision logging with attention-proportional surfacing.**
 
 Every autonomous decision gets a confidence score:
-- **Below threshold** → ask the human before acting
+- **Below threshold** → ask the Parsifal before acting
 - **Above threshold** → act and log
 - **At report time** → surface the lowest-confidence decisions first
 
-The human sees: "Here are the 3 decisions I'm least confident about." Everything else is in the record if they want to look. A GUI (like the sidebar panels app) provides the monitoring surface — checkpoints, implementation progress, decision history.
+The Parsifal sees: "Here are the 3 decisions I'm least confident about." Everything else is in the record if they want to look. A GUI (like the sidebar panels app) provides the monitoring surface — checkpoints, implementation progress, decision history.
 
-The threshold is adaptive. "You're asking me too much" lowers it. "You should have asked me about that" raises it. Over time, the exec learns the human's tolerance for autonomy.
+The threshold is adaptive. "You're asking me too much" lowers it. "You should have asked me about that" raises it. Over time, the PFC learns the Parsifal's tolerance for autonomy.
 
-### The Human's Role
+### The Parsifal's Role
 
 Humans used to row boats. Then they built machines and turned wheels. Now they monitor AI systems that autonomously drive, intervening only on errors.
 
-The human's job in this system:
+The Parsifal's job in this system:
 - Express intent ("I need a website for my painting business")
 - React to proposals ("yes but make the header bolder")
 - Review confidence-flagged decisions
 - Adjust the autonomy threshold
 - Course-correct on intent drift
 
-Everything else is automated. The harness is the product interface. The exec is the product partner. The pipeline is invisible.
+Everything else is automated. The harness is the product interface. The PFC is the product partner. The pipeline is invisible.
 
 ### Where this leads
 
-The harness gets thinner over time, not thicker. Every feature we add should be measured against: "does this bring us closer to the human just saying what they want and getting it?"
+The harness gets thinner over time, not thicker. Every feature we add should be measured against: "does this bring us closer to the Parsifal just saying what they want and getting it?"
 
 Each model upgrade should make the harness thinner. The end state is just: intent layer + tools + telemetry + governance. The model handles everything else.
 
@@ -232,14 +232,14 @@ But we build toward that end state by building the intent layer *now* — becaus
 
 ### Phase 1: Intent foundations (now)
 - Implement verify/done acceptance criteria (plan written)
-- Formalize project intent as a structured document created during exec discovery
-- Add intent drift tracking to exec checkpoints
+- Formalize project intent as a structured document created during PFC discovery
+- Add intent drift tracking to PFC checkpoints
 - Build taste profile schema
 
 ### Phase 2: Smart distillation (next)
 - Refactor distill-briefing.js to draw from intent + taste, not just state
 - Contextual dissolution — agent never sees raw intent docs, only relevant slices
-- Add confidence scoring to exec autonomous decisions
+- Add confidence scoring to PFC autonomous decisions
 - Intent-aware QA (check against intent, not just specs)
 
 ### Phase 3: Generalized governance (after that)
@@ -250,7 +250,7 @@ But we build toward that end state by building the intent layer *now* — becaus
 ### Phase 4: Learning system (ongoing)
 - Cross-project learning (fleet-level pattern detection)
 - Failure taxonomy (structured data on *why* things fail, not just *that* they fail)
-- Taste profile refinement from human reactions
+- Taste profile refinement from Parsifal reactions
 - Adaptive autonomy thresholds
 - Dimension library built from cross-project learnings
 
@@ -272,7 +272,7 @@ The pattern:
 
 ### The calibration loop
 
-1. **Human provides intent.** "Here is A. We want to create A."
+1. **Parsifal provides intent.** "Here is A. We want to create A."
 
 2. **Orchestrator spawns N evaluator agents.** Each is told: "Look at this project. Pick ONE dimension that matters for its success. Define what 'good' looks like on that dimension. Your job during the project will be to optimize for this and ONLY this."
 
@@ -421,7 +421,7 @@ The dimension library isn't a database of measures. It's a **library of personas
 
 The library grows organically. Every project that invents a new dimension — a new persona, a new facet, a new instinct — adds it. Over hundreds of projects, the library becomes a comprehensive model of *everything that can matter about software*.
 
-No human could write this list. It emerges from the system using itself. Dimensions that consistently catch real issues get promoted. Dimensions that never provide actionable feedback get deprecated. The library self-prunes and self-organizes.
+No human could write this list. It emerges from Cortex using itself. Dimensions that consistently catch real issues get promoted. Dimensions that never provide actionable feedback get deprecated. The library self-prunes and self-organizes.
 
 ### Open questions
 

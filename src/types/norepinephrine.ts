@@ -1,7 +1,7 @@
 /**
  * Norepinephrine Signal — arousal/thoroughness dial.
  *
- * NE modulates how much attention the system gives to everything:
+ * NE modulates how much attention Cortex gives to everything:
  *   High NE → more senses, lower acceptance thresholds, richer briefings, more checkpoints
  *   Low NE  → fewer senses, fast-tracked, lean briefings, skip proprioception
  *
@@ -9,7 +9,7 @@
  *   1. Maturity    — Cerebellum prediction accuracy (training wheels)
  *   2. Risk        — task graph structure, WM state, weight volatility
  *   3. Novelty     — Cerebellum episode similarity (how new is this task?)
- *   4. Conviction  — PFC conviction loop (is the system convincing itself?)
+ *   4. Conviction  — PFC conviction loop (is Cortex convincing itself?)
  *
  * Split computation across the lifecycle:
  *   Dispatch time:     maturity + risk     (Scheduler)
@@ -32,7 +32,7 @@ export interface NEWeights {
   novelty: number;
   /** Weight for conviction deficit (1 - conviction level). */
   conviction: number;
-  /** Weight for human urgency signal. */
+  /** Weight for Parsifal urgency signal. */
   urgency: number;
 }
 
@@ -68,11 +68,11 @@ export interface NEInputs {
   risk?: RiskFactors;
 
   /**
-   * Mapped human urgency (0–1). From ProjectIntent.urgency.
+   * Mapped Parsifal urgency (0–1). From ProjectIntent.urgency.
    * low=0.0, normal=0.25, high=0.65, critical=1.0.
    * Absent → 0.25 (normal — no urgency declared).
    */
-  humanUrgency?: number;
+  parsifalUrgency?: number;
 
   /** Amygdala urgency override. When true, NE floors at ~0.95. */
   amygdalaOverride?: boolean;
@@ -171,7 +171,7 @@ export interface NEComponents {
   noveltyComponent: number;
   /** 1 - convictionLevel. High when conviction is low. */
   convictionComponent: number;
-  /** Mapped urgency from human intent. High when critical urgency. */
+  /** Mapped urgency from Parsifal intent. High when critical urgency. */
   urgencyComponent: number;
   /** Whether the amygdala override fired. */
   amygdalaOverride: boolean;

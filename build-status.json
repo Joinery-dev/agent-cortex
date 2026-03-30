@@ -2399,7 +2399,8 @@
       "[Reconciled] src/kernel/nursery-scanner.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/exteroception.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/visual-capture.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/visual-capture.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/visual-capture.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/checkpoint.ts exists but isn't referenced in any subtask."
     ]
   }
 }

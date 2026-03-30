@@ -6,7 +6,7 @@
  * cognitive, axiological, and volitional understanding as a gestalt.
  *
  * Two scopes:
- *   cross-project — the system's general identity. Persists to disk.
+ *   cross-project — Cortex's general identity. Persists to disk.
  *     Changes slowly across projects. Portable.
  *   per-project — formed through experience in a specific project.
  *     Lives in memory. Evolves at rhythm boundaries.
@@ -491,7 +491,7 @@ export class WorldModel {
     if (sources.plasticity) {
       const summaries: string[] = [];
 
-      // Evaluation influence — which senses the system trusts most
+      // Evaluation influence — which senses Cortex trusts most
       const evalWeights = sources.plasticity.getByCategory("evaluation-influence");
       if (evalWeights.length > 0) {
         const sorted = [...evalWeights].sort((a, b) => b.value - a.value);

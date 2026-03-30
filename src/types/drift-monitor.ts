@@ -24,7 +24,7 @@
  * that other components consume:
  *   - Scheduler reads driftLevel → decides replan vs. escalate
  *   - Taste Feedback Loop (#24) reads taste divergences → proposes updates
- *   - Escalation Pathways (#23) routes drift alerts → reaches human
+ *   - Escalation Pathways (#23) routes drift alerts → reaches the Parsifal
  *   - BetweenTasksSlowPath populates drift fields → feeds the rhythm
  */
 
@@ -168,7 +168,7 @@ export interface QuickCheckSignals {
    * Tension escalation — whether unresolved high-severity tensions are
    * accumulating across tasks.
    *
-   * Rising highTensionCount across recent tasks indicates the system is
+   * Rising highTensionCount across recent tasks indicates Cortex is
    * producing work that generates more disagreement between senses —
    * a symptom of divergence from a coherent intent.
    *
@@ -182,7 +182,7 @@ export interface QuickCheckSignals {
    * acceptance across tasks.
    *
    * If early tasks converge in 1–2 cycles but recent tasks take 4+,
-   * the system is struggling to satisfy its own standards — possibly
+   * Cortex is struggling to satisfy its own standards — possibly
    * because the work is in uncharted territory where established
    * patterns don't fit.
    *
@@ -346,7 +346,7 @@ export interface DeepAnalysis {
   summary: string;
   /**
    * Actionable recommendations. Each is a concrete suggestion,
-   * not a vague observation. Consumers: human (via escalation),
+   * not a vague observation. Consumers: Parsifal (via escalation),
    * Planner (via replan action).
    */
   recommendations: string[];

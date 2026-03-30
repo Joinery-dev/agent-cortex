@@ -1,7 +1,7 @@
 /**
  * World Model Store — file-based JSON persistence for cross-project maxims.
  *
- * Only cross-project maxims persist (they're the system's identity).
+ * Only cross-project maxims persist (they're Cortex's identity).
  * Per-project maxims live in memory and die with the project.
  *
  * Storage layout:

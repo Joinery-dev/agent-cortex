@@ -21,6 +21,9 @@
  *   - Snapshot/restore for cross-session persistence
  */
 
+import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import type {
   PlasticityStore,
   PlasticWeight,
@@ -33,6 +36,8 @@ import type {
 import { CATEGORY_CONFIG, PLASTIC_CONNECTIONS } from "../types/plasticity.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
+
+const DEFAULT_PLASTICITY_DIR = join(homedir(), ".agent-cortex", "plasticity");
 
 const log = createLogger("plasticity-store");
 
@@ -436,6 +441,63 @@ export class PlasticityStoreImpl implements PlasticityStore {
           : undefined,
       })),
     };
+  }
+
+  // ── Disk persistence ────────────────────────────────────────
+
+  /**
+   * Save current weights to disk as a ConnectionSnapshot.
+   * Atomic write: .tmp then rename. Dates serialized as ISO strings.
+   */
+  async saveToDisk(dir?: string): Promise<void> {
+    const storageDir = dir ?? DEFAULT_PLASTICITY_DIR;
+    await mkdir(storageDir, { recursive: true });
+
+    const snap = this.snapshot("disk-persist");
+    const serialized = JSON.stringify(snap, (_, value) => {
+      if (value instanceof Date) return value.toISOString();
+      return value;
+    }, 2);
+
+    const path = join(storageDir, "snapshot.json");
+    const tmpPath = path + ".tmp";
+    await writeFile(tmpPath, serialized, "utf-8");
+    await rename(tmpPath, path);
+
+    log.info("Saved to disk", { weights: this.weights.size, path });
+  }
+
+  /**
+   * Load weights from disk snapshot. Returns true if loaded, false if
+   * no snapshot found (fresh install). Dates are revived from ISO strings.
+   */
+  async loadFromDisk(dir?: string): Promise<boolean> {
+    const storageDir = dir ?? DEFAULT_PLASTICITY_DIR;
+    const path = join(storageDir, "snapshot.json");
+
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf-8");
+    } catch {
+      log.info("No persisted snapshot found — starting fresh", { path });
+      return false;
+    }
+
+    const snap = JSON.parse(raw, (key, value) => {
+      // Revive known date fields from ISO strings
+      if (
+        typeof value === "string" &&
+        (key === "capturedAt" || key === "lastModified" || key === "timestamp") &&
+        /^\d{4}-\d{2}-\d{2}T/.test(value)
+      ) {
+        return new Date(value);
+      }
+      return value;
+    }) as ConnectionSnapshot;
+
+    this.restore(snap);
+    log.info("Loaded from disk", { weights: this.weights.size, label: snap.label });
+    return true;
   }
 
   // ── Private helpers ─────────────────────────────────────────

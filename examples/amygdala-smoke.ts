@@ -4,7 +4,7 @@
  * Verifies all three responsibilities:
  *   1. Detector registry (built-in + learned)
  *   2. Pre-action gate (intention scanning)
- *   3. Alarm receiver + human escalation
+ *   3. Alarm receiver + Parsifal escalation
  *   4. Response protocol execution
  *   5. Response level modulation via plasticity
  *   6. Config toggles
@@ -329,25 +329,25 @@ console.log("\n7. Alarm receiver");
   );
 }
 
-// ─── 8. Human escalation ─────────────────────────────────────────
+// ─── 8. Parsifal escalation ─────────────────────────────────────────
 
-console.log("\n8. Human escalation — always emergency, always max");
+console.log("\n8. Parsifal escalation — always emergency, always max");
 {
   const amygdala = new Amygdala();
-  const assessment = amygdala.receiveHumanEscalation(
+  const assessment = amygdala.receiveParsifalEscalation(
     "Stop — that's the wrong database",
     { intendedTarget: "staging", actualTarget: "production" },
   );
-  assert(assessment.trigger === "human-escalation", "Trigger is human-escalation");
+  assert(assessment.trigger === "parsifal-escalation", "Trigger is parsifal-escalation");
   assert(
     assessment.effectiveSeverity === "emergency",
-    "Human escalation → always emergency",
+    "Parsifal escalation → always emergency",
   );
-  assert(assessment.responseLevel === 1.0, "Human escalation → responseLevel 1.0");
+  assert(assessment.responseLevel === 1.0, "Parsifal escalation → responseLevel 1.0");
   assert(assessment.threats.length === 1, "One threat (the escalation itself)");
   assert(
-    assessment.threats[0].category === "human-escalation",
-    "Category is human-escalation",
+    assessment.threats[0].category === "parsifal-escalation",
+    "Category is parsifal-escalation",
   );
   assert(
     assessment.threats[0].signalStrength === 1.0,
@@ -414,16 +414,16 @@ console.log("\n10. Learned detector installation");
     name: "No Communication During Build",
     origin: "hippocampus",
     sourceId: "principle-42",
-    description: "Human once escalated because the system sent a message mid-build",
+    description: "Parsifal once escalated because the system sent a message mid-build",
     scan(intentions: Intention[]): DetectedThreat[] {
       return intentions
         .filter((i) => i.category === "communicate")
         .map((i) => ({
           detectorId: "learned:no-communicate-during-build",
           intentionId: i.id,
-          description: "Communication during build (learned from human escalation)",
+          description: "Communication during build (learned from Parsifal escalation)",
           signalStrength: 0.6,
-          category: "human-escalation" as const,
+          category: "parsifal-escalation" as const,
         }));
     },
   };
@@ -439,11 +439,11 @@ console.log("\n10. Learned detector installation");
   const commIntention = createIntention(
     "intent-comm-1",
     "task-1",
-    "Send status update to human",
+    "Send status update to Parsifal",
     "communicate",
     [
       {
-        target: { kind: "human", channel: "chat" },
+        target: { kind: "parsifal", channel: "chat" },
         effect: { type: "send", message: "Build is 50% complete", urgency: "normal" },
       },
     ],
@@ -487,8 +487,8 @@ console.log("\n12. Response protocol execution");
 {
   const amygdala = new Amygdala();
 
-  // Emergency response (from human escalation)
-  const assessment = amygdala.receiveHumanEscalation(
+  // Emergency response (from Parsifal escalation)
+  const assessment = amygdala.receiveParsifalEscalation(
     "Wrong database target",
     { target: "production" },
   );

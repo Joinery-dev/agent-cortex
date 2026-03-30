@@ -24,6 +24,8 @@ import type { SensoryCortex } from "../senses/cortex.js";
 import { createTask } from "../types/task.js";
 import { newId } from "../util/ids.js";
 import { RhythmRunnerImpl } from "./runner.js";
+import { CheckpointStore } from "../trace/checkpoint-store.js";
+import type { CheckpointProvider } from "../types/checkpoint.js";
 import { HomeostasisMonitor } from "./homeostasis.js";
 import { NoOpSubcorticalHooks } from "./stubs.js";
 import type { SubcorticalHooks } from "./stubs.js";
@@ -32,6 +34,7 @@ import { Hippocampus } from "../subcortical/hippocampus.js";
 import { CompositeSubcorticalHooks } from "../subcortical/hooks.js";
 import { TonicTracker } from "../subcortical/tonic.js";
 import { createSensoryCortexDefinition } from "./rhythms/sensory-cortex.js";
+import { createBuildCycleDefinition } from "./rhythms/build-cycle.js";
 import { createProjectDefinition } from "./rhythms/project.js";
 import { WorkingMemory } from "../kernel/working-memory.js";
 import { Thalamus } from "../kernel/thalamus.js";
@@ -203,10 +206,22 @@ export class Brainstem {
     this.tasteFeedbackLoop.setLibrary(library);
     this.escalationHandler.setLibraryAndModel(library, config.models.consultation);
 
+    // ── Checkpoint provider ─────────────────────────────────────
+    // Wire the runner to capture ambient state from services at checkpoint time.
+    const checkpointProvider: CheckpointProvider = {
+      captureAmbient: (taskId: string) => ({
+        workingMemory: this.wm.snapshot(),
+        plasticity: this.plasticityStore.snapshot("checkpoint"),
+        gestalt: this.thalamus.getGestalt?.(taskId) ?? null,
+      }),
+      store: new CheckpointStore(),
+    };
+    this.runner.setCheckpointProvider(checkpointProvider);
+
     // ── Afferent signal routing ────────────────────────────────
     // PNS.receiveAfferent() creates Perceptions and emits pns:afferent.
     // Route them as rhythm interrupts based on source type:
-    //   human feedback → soft interrupt on active sensory-cortex
+    //   Parsifal feedback → soft interrupt on active sensory-cortex
     //   environment alerts → hard interrupt via amygdala pathway
     //   tool errors → soft interrupt for gate-phase consideration
     this.wireAfferentRouting();
@@ -214,7 +229,7 @@ export class Brainstem {
 
   /**
    * Subscribe to pns:afferent events and route them as rhythm interrupts.
-   * Human feedback arrives mid-task and should be considered at the next
+   * Parsifal feedback arrives mid-task and should be considered at the next
    * gate. Environment alerts may require immediate attention.
    */
   private wireAfferentRouting(): void {
@@ -231,7 +246,7 @@ export class Brainstem {
       const targetRhythmId = activeRhythms[activeRhythms.length - 1];
 
       if (sourceKind === "environment-alert" || sourceKind === "environment-change") {
-        // Environment signals → hard interrupt. The system should stop
+        // Environment signals → hard interrupt. Cortex should stop
         // and reassess — something in the world changed.
         this.runner.interrupt(targetRhythmId, {
           mode: "hard",
@@ -239,13 +254,13 @@ export class Brainstem {
           reason: `Environment signal: ${summary}`,
           context: { sourceKind, ...event.data },
         });
-      } else if (sourceKind === "human-feedback" || sourceKind === "human-correction") {
-        // Human feedback → soft interrupt. Queued for the next gate
-        // so the system can incorporate it in its next decision.
+      } else if (sourceKind === "parsifal-feedback" || sourceKind === "parsifal-correction") {
+        // Parsifal feedback → soft interrupt. Queued for the next gate
+        // so Cortex can incorporate it in its next decision.
         this.runner.interrupt(targetRhythmId, {
           mode: "soft",
           source: "pns-afferent",
-          reason: `Human input: ${summary}`,
+          reason: `Parsifal input: ${summary}`,
           context: { sourceKind, ...event.data },
         });
       } else {
@@ -282,7 +297,7 @@ export class Brainstem {
    * weights from the plasticity store.
    *
    * The raw stake (sense's self-assessed relevance) is multiplied by
-   * the learned weight (how much the system has learned to trust that
+   * the learned weight (how much Cortex has learned to trust that
    * sense's self-assessment). Returns raw stake if no weight is registered.
    */
   private createStakeAdjuster(): StakeAdjuster {
@@ -307,6 +322,7 @@ export class Brainstem {
     await this.hippocampus.load();
     await this.worldModel.load();
     await this.basalGanglia.load();
+    await this.plasticityStore.loadFromDisk();
     this.thalamus.updateProject(context.intent, context.taste);
 
     const definition = createSensoryCortexDefinition(
@@ -333,6 +349,7 @@ export class Brainstem {
     await this.hippocampus.load();
     await this.worldModel.load();
     await this.basalGanglia.load();
+    await this.plasticityStore.loadFromDisk();
     if (this.hooks instanceof CompositeSubcorticalHooks) {
       this.hooks.setProjectId(context.intent.id);
     }
@@ -364,6 +381,64 @@ export class Brainstem {
     );
 
     return this.runner.run(definition, context);
+  }
+
+  /**
+   * Resume a build-cycle from a checkpoint — run integrate + gate with current code.
+   *
+   * Restores ambient state (WM, plasticity, gestalt) from the checkpoint,
+   * constructs a fresh build-cycle definition (picking up code changes),
+   * and runs integrate → gate in isolation.
+   */
+  async runFromCheckpoint(checkpoint: import("../types/checkpoint.js").Checkpoint): Promise<{
+    integrated: unknown;
+    gateDecision: import("../types/rhythm.js").GateDecision<import("../types/brainstem.js").BuildCycleResult>;
+  }> {
+    // Load persistent stores
+    await this.hippocampus.load();
+    await this.worldModel.load();
+    await this.basalGanglia.load();
+
+    // Restore transient state from checkpoint
+    if (checkpoint.workingMemory) {
+      this.wm.restore(checkpoint.workingMemory as import("../types/working-memory.js").WorkingMemoryState);
+    }
+    if (checkpoint.plasticity) {
+      this.plasticityStore.restore(checkpoint.plasticity as import("../types/plasticity.js").ConnectionSnapshot);
+    }
+    if (checkpoint.gestalt && checkpoint.taskId) {
+      this.thalamus.restoreGestalt(
+        checkpoint.taskId,
+        checkpoint.gestalt as import("../types/task-gestalt.js").TaskGestalt,
+      );
+    }
+
+    // Restore project context from checkpoint's initialContext
+    const ctx = checkpoint.initialContext as Record<string, unknown>;
+    if (ctx.intent && ctx.taste) {
+      this.thalamus.updateProject(
+        ctx.intent as import("../types/intent.js").ProjectIntent,
+        ctx.taste as import("../types/intent.js").TasteProfile,
+      );
+    }
+
+    // Build the build-cycle definition with current code
+    const definition = createBuildCycleDefinition(
+      this.config,
+      this.library,
+      this.hooks,
+      this.wm,
+      this.thalamus,
+      this.motorCortex,
+      this.basalGanglia,
+      this.gate,
+      this.cognitiveFlexibility,
+      this.stakeAdjuster,
+      this.pns,
+      this.amygdala,
+    );
+
+    return this.runner.runFromCheckpoint(checkpoint, definition);
   }
 
   /** Get the working memory instance. */
@@ -456,18 +531,18 @@ export class Brainstem {
     return this.exteroception;
   }
 
-  /** Get the escalation handler (pause/resume + human-facing briefings). */
+  /** Get the escalation handler (pause/resume + Parsifal-facing briefings). */
   getEscalationHandler(): EscalationHandler {
     return this.escalationHandler;
   }
 
-  /** Set a delivery adapter for active escalation transport to the human. */
+  /** Set a delivery adapter for active escalation transport to the Parsifal. */
   setEscalationDelivery(adapter: import("../types/brainstem.js").EscalationDeliveryAdapter): void {
     this.escalationHandler.setDeliveryAdapter(adapter);
   }
 
   /**
-   * Set the user interaction callback for inquiry and approval.
+   * Set the Parsifal interaction callback for inquiry and approval.
    * Also wires the callback as an AgentSdkDeliveryAdapter for escalations.
    */
   setAskUser(askUser: (question: string) => Promise<string>): void {
@@ -481,11 +556,11 @@ export class Brainstem {
   }
 
   /**
-   * Receive a human response to a taste divergence proposal.
+   * Receive a Parsifal response to a taste divergence proposal.
    *
    * This closes the learning loop:
    *   1. TasteFeedbackLoop surfaced a proposal (via dispatch:taste-proposal event)
-   *   2. Human responded with update/keep/nuanced/deferred
+   *   2. Parsifal responded with update/keep/nuanced/deferred
    *   3. This method routes the response through satisfaction-signal
    *      to produce plasticity weight updates and taste profile mutations
    *   4. Changes propagate via Thalamus to all future consumers
@@ -520,7 +595,7 @@ export class Brainstem {
    * Receive a task-level approval or correction signal.
    *
    * Lighter-weight than taste responses — adjusts per-sense evaluation
-   * influence weights based on whether the human approved or corrected
+   * influence weights based on whether the Parsifal approved or corrected
    * a task's output.
    */
   receiveTaskSignal(signal: SatisfactionSignal, activeSenseNames: string[]): void {
@@ -567,7 +642,7 @@ export type { SubcorticalHooks } from "./stubs.js";
 export type { ReflexAction } from "./homeostasis.js";
 export { EscalationError, RhythmAbortedError } from "./errors.js";
 export { EscalationHandler } from "./escalation-handler.js";
-export { EventBusDeliveryAdapter, AgentSdkDeliveryAdapter, formatEscalationForHuman } from "./delivery-adapters.js";
+export { EventBusDeliveryAdapter, AgentSdkDeliveryAdapter, formatEscalationForParsifal } from "./delivery-adapters.js";
 export { Thalamus } from "../kernel/thalamus.js";
 export { AttentionScheduler } from "../kernel/attention-scheduler.js";
 export { MotorCortex } from "../kernel/motor-cortex.js";

@@ -6,7 +6,7 @@
 
 ## Vocabulary
 
-| Word | Root | Meaning | In the system |
+| Word | Root | Meaning | In Cortex |
 |------|------|---------|---------------|
 | **Shaela** | sha'al (שאל) | The great question | Project-level decomposition |
 | **Shael** | sha'al (שאל) | A nested question | Any intermediate planning level |
@@ -21,11 +21,11 @@ Shaela contains shaels. Shaels contain shaels at any depth. At the leaf, a shael
 
 ### 0. Arrival
 
-A project arrives as a shaela — a great question. The system sees a question to be lived, not a work order to execute.
+A project arrives as a shaela — a great question. Cortex sees a question to be lived, not a work order to execute.
 
 ### 1. Manifestation (Phase A) — Interactive
 
-Before decomposing anything, the system imagines the answer. Three sub-phases:
+Before decomposing anything, Cortex imagines the answer. Three sub-phases:
 
 **1a. Inquiry.** Each activated sense queries the question-asker (not always human — could be PFC for a sub-shael, or another system when Cortex is invoked as a service) using the escalation/askUser pathway. Each sense asks clarifying questions from its perspective until it feels it understands what the shaela is asking. Design asks about visual intent. Performance asks about scale constraints. Security asks about the threat surface. Intent Alignment asks about the audience.
 
@@ -234,7 +234,7 @@ Conviction loop on the shana graph within the shael. Scaled by NE — skipped fo
 
 ### 7. Shana Execution
 
-The scheduler dispatches shana within the shael. Each shana runs through the full sensory cortex rhythm: consult → explore → build → evaluate → resolve. The system lives the question and produces a shalem.
+The scheduler dispatches shana within the shael. Each shana runs through the full sensory cortex rhythm: consult → explore → build → evaluate → resolve. Cortex lives the question and produces a shalem.
 
 ### 8. Phase Gate
 
@@ -250,7 +250,7 @@ If the gate fails, replanning happens within the shael's scope, not at the proje
 
 **Slow path** (at phase group boundaries — when a set of shaels in the same phase completes): deeper drift analysis, crystallization opportunity, potential replanning at the project level.
 
-The system learns from each completed shael. The Hippocampus records the episode. The Cerebellum updates its predictions. The next shael's just-in-time planning benefits from this accumulated understanding.
+Cortex learns from each completed shael. The Hippocampus records the episode. The Cerebellum updates its predictions. The next shael's just-in-time planning benefits from this accumulated understanding.
 
 ### 10. Next Shael
 
@@ -268,17 +268,17 @@ When all shaels complete and the final integration gate passes:
 
 **12a. Retrospective.** Final evaluation against the manifested future. Learning consolidation — episodes crystallized into principles, predictions recalibrated, connections settled.
 
-**12b. Generative questions.** Now that the shalem exists and the system is living it — what are the next questions that could be asked to live this shalem more deeply?
+**12b. Generative questions.** Now that the shalem exists and Cortex is living it — what are the next questions that could be asked to live this shalem more deeply?
 
-The shalem isn't an endpoint. It's a seed. The system surfaces questions that *couldn't have been asked* before the shalem existed. Butler's principle: the shaper is shaped. The shalem changes the system's understanding enough to see questions it couldn't see before.
+The shalem isn't an endpoint. It's a seed. Cortex surfaces questions that *couldn't have been asked* before the shalem existed. Butler's principle: the shaper is shaped. The shalem changes Cortex's understanding enough to see questions it couldn't see before.
 
 These questions may be:
 - **Extensions** — go deeper in the same direction
-- **Revisions** — the shalem itself should change based on what the system now understands
+- **Revisions** — the shalem itself should change based on what Cortex now understands
 
 These are **proposals, not actions.** They surface to whatever asked the original question (the human, the PFC, another system) with enough context to decide: pursue these questions, take a different direction, or declare completion.
 
-The question-asker decides. The system signals, it doesn't chase its own curiosity without permission.
+The question-asker decides. Cortex signals, it doesn't chase its own curiosity without permission.
 
 ---
 

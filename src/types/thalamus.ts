@@ -7,7 +7,7 @@
  *   Layer 2: Convenience composers — encode selection intelligence for known consumers
  *
  * Briefings have three parts:
- *   core       — task + intent + taste (what the system always had)
+ *   core       — task + intent + taste (what Cortex always had)
  *   enrichment — WM data, PNS capabilities (what the Thalamus adds)
  *   meta       — transparency: what was included and why
  */
@@ -76,7 +76,7 @@ export interface ConsultationBriefing {
 export interface ConsultationEnrichment {
   /** Taste dissolved into consumer-specific natural language guidance. */
   dissolvedTaste?: string;
-  /** What the system has established across prior tasks. */
+  /** What Cortex has established across prior tasks. */
   patterns: EstablishedPattern[];
   /** Key decisions made so far. */
   decisions: DecisionRecord[];
@@ -88,11 +88,11 @@ export interface ConsultationEnrichment {
   openQuestions: OpenQuestion[];
   /** How many tasks have completed so far. */
   completedTaskCount: number;
-  /** What the system can physically do — grounding for sense recommendations. */
+  /** What Cortex can physically do — grounding for sense recommendations. */
   capabilitySummary?: string;
   /** Relevant principles from hippocampus (cross-project learning). */
   principles?: PrincipleSummary[];
-  /** Weltanschauung maxims — the system's integrated understanding. The frame. */
+  /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
   /** Sense pairs predicted to conflict — from prospective preparation. */
   predictedTensions?: PredictedTension[];
@@ -151,7 +151,7 @@ export interface MotorEnrichment {
   prediction?: CerebellumPrediction;
   /** Speed of light — theoretical performance ceiling. Always present when senses provide ceilings. */
   speedOfLight?: SpeedOfLight;
-  /** Weltanschauung maxims — the system's integrated understanding. The frame. */
+  /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
   /** Predicted build cycles based on similar past tasks. */
   predictedCycles?: number;
@@ -214,14 +214,14 @@ export interface SchedulingBriefing {
 // ─── Escalation Briefing ─────────────────────────────────────
 
 /**
- * What the human receives when the system escalates.
+ * What the Parsifal receives when Cortex escalates.
  * Assembled by the Thalamus so escalation messages have full context,
  * not just a raw error string. Non-task-scoped (like forScheduling).
  */
 export interface EscalationBriefing {
   /** The escalation record being surfaced. */
   escalation: import("./brainstem.js").Escalation;
-  /** What the system was doing when it escalated. */
+  /** What Cortex was doing when it escalated. */
   rhythmContext: EscalationRhythmContext;
   /** Current project state relevant to the escalation. */
   projectSnapshot: EscalationProjectSnapshot;
@@ -250,7 +250,7 @@ export interface EscalationProjectSnapshot {
   senseTrends: ScoreTrend[];
   /** Drift level if available. */
   driftLevel?: number;
-  /** World model maxims if available — the system's current understanding. */
+  /** World model maxims if available — Cortex's current understanding. */
   worldModelMaxims?: string[];
   /** Per-sense assessments of the escalation — domain expert perspectives. */
   senseAssessments?: Array<{
@@ -309,11 +309,11 @@ export interface SenseQuestionBriefing {
 /**
  * Thalamus routing decision for a mid-build question.
  * Deterministic routing based on dimension matching and stake analysis.
- * Falls back to user when no sense has sufficient expertise.
+ * Falls back to the Parsifal when no sense has sufficient expertise.
  */
 export interface QuestionRouting {
   questionId: string;
-  route: "sense" | "user";
+  route: "sense" | "parsifal";
   /** Target sense when routed internally. */
   targetSenseId?: string;
   /** Why the Thalamus chose this route. */
@@ -376,7 +376,7 @@ export interface ObservationHarvest {
 
 /**
  * What the Thalamus reads from. Required sources are available
- * from Phase 1. Optional sources plug in as the system grows.
+ * from Phase 1. Optional sources plug in as Cortex grows.
  *
  * When an optional source isn't provided, the Thalamus omits
  * that context from briefings. No registration ceremony —
@@ -399,7 +399,7 @@ export interface ThalamusSources {
 
 /**
  * What the Thalamus reads from the World Model.
- * The maxims are the system's Weltanschauung — compressed wisdom
+ * The maxims are Cortex's Weltanschauung — compressed wisdom
  * that frames all briefings.
  */
 export interface WorldModelSource {
