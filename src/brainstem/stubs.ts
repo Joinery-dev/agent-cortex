@@ -124,6 +124,18 @@ export interface SubcorticalHooks {
   ): ScoredEpisode[];
 
   /**
+   * Cerebellum: predict whether a revision cycle is worth the token cost.
+   * Returns shouldSkip=true when predicted improvement is below threshold.
+   * Called after failure classification, before committing to revision.
+   */
+  predictRevisionValue(input: {
+    taskId: string;
+    compositeScore: number;
+    failureCategory: import("../types/motor-cortex.js").FailureCategory;
+    objectingScores: number[];
+  }): { predictedDelta: number; shouldSkip: boolean; confidence: number; reason: string };
+
+  /**
    * Cerebellum: rolling prediction accuracy (0–1).
    * Used by the NE signal to compute system maturity.
    * Returns 0.5 (conservative unknown) when no cerebellum is available.
@@ -291,6 +303,16 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
   ): ScoredEpisode[] {
     log.debug("[stub] findPreliminaryMatches");
     return [];
+  }
+
+  predictRevisionValue(_input: {
+    taskId: string;
+    compositeScore: number;
+    failureCategory: import("../types/motor-cortex.js").FailureCategory;
+    objectingScores: number[];
+  }): { predictedDelta: number; shouldSkip: boolean; confidence: number; reason: string } {
+    log.debug("[stub] predictRevisionValue");
+    return { predictedDelta: 2.0, shouldSkip: false, confidence: 0, reason: "No cerebellum — revision proceeds." };
   }
 
   getCerebellumAccuracy(): number {

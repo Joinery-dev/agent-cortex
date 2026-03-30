@@ -78,7 +78,7 @@ Instead of testing agent output with more AI, verify it with mathematical proofs
 
 ## Self-improvement landscape (historical research)
 
-Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI Self-Evolving Agents, MASS, STO). Conclusion: these approaches require rebuilding the system around replay and config-overlay experimentation. Doesn't fit Agent Cortex's architecture. Cortex learns through its passive learning stack instead — episodes, potentiation, plasticity weights, and dopamine-driven gradients.
+Investigated Karpathy-style benchmark-driven auto-research (DSPy, SICA, OpenAI Self-Evolving Agents, MASS, STO). Conclusion: these approaches require rebuilding Cortex around replay and config-overlay experimentation. Doesn't fit Agent Cortex's architecture. Cortex learns through its passive learning stack instead — episodes, potentiation, plasticity weights, and dopamine-driven gradients.
 
 ---
 
@@ -326,7 +326,7 @@ Same harness. Completely different governance. Generated from the project, not f
 
 The builder isn't a separate species from the evaluators. It's the same kind of agent given a different job — "create" instead of "evaluate." Evaluators could produce competing implementations. Builders could evaluate their own work against the rubrics before submitting.
 
-The distinction between builder and evaluator is a job assignment, not an agent type. This means the system scales without needing new agent definitions for each project type.
+The distinction between builder and evaluator is a job assignment, not an agent type. This means Cortex scales without needing new agent definitions for each project type.
 
 ### Per-task dimensional attention (not per-project)
 

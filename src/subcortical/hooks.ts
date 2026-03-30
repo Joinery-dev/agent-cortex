@@ -443,6 +443,17 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     return this.cerebellum.findPreliminaryMatches(activeSenses, library);
   }
 
+  // ── Cerebellum: revision prediction gating ───────────────────
+
+  predictRevisionValue(input: {
+    taskId: string;
+    compositeScore: number;
+    failureCategory: import("../types/motor-cortex.js").FailureCategory;
+    objectingScores: number[];
+  }): { predictedDelta: number; shouldSkip: boolean; confidence: number; reason: string } {
+    return this.cerebellum.predictRevisionDelta(input);
+  }
+
   // ── Cerebellum: accuracy ─────────────────────────────────────
 
   getCerebellumAccuracy(): number {

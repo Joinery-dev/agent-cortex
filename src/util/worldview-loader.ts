@@ -54,6 +54,7 @@ const FRAME_KEYS = new Set<keyof WorldviewFrames>([
   "manifestation",
   "prospective",
   "emergence",
+  "inquiry",
 ]);
 
 /**
@@ -82,6 +83,7 @@ const HEADING_TO_KEY: Record<string, keyof WorldviewFrames> = {
   "manifestation": "manifestation",
   "prospective": "prospective",
   "emergence": "emergence",
+  "inquiry": "inquiry",
 };
 
 // ─── Parser ──────────────────────────────────────────────────────

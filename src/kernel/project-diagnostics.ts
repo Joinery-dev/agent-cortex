@@ -199,7 +199,7 @@ export class ProjectDiagnostics {
     if (replanCount >= 1 && ctx.cerebellumAccuracy > 0.6 && traj.direction === "down") {
       return {
         route: "full-diagnostic",
-        reasoning: `Cerebellum accuracy is high (${ctx.cerebellumAccuracy.toFixed(2)}) but conviction is still declining after replan. The system's own model is wrong about what's wrong.`,
+        reasoning: `Cerebellum accuracy is high (${ctx.cerebellumAccuracy.toFixed(2)}) but conviction is still declining after replan. Cortex's own model is wrong about what's wrong.`,
         firedRule: "cerebellum-wrong",
       };
     }

@@ -168,4 +168,4 @@ Frame generation is the most token-intensive call: ~20K input (CATALOG.md + seed
 
 ## Relationship to Existing Presets
 
-Shaela stays as-is — it's the system's origin worldview, co-designed with the Parsifal. PROJECT and HYBRID were always placeholders. The generation pipeline makes them obsolete: every Parsifal gets their own worldview. The presets become fallbacks for non-interactive environments.
+Shaela stays as-is — it's Cortex's origin worldview, co-designed with the Parsifal. PROJECT and HYBRID were always placeholders. The generation pipeline makes them obsolete: every Parsifal gets their own worldview. The presets become fallbacks for non-interactive environments.

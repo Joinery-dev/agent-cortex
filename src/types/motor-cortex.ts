@@ -71,6 +71,36 @@ export interface PlannedIntention {
   novelty: number;
 }
 
+// ── Failure Classification ───────────────────────────────────
+
+/**
+ * What kind of failure caused rejection.
+ *
+ * Different failure types need different revision strategies:
+ *   local-logic         → targeted surgical fix (default)
+ *   integration         → senses conflict, resolution failed
+ *   specification-gap   → motor thought it did fine, senses disagree on "done"
+ *   approach-bottleneck → the approach itself is the ceiling
+ */
+export type FailureCategory =
+  | "local-logic"
+  | "integration"
+  | "specification-gap"
+  | "approach-bottleneck";
+
+/** Result of classifying a gate rejection. */
+export interface FailureClassification {
+  category: FailureCategory;
+  /** How confident the classifier is in this category (0–1). */
+  confidence: number;
+  /** Sense IDs that drove the rejection. */
+  objectingSenseIds: string[];
+  /** Diagnostic signals that led to this classification. */
+  signals: string[];
+  /** Human-readable explanation. */
+  rationale: string;
+}
+
 // ── Revision Premotor ────────────────────────────────────────
 
 /** Context passed to premotor on revision cycles. */
@@ -78,6 +108,12 @@ export interface RevisionContext {
   previousPlan: MotorPlan;
   evaluations: SenseEvaluation[];
   resolutions: TensionResolution[];
+  /** Sense IDs that drove rejection — focus revision here. */
+  objectingSenseIds?: string[];
+  /** Weighted evaluations that drove rejection (sorted by impact). */
+  rejectionDrivers?: import("../kernel/evaluation-weighter.js").WeightedEvaluation[];
+  /** How the failure was classified — guides revision strategy. */
+  failureClassification?: FailureClassification;
 }
 
 /** Premotor's judgment on what went wrong. */

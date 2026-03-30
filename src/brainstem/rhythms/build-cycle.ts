@@ -47,6 +47,7 @@ import type { BasalGanglia } from "../../kernel/basal-ganglia.js";
 import type { CollapseContext } from "../../types/basal-ganglia.js";
 import type { CollapseSignal } from "../../types/collapse.js";
 import { computeResolutionOutcomes } from "../../kernel/resolution-quality.js";
+import { classifyFailure } from "../../kernel/failure-classifier.js";
 import type { ConvictionResult, ConvictionShaping } from "../../types/conviction.js";
 import { runConvictionLoop, modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../../kernel/conviction.js";
 import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
@@ -151,6 +152,11 @@ interface BuildCycleAccumulator {
   lastCollapseSignal: CollapseSignal | null;
   /** Resolution outcomes measured across all cycles. */
   resolutionOutcomes: ResolutionOutcome[];
+  // ── Revision Cycle Reduction ──
+  /** Failure classification from the latest rejected gate phase. */
+  lastFailureClassification: import("../../types/motor-cortex.js").FailureClassification | null;
+  /** Rejection drivers from the latest rejected gate phase (for scoped revision context). */
+  lastRejectionDrivers: WeightedEvaluation[] | null;
 }
 
 function getAcc(
@@ -176,6 +182,8 @@ function getAcc(
     priorWeighted: null,
     lastCollapseSignal: null,
     resolutionOutcomes: [],
+    lastFailureClassification: null,
+    lastRejectionDrivers: null,
   };
 }
 

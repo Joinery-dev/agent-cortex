@@ -80,7 +80,7 @@ export function processTasteResponse(
 /**
  * "Yes, update" — taste was wrong, system's interpretation was better.
  *
- * Plasticity: push thalamus.routing.taste DOWN. The system learned that
+ * Plasticity: push thalamus.routing.taste DOWN. Cortex learned that
  * deviating from stated preferences led to better outcomes, so give it
  * more interpretive freedom.
  *
@@ -137,7 +137,7 @@ function processUpdate(
 /**
  * "No, keep it" — stated preference is intentional. Goodhart case.
  *
- * The system's internal scores were misleading for this dimension —
+ * Cortex's internal scores were misleading for this dimension —
  * high scores didn't mean high satisfaction.
  *
  * Plasticity: push thalamus.routing.taste UP (be more faithful to
@@ -181,7 +181,7 @@ function processKeep(
  * better understanding than either party had. The new preference is
  * neither the stated nor the demonstrated — it's a synthesis.
  *
- * Plasticity: slight push DOWN on routing weight. The system's instinct
+ * Plasticity: slight push DOWN on routing weight. Cortex's instinct
  * to question stated preferences was correct, but the right answer
  * wasn't what the data showed — it was something new. Reward the
  * instinct with slightly more interpretive freedom, but less than

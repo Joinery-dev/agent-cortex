@@ -150,6 +150,12 @@ export interface CerebellumConfig {
   decayRate: number;
   /** Rolling window size for accuracy tracking. */
   accuracyWindowSize: number;
+
+  // ── Revision prediction gating ─────────────────────────────
+  /** Minimum predicted composite improvement to justify a revision cycle. */
+  revisionDeltaThreshold: number;
+  /** Minimum confidence to act on a revision-skip prediction. */
+  revisionSkipConfidence: number;
 }
 
 export const DEFAULT_CEREBELLUM_CONFIG: CerebellumConfig = {
@@ -160,6 +166,8 @@ export const DEFAULT_CEREBELLUM_CONFIG: CerebellumConfig = {
   similarityWeights: DEFAULT_SIMILARITY_WEIGHTS,
   decayRate: 0.1,
   accuracyWindowSize: 10,
+  revisionDeltaThreshold: 0.5,
+  revisionSkipConfidence: 0.6,
 };
 
 // ─── Accuracy tracking ─────────────────────────────────────────

@@ -55,7 +55,9 @@ export type Purpose =
   | "nursery-consultation"
   | "nursery-observation"
   | "graph-builder"
-  | "inquiry";
+  | "inquiry"
+  | "worldview-seed"
+  | "worldview-frames";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -155,6 +157,8 @@ const totalUsage: Record<Purpose, TokenUsage> = {
   "nursery-observation": { inputTokens: 0, outputTokens: 0 },
   "graph-builder": { inputTokens: 0, outputTokens: 0 },
   inquiry: { inputTokens: 0, outputTokens: 0 },
+  "worldview-seed": { inputTokens: 0, outputTokens: 0 },
+  "worldview-frames": { inputTokens: 0, outputTokens: 0 },
 };
 
 // Map our model IDs to Agent SDK model aliases

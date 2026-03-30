@@ -1,7 +1,7 @@
 /**
  * Nursery Rhythm — runtime stress-testing of completed phase artifacts.
  *
- * The system's interoception. After a phase gate passes and runtime
+ * Cortex's interoception. After a phase gate passes and runtime
  * surface area is detected, the nursery exercises the artifacts and
  * observes what happens.
  *

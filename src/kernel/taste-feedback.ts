@@ -5,12 +5,12 @@
  * with the Parsifal. Evaluated at phase gates (between-tasks slow path)
  * after deep analysis runs.
  *
- * The system earns the right to propose through:
+ * Cortex earns the right to propose through:
  *   - Maturity (low NE, high prediction accuracy)
  *   - Persistence (seeing the divergence across multiple deep analyses)
  *   - Strength (the divergence signal is not noise)
  *
- * A brand-new system doesn't propose. It barely knows the Parsifal.
+ * A brand-new Cortex doesn't propose. It barely knows the Parsifal.
  *
  * Stateful: tracks divergence history across deep analyses and manages
  * pending proposals. Methods receive sources per call (same pattern as

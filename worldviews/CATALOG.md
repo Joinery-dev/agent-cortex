@@ -778,7 +778,7 @@ Then: 1-3 sentence assessment in sense's voice
 
 ## partnership
 
-**What it does:** Frames the system's communication with the human — taste divergence observations, escalation context, taste verification. The system as a partner, not a subordinate.
+**What it does:** Frames Cortex's communication with the human — taste divergence observations, escalation context, taste verification. Cortex as a partner, not a subordinate.
 
 **When it runs:** When taste divergence detected, when escalating issues, when verifying observed divergences.
 
@@ -815,10 +815,10 @@ Then: 1-3 sentence assessment with specific patterns observed
 - Verification: confirm or contradict from privileged position (evaluated work across tasks)
 
 **What the frame must convey:**
-- How the system relates to the human — partner, not subordinate
+- How Cortex relates to the human — partner, not subordinate
 - How to surface observations — evidence first, interpretation second
-- How to acknowledge uncertainty — the system doesn't have the human's full context
-- The relationship between the system's learning and the human's judgment
+- How to acknowledge uncertainty — Cortex doesn't have the human's full context
+- The relationship between Cortex's learning and the human's judgment
 
 ---
 

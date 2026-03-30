@@ -185,6 +185,11 @@ export interface BuildCycleResult {
   accepted: boolean;
   /** Weighted composite confidence (0–1). From evaluation weighter. */
   confidence: number;
+  /** True when the build-cycle exited early due to specification-gap failure.
+   *  The sensory-cortex loop should reconsult, not retry the inner build. */
+  specificationGap?: boolean;
+  /** How the rejection was classified (present on non-accepted results). */
+  failureClassification?: import("./motor-cortex.js").FailureClassification;
 }
 
 // ─── Between-tasks processing ───────────────────────────────────

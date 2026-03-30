@@ -496,6 +496,77 @@ export class Cerebellum {
     return { p10, p50, p90, episodeCount: weighted.length };
   }
 
+  // ── Revision prediction gating ──────────────────────────────
+
+  /**
+   * Predict whether a revision cycle will produce enough improvement
+   * to justify 50-100K+ tokens of premotor + motor + evaluation.
+   *
+   * Uses existing data (no LLM calls):
+   *   - Speed-of-light gap for this task
+   *   - Current composite score
+   *   - Objecting sense scores from rejection drivers
+   *   - Failure classification
+   *
+   * Conservative by default: shouldSkip requires confidence > revisionSkipConfidence.
+   */
+  predictRevisionDelta(input: {
+    taskId: string;
+    compositeScore: number;
+    failureCategory: import("../types/motor-cortex.js").FailureCategory;
+    objectingScores: number[];
+  }): { predictedDelta: number; shouldSkip: boolean; confidence: number; reason: string } {
+    const sol = this.speedOfLightCache.get(input.taskId);
+    const solGap = sol?.compositeGap ?? null;
+
+    // Specification-gap → delta = 0, needs reconsultation not revision
+    if (input.failureCategory === "specification-gap") {
+      return {
+        predictedDelta: 0,
+        shouldSkip: true,
+        confidence: 0.7,
+        reason: "Specification gap: needs reconsultation, not revision.",
+      };
+    }
+
+    // Approach-bottleneck → delta = 0, revision won't help
+    if (input.failureCategory === "approach-bottleneck") {
+      return {
+        predictedDelta: 0,
+        shouldSkip: true,
+        confidence: 0.65,
+        reason: "Approach bottleneck: revision within current approach unlikely to improve outcome.",
+      };
+    }
+
+    // SoL gap < 1.0 composite points AND all objecting senses are borderline (5-6)
+    if (solGap !== null && solGap < 1.0 && input.objectingScores.length > 0) {
+      const allBorderline = input.objectingScores.every((s) => s >= 5 && s <= 6);
+      if (allBorderline) {
+        const predictedDelta = solGap * 0.3; // optimistic: capture 30% of remaining gap
+        const shouldSkip = predictedDelta < this.config.revisionDeltaThreshold;
+        const confidence = 0.6;
+
+        if (shouldSkip && confidence >= this.config.revisionSkipConfidence) {
+          return {
+            predictedDelta,
+            shouldSkip: true,
+            confidence,
+            reason: `Near ceiling (SoL gap ${solGap.toFixed(2)}) with borderline objections (${input.objectingScores.map((s) => s.toFixed(1)).join(", ")}). Predicted delta ${predictedDelta.toFixed(2)} < threshold ${this.config.revisionDeltaThreshold}.`,
+          };
+        }
+      }
+    }
+
+    // Default: let revision proceed
+    return {
+      predictedDelta: solGap ?? 2.0, // assume moderate improvement possible when no SoL data
+      shouldSkip: false,
+      confidence: 0.4,
+      reason: "Revision may improve outcome.",
+    };
+  }
+
   /** Number of episodes stored. */
   getEpisodeCount(): number {
     return this.episodes.length;

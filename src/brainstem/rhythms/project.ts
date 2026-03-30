@@ -37,6 +37,7 @@ import type { ConvictionResult } from "../../types/conviction.js";
 import { createLogger } from "../../util/logger.js";
 import { emit } from "../../events.js";
 import { EscalationError, RhythmAbortedError } from "../errors.js";
+import { isApproval } from "../../util/approval.js";
 import { createTaskDispatchDefinition } from "./task-dispatch.js";
 import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
 import { createSensoryCortexDefinition } from "./sensory-cortex.js";
@@ -89,20 +90,7 @@ interface ManifestationInteraction {
   config: import("../../types/orchestrator.js").CortexConfig;
 }
 
-/**
- * Heuristic: is the Parsifal's response an approval or a redirect?
- * Short affirmatives → approval. Anything substantive → redirect.
- */
-function isApproval(response: string): boolean {
-  const normalized = response.trim().toLowerCase().replace(/[.!,]+$/, "");
-  const approvals = [
-    "yes", "y", "confirmed", "confirm", "approved", "approve",
-    "looks good", "lgtm", "looks right", "that's it", "thats it",
-    "proceed", "go ahead", "ship it", "perfect", "exactly",
-    "that's what i see", "thats what i see", "correct",
-  ];
-  return approvals.includes(normalized);
-}
+// isApproval imported from ../../util/approval.js
 
 async function runManifestation(
   planner: Planner,
