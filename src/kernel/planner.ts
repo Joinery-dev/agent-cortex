@@ -69,6 +69,7 @@ import { computeCallCost } from "../types/cost.js";
 import type { ProjectCostEstimate } from "../types/cost.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { Worldview } from "../types/worldview.js";
+import { getFrame } from "../types/worldview.js";
 
 const log = createLogger("planner");
 
@@ -146,13 +147,7 @@ export class Planner {
   createManifestationTask(intent: ProjectIntent): Task {
     const id = `plan-manifest-${newId()}`;
 
-    return createTask(id, [
-      `Manifest the completed outcome for this project.`,
-      ``,
-      `Project: ${intent.summary}`,
-      `Vision: ${intent.vision}`,
-      `Audience: ${intent.audience}`,
-      ``,
+    const defaultBody = [
       `Produce a CONCRETE VISION of the finished artifact. Not a plan.`,
       `Not a list of features. The actual finished thing — described in`,
       `enough detail that someone could evaluate whether a real artifact`,
@@ -166,6 +161,18 @@ export class Planner {
       `This vision becomes the destination the system builds toward.`,
       `Every future task will be evaluated against it. Make it concrete`,
       `enough to reason backward from.`,
+    ].join("\n");
+
+    const body = getFrame("manifestation", this.worldview) ?? defaultBody;
+
+    return createTask(id, [
+      `Manifest the completed outcome for this project.`,
+      ``,
+      `Project: ${intent.summary}`,
+      `Vision: ${intent.vision}`,
+      `Audience: ${intent.audience}`,
+      ``,
+      body,
     ].join("\n"), {
       planningPhase: "manifestation",
       intentId: intent.id,

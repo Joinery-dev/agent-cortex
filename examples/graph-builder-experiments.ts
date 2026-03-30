@@ -17,7 +17,7 @@
 
 import { z } from "zod";
 import { callStructured } from "../src/llm/structured.js";
-import { SHAELA_PREAMBLE } from "../src/llm/prompts.js";
+import { SHAELA_WORLDVIEW } from "../src/types/worldview.js";
 
 // ─── Test Data: Hierarchical Decomposition ─────────────────────────
 //
@@ -425,7 +425,7 @@ const ExperimentASchema = z.object({
 type ExperimentAResult = z.infer<typeof ExperimentASchema>;
 
 function experimentASystem(): string {
-  return `${SHAELA_PREAMBLE}
+  return `${SHAELA_WORLDVIEW.preamble}
 
 You are the Graph Builder — Phase B.2: Shael Dependency Wiring.
 
@@ -487,7 +487,7 @@ const SemanticMapSchema = z.object({
 type SemanticMapResult = z.infer<typeof SemanticMapSchema>;
 
 function semanticMapSystem(): string {
-  return `${SHAELA_PREAMBLE}
+  return `${SHAELA_WORLDVIEW.preamble}
 
 You are the Graph Builder — Phase B.2: Semantic Mapping.
 
@@ -546,7 +546,7 @@ const WiringSchema = z.object({
 type WiringResult = z.infer<typeof WiringSchema>;
 
 function wiringSystem(): string {
-  return `${SHAELA_PREAMBLE}
+  return `${SHAELA_WORLDVIEW.preamble}
 
 You are the Graph Builder — Phase B.2, Pass 2: Dependency Wiring.
 
@@ -618,7 +618,7 @@ const DecomposerInlineSchema = z.object({
 type DecomposerInlineResult = z.infer<typeof DecomposerInlineSchema>;
 
 function decomposerInlineSystem(): string {
-  return `${SHAELA_PREAMBLE}
+  return `${SHAELA_WORLDVIEW.preamble}
 
 You are the Planner — Phase B.1: Decomposition with Semantic Mapping.
 
@@ -690,7 +690,7 @@ const AffinityOnlySchema = z.object({
 type AffinityOnlyResult = z.infer<typeof AffinityOnlySchema>;
 
 function affinityOnlySystem(): string {
-  return `${SHAELA_PREAMBLE}
+  return `${SHAELA_WORLDVIEW.preamble}
 
 You are the Graph Builder — Phase B.2: Affinity Analysis.
 

@@ -5,10 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Agent Cortex — Interactive 3D Brain Model</title>
   <style>
+    /* ── Reset & base ──────────────────────────────────────────── */
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #0a0a0f;
+      background: #050510;
       color: #fff;
       font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
       overflow: hidden;
@@ -39,16 +40,18 @@
       font-weight: 500;
       letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.45);
       white-space: nowrap;
       transform: translate(-50%, -50%);
       pointer-events: none;
-      transition: color 0.3s ease, opacity 0.3s ease, text-shadow 0.3s ease;
+      transition: opacity 0.3s ease, text-shadow 0.3s ease, filter 0.3s ease;
+      opacity: 0.55;
+      text-shadow: 0 0 6px currentColor;
     }
 
     .region-label.selected {
-      color: rgba(255, 255, 255, 0.95);
-      text-shadow: 0 0 12px currentColor;
+      opacity: 1.0;
+      text-shadow: 0 0 14px currentColor, 0 0 28px currentColor;
+      filter: brightness(1.3);
     }
 
     /* ── Info panel ────────────────────────────────────────────── */
@@ -57,13 +60,14 @@
       bottom: 32px;
       left: 32px;
       width: 320px;
-      background: rgba(8, 8, 18, 0.88);
+      background: rgba(5, 5, 16, 0.92);
       border: 1px solid rgba(255, 255, 255, 0.10);
+      border-left: 3px solid rgba(255, 255, 255, 0.15);
       border-radius: 10px;
       padding: 22px 26px 24px;
       opacity: 0;
       transform: translateY(10px);
-      transition: opacity 0.28s ease, transform 0.28s ease;
+      transition: opacity 0.28s ease, transform 0.28s ease, border-left-color 0.3s ease;
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       pointer-events: none;
@@ -101,12 +105,20 @@
       color: rgba(255, 255, 255, 0.72);
     }
 
+    #panel-close-hint {
+      margin-top: 14px;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      color: rgba(255, 255, 255, 0.22);
+      text-align: right;
+    }
+
     /* ── Legend ────────────────────────────────────────────────── */
     #legend {
       position: absolute;
       top: 24px;
       right: 24px;
-      background: rgba(8, 8, 18, 0.82);
+      background: rgba(5, 5, 16, 0.82);
       border: 1px solid rgba(255, 255, 255, 0.09);
       border-radius: 10px;
       padding: 14px 18px 16px;
@@ -124,12 +136,9 @@
 
     .legend-item {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 11px;
-      margin-bottom: 8px;
-      font-size: 10.5px;
-      color: rgba(255, 255, 255, 0.62);
-      letter-spacing: 0.05em;
+      margin-bottom: 11px;
     }
 
     .legend-item:last-child { margin-bottom: 0; }
@@ -139,11 +148,33 @@
       height: 3px;
       border-radius: 2px;
       flex-shrink: 0;
+      margin-top: 6px;
     }
 
-    .da-swatch   { background: #f5c542; box-shadow: 0 0 7px #f5c54280; }
-    .ne-swatch   { background: #00e5ff; box-shadow: 0 0 7px #00e5ff80; }
-    .rel-swatch  { background: rgba(255,255,255,0.3); }
+    .legend-text {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .legend-name {
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+    }
+
+    .legend-sub {
+      font-size: 9px;
+      letter-spacing: 0.05em;
+      color: rgba(255, 255, 255, 0.32);
+      text-transform: none;
+      font-weight: 400;
+    }
+
+    .da-swatch  { background: #f5c542; box-shadow: 0 0 7px #f5c54280; }
+    .ne-swatch  { background: #00e5ff; box-shadow: 0 0 7px #00e5ff80; }
+    .rel-swatch { background: rgba(255,255,255,0.3); }
 
     /* ── Title ─────────────────────────────────────────────────── */
     #title {
@@ -168,60 +199,186 @@
       text-transform: uppercase;
     }
 
-    /* ── Instructions ──────────────────────────────────────────── */
-    #instructions {
+    /* ── Explore hint (fades after 3s) ──────────────────────────── */
+    #hint {
       position: absolute;
       bottom: 26px;
       right: 26px;
       font-size: 10px;
       letter-spacing: 0.07em;
-      color: rgba(255, 255, 255, 0.28);
+      color: rgba(255, 255, 255, 0.30);
       text-align: right;
       line-height: 1.7;
-      transition: opacity 0.6s ease;
+      animation: fadeHint 0.5s ease 3s forwards;
     }
 
-    #instructions.hidden { opacity: 0; }
+    @keyframes fadeHint {
+      to { opacity: 0; pointer-events: none; }
+    }
+
+    /* ── Keyboard sidebar ───────────────────────────────────────── */
+    #sidebar {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      width: 0;
+      overflow: hidden;
+      transition: width 0.28s ease;
+      z-index: 10;
+    }
+
+    #sidebar.open {
+      width: 200px;
+    }
+
+    #sidebar-inner {
+      width: 200px;
+      background: rgba(5, 5, 16, 0.92);
+      border-right: 1px solid rgba(255,255,255,0.08);
+      padding: 14px 0 14px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    #sidebar-inner h5 {
+      font-size: 8px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.28);
+      padding: 0 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      margin-bottom: 6px;
+    }
+
+    .sidebar-btn {
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      text-align: left;
+      padding: 7px 16px;
+      font-family: inherit;
+      font-size: 10.5px;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+      color: rgba(255,255,255,0.50);
+    }
+
+    .sidebar-btn:hover,
+    .sidebar-btn:focus {
+      background: rgba(255,255,255,0.05);
+      color: rgba(255,255,255,0.90);
+      outline: none;
+    }
+
+    .sidebar-btn.active {
+      color: var(--region-color, #fff);
+      text-shadow: 0 0 8px var(--region-color, #fff);
+    }
+
+    #sidebar-toggle {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 48px;
+      background: rgba(5,5,16,0.82);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-left: none;
+      border-radius: 0 6px 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 11;
+      transition: left 0.28s ease, background 0.15s;
+      font-size: 10px;
+      color: rgba(255,255,255,0.40);
+      user-select: none;
+    }
+
+    #sidebar-toggle:hover { background: rgba(20,20,40,0.95); color: rgba(255,255,255,0.70); }
+
+    /* ── Reduced motion overrides ──────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      #hint { animation: none; }
+      #info-panel { transition: none; }
+      .region-label { transition: none; }
+    }
   </style>
 </head>
 <body>
 
-  <div id="canvas-container"></div>
-  <div id="labels"></div>
+  <!-- 3D canvas -->
+  <div id="canvas-container">
+    <!-- canvas inserted by JS; aria handled below -->
+  </div>
 
-  <div id="title">
+  <!-- Floating region labels (DOM, not canvas text) -->
+  <div id="labels" aria-hidden="true"></div>
+
+  <!-- Screen reader + keyboard navigation sidebar -->
+  <nav id="sidebar" aria-label="Brain regions">
+    <div id="sidebar-inner">
+      <h5>Regions</h5>
+      <!-- buttons injected by JS -->
+    </div>
+  </nav>
+  <button id="sidebar-toggle" aria-label="Toggle region list" aria-expanded="false">&#9776;</button>
+
+  <!-- Title -->
+  <div id="title" aria-hidden="true">
     <h1>Agent Cortex</h1>
     <p>Brain-Inspired AI Architecture</p>
   </div>
 
-  <div id="info-panel">
-    <div id="panel-name"></div>
-    <div id="panel-role"></div>
-    <div id="panel-desc"></div>
-  </div>
+  <!-- Info panel — real DOM for screen reader access -->
+  <section id="info-panel" aria-live="polite" aria-label="Selected region details">
+    <h2 id="panel-name"></h2>
+    <div id="panel-role" role="note"></div>
+    <p id="panel-desc"></p>
+    <p id="panel-close-hint">ESC or click elsewhere to close</p>
+  </section>
 
-  <div id="legend">
+  <!-- Signal pathway legend -->
+  <aside id="legend" aria-label="Signal pathway legend">
     <h4>Signal Pathways</h4>
     <div class="legend-item">
-      <div class="legend-swatch da-swatch"></div>
-      Dopamine
+      <div class="legend-swatch da-swatch" aria-hidden="true"></div>
+      <div class="legend-text">
+        <span class="legend-name" style="color:#f5c542">Dopamine</span>
+        <span class="legend-sub">reward prediction error</span>
+      </div>
     </div>
     <div class="legend-item">
-      <div class="legend-swatch ne-swatch"></div>
-      Norepinephrine
+      <div class="legend-swatch ne-swatch" aria-hidden="true"></div>
+      <div class="legend-text">
+        <span class="legend-name" style="color:#00e5ff">Norepinephrine</span>
+        <span class="legend-sub">arousal &amp; thoroughness</span>
+      </div>
     </div>
     <div class="legend-item">
-      <div class="legend-swatch rel-swatch"></div>
-      Context Relay
+      <div class="legend-swatch rel-swatch" aria-hidden="true"></div>
+      <div class="legend-text">
+        <span class="legend-name" style="color:rgba(255,255,255,0.55)">Context Relay</span>
+        <span class="legend-sub">information routing</span>
+      </div>
     </div>
-  </div>
+  </aside>
 
-  <div id="instructions">
+  <!-- Explore hint — fades after 3s via CSS -->
+  <div id="hint" aria-hidden="true">
     Click a region to explore<br>
     Drag to rotate &nbsp;·&nbsp; Scroll to zoom
   </div>
 
-  <!-- Three.js r134 UMD builds — work with file:// protocol, no ES module issues -->
+  <!-- Three.js r134 UMD — works with file:// protocol, no ES module complications -->
+  <!-- Version pinned; OrbitControls from same version tag -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
 
@@ -229,9 +386,25 @@
   'use strict';
 
   // ═══════════════════════════════════════════════════════════════
-  //  REGION CONFIG
-  //  Edit descriptions, colors, or positions here — rendering is
-  //  entirely data-driven from this array.
+  //  CONFIGURATION & CONSTANTS
+  // ═══════════════════════════════════════════════════════════════
+  const COLOR_DOPAMINE        = '#f5c542';
+  const COLOR_NOREPINEPHRINE  = '#00e5ff';
+  const ROTATE_RESUME_DELAY   = 4000;   // ms before auto-rotate resumes after user interaction
+  const LERP_K                = 0.075;  // emissive lerp coefficient (per 60fps frame)
+  const DRAG_THRESHOLD_PX     = 5;      // max pixel movement to distinguish click from drag
+
+  // ═══════════════════════════════════════════════════════════════
+  //  REGION DATA
+  //  Edit names, descriptions, colors, or positions here — all
+  //  rendering logic is driven from this array. No Three.js
+  //  knowledge required to update content.
+  //
+  //  Coordinate system:
+  //    Y+  = superior (top of brain)   — PFC at y≈+5, Brainstem at y≈-5
+  //    Z+  = anterior (front)          — PFC front z≈+1.5, Cerebellum back z≈-3
+  //    X   = lateral                   — symmetric flanking structures
+  //  Thalamus sits near origin as the literal central relay.
   // ═══════════════════════════════════════════════════════════════
   const REGIONS = [
     {
@@ -244,7 +417,7 @@
       color: '#9b59b6',
       emissiveIntensity: 0.55,
       rotationSpeed: [0.009, 0.004, 0.002],
-      description: 'Executive function hub. Runs the planner, maintains working memory, schedules attention, tracks conviction levels, and monitors for drift. Synthesizes the world model and manifested future into forward briefings seeded through the Thalamus. The conviction loop handles major phase-gate decisions; build-cycle gates use cheaper numeric checks from the Cerebellum.'
+      description: 'Executive function hub. Maintains the world model (where we are) and manifests the target future (where we\'re going). Runs the planner, schedules attention, holds conviction, monitors drift. Synthesizes PFC briefings through the Thalamus to every consumer. Conviction loop handles major phase-gate decisions; build-cycle gates use cheaper numeric checks from the Cerebellum.'
     },
     {
       id: 'thalamus',
@@ -256,7 +429,7 @@
       color: '#1abc9c',
       emissiveIntensity: 0.65,
       rotationSpeed: [0.004, 0.006, 0.003],
-      description: 'Central context relay. Routes the right information to the right consumer at the right moment. Modulates specification depth from prescriptive (high NE, low system maturity) to invitational (low NE, high confidence) — under-specifying on purpose to let builders exceed the specification. Every component receives its briefing through here.'
+      description: 'Central context relay. Routes the right information to the right consumer at the right moment — every piece of context passes through here before reaching the senses or the builder. Modulates specification depth from prescriptive (high arousal, low maturity) to invitational (high confidence), under-specifying on purpose to let builders exceed the spec.'
     },
     {
       id: 'brainstem',
@@ -268,7 +441,7 @@
       color: '#e74c3c',
       emissiveIntensity: 0.60,
       rotationSpeed: [0.0015, 0.002, 0.001],
-      description: 'Vital rhythm keeper. Maintains the breathing reflex — a project-nature-driven cognitive budget cycle. Phase-level budgeting with escalation on projected overrun. Drives system-wide NE baseline: constant low-frequency pulse signals arousal level to all consumers. The rhythm continues regardless of what tasks are running.'
+      description: 'Vital rhythm keeper. Maintains the breathing reflex — project-nature-driven cognitive budgeting. Phase-level budgets with escalation on projected overrun. Drives the system-wide Norepinephrine baseline: a constant low-frequency pulse that sets arousal level across all consumers. The rhythm continues regardless of which tasks are running.'
     },
     {
       id: 'cerebellum',
@@ -280,7 +453,7 @@
       color: '#f39c12',
       emissiveIntensity: 0.55,
       rotationSpeed: [0.007, 0.005, 0.008],
-      description: 'Prediction engine and speed-of-light ceiling estimator. Tracks historical performance to compute theoretical performance ceilings per cognitive dimension. The gap between current performance and ceiling drives learning budgets. Cerebellum prediction accuracy is the maturity signal: when it\'s reliably right, NE drops and the system accelerates. Training wheels come off automatically.'
+      description: 'Prediction engine and speed-of-light ceiling estimator. Tracks historical performance to compute theoretical ceilings per cognitive dimension. The gap between current performance and ceiling drives learning budgets. Prediction accuracy is the maturity signal: when the Cerebellum is reliably right, Norepinephrine drops and the system accelerates. Training wheels come off automatically.'
     },
     {
       id: 'hippocampus',
@@ -292,7 +465,7 @@
       color: '#27ae60',
       emissiveIntensity: 0.50,
       rotationSpeed: [0.003, 0.005, 0.002],
-      description: 'Episodic memory and principles store. Records what happened, what worked, and what the system has learned. Feeds principles back into planning cycles so hard-won knowledge compounds over time. Runs proactive discovery: territory observations plus simulation feed PFC synthesis — signaling problems before they surface, not diagnosing them after.'
+      description: 'Episodic memory and principles store. Records what happened, what worked, and what the system has learned. Feeds principles back into planning so hard-won knowledge compounds. Runs proactive discovery: territory observations plus hippocampal simulation surface problems to PFC before they manifest — signal, don\'t wait.'
     },
     {
       id: 'amygdala',
@@ -304,7 +477,7 @@
       color: '#e91e63',
       emissiveIntensity: 0.70,
       rotationSpeed: [0.006, 0.008, 0.004],
-      description: 'Urgency and threat detector. Receives exteroception signals via the monitor registry and routes high-priority alerts directly to PFC, bypassing the normal between-tasks batch queue. Urgent signals go two-path: Amygdala gets them immediately; normal signals batch. Scales NE output when threat is detected, forcing high-attention mode regardless of current task state.'
+      description: 'Urgency and threat detector. Receives exteroception signals from the monitor registry and routes high-priority alerts directly to PFC, bypassing the normal batch queue. Two-path routing: urgent signals arrive immediately, normal signals batch between tasks. Scales Norepinephrine when threat is detected, forcing high-attention mode regardless of current task state.'
     },
     {
       id: 'basal_ganglia',
@@ -316,7 +489,7 @@
       color: '#2980b9',
       emissiveIntensity: 0.50,
       rotationSpeed: [0.002, 0.004, 0.003],
-      description: 'Learned routines and action selection gate. Encodes patterns that started as deliberate plans but are now automatic — offloading cognitive load from PFC for familiar task sequences. The inhibition function acts as a gate: once a routine is selected, competing actions are suppressed, producing clean decisive behavior. Dopamine RPE drives learning here.'
+      description: 'Learned routines and action-selection gate. Encodes patterns that started as deliberate plans and are now automatic — offloading cognitive load from PFC for familiar sequences. The inhibition function gates competing actions: once a routine is selected, alternatives are suppressed, producing clean decisive behavior. Dopamine reward-error drives learning here.'
     },
     {
       id: 'sensory_cortex',
@@ -328,7 +501,7 @@
       color: '#8bc34a',
       emissiveIntensity: 0.50,
       rotationSpeed: [0.004, 0.006, 0.003],
-      description: 'Consultation and evaluation layer. Multiple sense perspectives — Design, Correctness, Systems, Intent Alignment, Security, Maintainability, Content Craft — perceive the artifact with real tools before scoring. Independent observers share a runtime but maintain separate viewpoints. At phase gates runs cross-task coherence checks that no individual sense can see alone.'
+      description: 'Consultation and evaluation layer. Multiple sense perspectives — Design, Correctness, Systems, Intent Alignment, Security, Maintainability, Content Craft — perceive the artifact with real tools before scoring. Independent observers, shared runtime. At phase gates, runs cross-task coherence checks no individual sense can see alone. Detector, not diagnoser.'
     },
     {
       id: 'motor_cortex',
@@ -340,7 +513,7 @@
       color: '#ff5722',
       emissiveIntensity: 0.60,
       rotationSpeed: [0.005, 0.007, 0.003],
-      description: 'The builder. Premotor (planning) and primary motor (production) work in sequence: Premotor reasons about approach, then sends an efference copy — a feasibility assessment — back to the senses before building begins. Senses calibrate expectations against what\'s achievable. Primary motor executes with real tools. Proprioception tracks what was actually built versus what was planned.'
+      description: 'The builder. Premotor (planning) and primary motor (production) run in sequence. Premotor sends an efference copy — a feasibility assessment — back to the senses before building begins, so expectations are calibrated against what\'s actually achievable. Primary motor executes with real tools. Proprioception tracks what was built versus what was planned.'
     },
     {
       id: 'dopamine',
@@ -349,10 +522,10 @@
       shape: 'torusKnot',
       position: [-1.2, -2.0, 0.6],
       radius: 0.46,
-      color: '#f5c542',
+      color: COLOR_DOPAMINE,
       emissiveIntensity: 0.92,
       rotationSpeed: [0.012, 0.008, 0.015],
-      description: 'Reward prediction error signal. Surges when outcomes exceed predictions (positive RPE), depresses when outcomes fall short. Drives reinforcement learning in the Basal Ganglia by tagging action sequences that produced good outcomes. Encodes the difference between expected and actual — the signal that makes the system care about getting better, not just completing tasks.'
+      description: 'Reward prediction error signal. Surges when outcomes exceed predictions; depresses when they fall short. Drives reinforcement learning in the Basal Ganglia by tagging action sequences that produced good outcomes. Encodes the difference between expected and actual — the signal that makes the system care about getting better, not just completing tasks.'
     },
     {
       id: 'norepinephrine',
@@ -361,41 +534,46 @@
       shape: 'torusKnot',
       position: [1.2, -3.2, 1.0],
       radius: 0.46,
-      color: '#00e5ff',
+      color: COLOR_NOREPINEPHRINE,
       emissiveIntensity: 0.92,
       rotationSpeed: [0.010, 0.014, 0.008],
-      description: 'Arousal and thoroughness modulator. High NE = careful, deliberate, thorough — the system\'s training wheels when it doesn\'t yet trust its own predictions. Low NE = fast-track, high confidence, looser spec. NE is the training wheels signal: as Cerebellum prediction accuracy improves, NE drops automatically. The threshold is earned through track record, not hardcoded. Three new inputs: urgency, complexity, recency.'
+      description: 'Arousal and thoroughness modulator. High Norepinephrine = careful, deliberate, thorough — the system\'s training wheels when it doesn\'t yet trust its own predictions. Low = fast-track, high confidence, looser spec. The threshold is earned through track record, not hardcoded. Three inputs: urgency, complexity, recency. Brainstem and Amygdala are the primary sources.'
     }
   ];
 
   // ═══════════════════════════════════════════════════════════════
-  //  PATHWAY CONFIG
-  //  Each pathway: animated tube between two regions.
-  //  arc: [x,y,z] midpoint perturbation — controls the curve shape.
+  //  PATHWAY DATA
+  //  Each entry defines a signal arc between two regions.
+  //  arc: [x,y,z] perturbation added to the curve midpoint —
+  //  controls the arc shape and prevents paths from overlapping.
+  //  type: 'dopamine' | 'norepinephrine' | 'relay'
   // ═══════════════════════════════════════════════════════════════
   const PATHWAYS = [
     // — Dopamine (gold) — reward/prediction-error loops ——————————
-    { from: 'dopamine',       to: 'basal_ganglia', type: 'dopamine',        color: '#f5c542', speed: 1.3,  phase: 0.0,  arc: [ 0.5,  0.5, 1.5] },
-    { from: 'basal_ganglia',  to: 'pfc',           type: 'dopamine',        color: '#f5c542', speed: 0.9,  phase: 1.1,  arc: [-2.0,  1.0, 1.0] },
-    { from: 'basal_ganglia',  to: 'motor_cortex',  type: 'dopamine',        color: '#f5c542', speed: 1.1,  phase: 2.2,  arc: [ 2.0, -0.5, 1.0] },
-    { from: 'cerebellum',     to: 'basal_ganglia', type: 'dopamine',        color: '#f5c542', speed: 0.85, phase: 3.3,  arc: [-1.0,  1.0,-0.5] },
+    { from: 'dopamine',       to: 'basal_ganglia',  type: 'dopamine',       color: COLOR_DOPAMINE,       speed: 1.30, phase: 0.0, arc: [ 0.5,  0.5,  1.5] },
+    { from: 'basal_ganglia',  to: 'pfc',            type: 'dopamine',       color: COLOR_DOPAMINE,       speed: 0.90, phase: 1.1, arc: [-2.0,  1.0,  1.0] },
+    { from: 'basal_ganglia',  to: 'motor_cortex',   type: 'dopamine',       color: COLOR_DOPAMINE,       speed: 1.10, phase: 2.2, arc: [ 2.0, -0.5,  1.0] },
+    { from: 'cerebellum',     to: 'basal_ganglia',  type: 'dopamine',       color: COLOR_DOPAMINE,       speed: 0.85, phase: 3.3, arc: [-1.0,  1.0, -0.5] },
     // — Norepinephrine (cyan) — arousal/vigilance ————————————————
-    { from: 'norepinephrine', to: 'brainstem',     type: 'norepinephrine',  color: '#00e5ff', speed: 1.4,  phase: 0.4,  arc: [-0.5, -0.5, 1.5] },
-    { from: 'brainstem',      to: 'thalamus',      type: 'norepinephrine',  color: '#00e5ff', speed: 1.05, phase: 1.5,  arc: [-1.5,  0.5, 1.0] },
-    { from: 'brainstem',      to: 'pfc',           type: 'norepinephrine',  color: '#00e5ff', speed: 0.80, phase: 0.8,  arc: [-2.0,  0.0,-1.0] },
-    { from: 'brainstem',      to: 'amygdala',      type: 'norepinephrine',  color: '#00e5ff', speed: 1.5,  phase: 2.6,  arc: [ 2.5,  0.0, 1.5] },
-    { from: 'thalamus',       to: 'sensory_cortex',type: 'norepinephrine',  color: '#00e5ff', speed: 0.95, phase: 1.9,  arc: [-1.0,  1.5,-1.0] },
+    { from: 'norepinephrine', to: 'brainstem',      type: 'norepinephrine', color: COLOR_NOREPINEPHRINE, speed: 1.40, phase: 0.4, arc: [-0.5, -0.5,  1.5] },
+    { from: 'brainstem',      to: 'thalamus',       type: 'norepinephrine', color: COLOR_NOREPINEPHRINE, speed: 1.05, phase: 1.5, arc: [-1.5,  0.5,  1.0] },
+    { from: 'brainstem',      to: 'pfc',            type: 'norepinephrine', color: COLOR_NOREPINEPHRINE, speed: 0.80, phase: 0.8, arc: [-2.0,  0.0, -1.0] },
+    { from: 'brainstem',      to: 'amygdala',       type: 'norepinephrine', color: COLOR_NOREPINEPHRINE, speed: 1.50, phase: 2.6, arc: [ 2.5,  0.0,  1.5] },
+    { from: 'thalamus',       to: 'sensory_cortex', type: 'norepinephrine', color: COLOR_NOREPINEPHRINE, speed: 0.95, phase: 1.9, arc: [-1.0,  1.5, -1.0] },
     // — Context relay (dim white) — general information routing ——
-    { from: 'thalamus',       to: 'pfc',           type: 'relay',           color: '#ffffff', speed: 0.55, phase: 0.6,  arc: [ 1.0,  0.5, 1.5] },
-    { from: 'thalamus',       to: 'motor_cortex',  type: 'relay',           color: '#ffffff', speed: 0.65, phase: 1.8,  arc: [ 2.0,  0.5, 0.5] },
-    { from: 'sensory_cortex', to: 'thalamus',      type: 'relay',           color: '#ffffff', speed: 0.60, phase: 3.1,  arc: [-1.5,  0.5, 1.0] },
-    { from: 'hippocampus',    to: 'pfc',           type: 'relay',           color: '#ffffff', speed: 0.50, phase: 2.4,  arc: [-1.0,  2.0,-1.5] },
-    { from: 'amygdala',       to: 'pfc',           type: 'relay',           color: '#ffffff', speed: 0.70, phase: 0.2,  arc: [ 1.5,  1.0, 2.0] },
-    { from: 'motor_cortex',   to: 'brainstem',     type: 'relay',           color: '#ffffff', speed: 0.45, phase: 1.3,  arc: [ 1.5, -0.5, 0.5] },
+    { from: 'thalamus',       to: 'pfc',            type: 'relay',          color: '#ffffff',            speed: 0.55, phase: 0.6, arc: [ 1.0,  0.5,  1.5] },
+    { from: 'thalamus',       to: 'motor_cortex',   type: 'relay',          color: '#ffffff',            speed: 0.65, phase: 1.8, arc: [ 2.0,  0.5,  0.5] },
+    { from: 'sensory_cortex', to: 'thalamus',       type: 'relay',          color: '#ffffff',            speed: 0.60, phase: 3.1, arc: [-1.5,  0.5,  1.0] },
+    { from: 'hippocampus',    to: 'pfc',            type: 'relay',          color: '#ffffff',            speed: 0.50, phase: 2.4, arc: [-1.0,  2.0, -1.5] },
+    { from: 'amygdala',       to: 'pfc',            type: 'relay',          color: '#ffffff',            speed: 0.70, phase: 0.2, arc: [ 1.5,  1.0,  2.0] },
+    { from: 'motor_cortex',   to: 'brainstem',      type: 'relay',          color: '#ffffff',            speed: 0.45, phase: 1.3, arc: [ 1.5, -0.5,  0.5] },
   ];
 
   // ═══════════════════════════════════════════════════════════════
   //  SCENE SETUP
+  //  Clock-based delta time prevents framerate-dependent behavior
+  //  on high-refresh displays. Renderer pixel ratio capped at 2
+  //  to stay performant on high-DPR screens.
   // ═══════════════════════════════════════════════════════════════
   const container    = document.getElementById('canvas-container');
   const labelsEl     = document.getElementById('labels');
@@ -403,7 +581,9 @@
   const panelName    = document.getElementById('panel-name');
   const panelRole    = document.getElementById('panel-role');
   const panelDesc    = document.getElementById('panel-desc');
-  const instructions = document.getElementById('instructions');
+  const sidebarEl    = document.getElementById('sidebar');
+  const sidebarInner = document.getElementById('sidebar-inner');
+  const sidebarToggle= document.getElementById('sidebar-toggle');
 
   // Renderer
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
@@ -412,9 +592,14 @@
   renderer.outputEncoding = THREE.sRGBEncoding;
   container.appendChild(renderer.domElement);
 
+  // Accessibility: canvas role and aria-label
+  renderer.domElement.setAttribute('role', 'img');
+  renderer.domElement.setAttribute('aria-label',
+    'Interactive 3D brain model of Agent Cortex. Use the region list (toggle button at left) to explore each area with keyboard navigation.');
+
   // Scene
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x0a0a0f);
+  scene.background = new THREE.Color(0x050510);
 
   // Camera
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 500);
@@ -422,17 +607,32 @@
   camera.lookAt(0, 1, 0);
 
   // OrbitControls
+  // NOTE: OrbitControls loaded as UMD from same version tag as core Three.js (r134).
+  // Version lock is critical — mismatched addon versions break silently.
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.target.set(0, 1, 0);
   controls.autoRotate      = true;
-  controls.autoRotateSpeed = 0.38;
+  controls.autoRotateSpeed = 0.38; // "breathing rotation" — barely perceptible at rest
   controls.enableDamping   = true;
   controls.dampingFactor   = 0.055;
   controls.minDistance     = 7;
   controls.maxDistance     = 38;
   controls.update();
 
-  // Lighting
+  // Auto-rotate: disable on user interaction, resume after inactivity
+  let _rotateResumeTimer = null;
+  controls.addEventListener('start', () => {
+    controls.autoRotate = false;
+    if (_rotateResumeTimer) clearTimeout(_rotateResumeTimer);
+  });
+  controls.addEventListener('end', () => {
+    if (_rotateResumeTimer) clearTimeout(_rotateResumeTimer);
+    _rotateResumeTimer = setTimeout(() => {
+      controls.autoRotate = true;
+    }, ROTATE_RESUME_DELAY);
+  });
+
+  // Lighting — ambient is dim so emissive glow dominates the visual language
   scene.add(new THREE.AmbientLight(0xffffff, 0.10));
 
   const keyLight = new THREE.PointLight(0xffffff, 0.28, 80);
@@ -445,10 +645,10 @@
 
   // ─── Particle starfield ─────────────────────────────────────
   (function buildStarfield() {
-    const count = 1200;
+    const count     = 1200;
     const positions = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      const r = 60 + Math.random() * 80;
+      const r     = 60 + Math.random() * 80;
       const theta = Math.random() * Math.PI * 2;
       const phi   = Math.acos(2 * Math.random() - 1);
       positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
@@ -457,7 +657,10 @@
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const mat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.12, sizeAttenuation: true, transparent: true, opacity: 0.45 });
+    const mat = new THREE.PointsMaterial({
+      color: 0xffffff, size: 0.12, sizeAttenuation: true,
+      transparent: true, opacity: 0.45
+    });
     scene.add(new THREE.Points(geo, mat));
   })();
 
@@ -465,18 +668,24 @@
   (function buildBrainOutline() {
     const geo = new THREE.SphereGeometry(7.5, 18, 12);
     const mat = new THREE.MeshBasicMaterial({
-      color: 0x1a2040,
-      wireframe: true,
-      transparent: true,
-      opacity: 0.10,
+      color: 0x1a2040, wireframe: true, transparent: true, opacity: 0.10,
     });
     scene.add(new THREE.Mesh(geo, mat));
   })();
 
   // ═══════════════════════════════════════════════════════════════
   //  BUILD REGION MESHES
+  //  Each region gets:
+  //    1. A visual mesh (the shaped, glowing node)
+  //    2. An invisible hitbox sphere (1.6x visual bounding radius)
+  //       — hitboxes decouple visual fidelity from click reliability.
+  //         Small regions (Amygdala, Dopamine, Norepinephrine) would
+  //         miss raycaster hits at their true size.
+  //    3. A DOM label element for screen-readable text
+  //  All raycasting happens against hitbox meshes only.
   // ═══════════════════════════════════════════════════════════════
-  const regionMap = {};
+  const regionMap     = {};   // id → region object
+  const hitboxMeshes  = [];   // raycaster targets
 
   REGIONS.forEach(region => {
     const r = region.radius;
@@ -513,6 +722,7 @@
 
     const colorObj = new THREE.Color(region.color);
 
+    // Visual mesh — emissive glow is the primary light source
     const material = new THREE.MeshStandardMaterial({
       color:             colorObj,
       emissive:          colorObj,
@@ -526,19 +736,31 @@
     mesh.userData.regionId = region.id;
     scene.add(mesh);
 
-    // Tilt torus planes so Hippocampus ≠ Basal Ganglia orientation
+    // Differentiate the two torus shapes so Hippocampus ≠ Basal Ganglia
     if (region.id === 'hippocampus')  mesh.rotation.set(Math.PI / 2.4, 0.4, 0.2);
     if (region.id === 'basal_ganglia') mesh.rotation.set(0.3, 0, Math.PI / 3);
 
-    region.mesh         = mesh;
-    region.baseEmissive = region.emissiveIntensity;
+    region.mesh          = mesh;
+    region.baseEmissive  = region.emissiveIntensity;
     region.targetEmissive = region.emissiveIntensity;
 
-    // HTML label
-    const labelEl = document.createElement('span');
-    labelEl.className   = 'region-label';
-    labelEl.textContent = region.name;
-    labelEl.dataset.id  = region.id;
+    // Invisible hitbox sphere — 1.6x visual bounding radius for reliable click detection.
+    // Sized generously for small geometries (Amygdala, neurotransmitter nodes).
+    const hitRadius  = Math.max(r * 1.6, 0.9);
+    const hitGeo     = new THREE.SphereGeometry(hitRadius, 8, 6);
+    const hitMat     = new THREE.MeshBasicMaterial({ visible: false });
+    const hitbox     = new THREE.Mesh(hitGeo, hitMat);
+    hitbox.position.set(...region.position);
+    hitbox.userData.regionId = region.id;
+    scene.add(hitbox);
+    hitboxMeshes.push(hitbox);
+
+    // DOM label — crisp at all DPR, accessible, anchored to 3D position each frame
+    const labelEl         = document.createElement('span');
+    labelEl.className     = 'region-label';
+    labelEl.textContent   = region.name;
+    labelEl.dataset.id    = region.id;
+    labelEl.style.color   = region.color;
     labelsEl.appendChild(labelEl);
     region.labelEl = labelEl;
 
@@ -547,21 +769,24 @@
 
   // ═══════════════════════════════════════════════════════════════
   //  BUILD NEUROTRANSMITTER PATHWAY TUBES
+  //  TubeGeometry along CatmullRomCurve3 with arc midpoint offsets
+  //  gives visual separation between overlapping paths.
+  //  Pathways pulse via opacity animation in the render loop —
+  //  pre-allocated geometry, updated in-place, no new objects created.
   // ═══════════════════════════════════════════════════════════════
   const pathwayObjects = [];
 
   PATHWAYS.forEach(pw => {
     const fromR = regionMap[pw.from];
     const toR   = regionMap[pw.to];
-    if (!fromR || !toR) return;
+    if (!fromR || !toR) { console.warn(`Pathway skipped: ${pw.from} → ${pw.to}`); return; }
 
     const start = new THREE.Vector3(...fromR.position);
     const end   = new THREE.Vector3(...toR.position);
     const mid   = start.clone().lerp(end, 0.5).add(new THREE.Vector3(...pw.arc));
 
-    const curve = new THREE.CatmullRomCurve3([start, mid, end]);
-
-    const isRelay = pw.type === 'relay';
+    const curve      = new THREE.CatmullRomCurve3([start, mid, end]);
+    const isRelay    = pw.type === 'relay';
     const tubeRadius = isRelay ? 0.028 : 0.040;
 
     const tubeGeo = new THREE.TubeGeometry(curve, 36, tubeRadius, 6, false);
@@ -577,53 +802,100 @@
     scene.add(tube);
 
     pathwayObjects.push({
-      mesh:          tube,
-      mat:           tubeMat,
+      mesh:        tube,
+      mat:         tubeMat,
       pw,
-      baseOpacity:   isRelay ? 0.10 : 0.48,
-      pulseAmp:      isRelay ? 0.06 : 0.28,
+      baseOpacity: isRelay ? 0.10 : 0.48,
+      pulseAmp:    isRelay ? 0.06 : 0.28,
     });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  //  RAYCASTING & SELECTION
+  //  SELECTION STATE
   // ═══════════════════════════════════════════════════════════════
-  const raycaster    = new THREE.Raycaster();
-  const mouseNDC     = new THREE.Vector2();
-  const regionMeshes = REGIONS.map(r => r.mesh);
-  let   selectedId   = null;
+  let selectedId = null;   // currently selected region id, or null
 
   function applySelection(regionId) {
-    // Reset previous
+    // Restore previous selection
     if (selectedId) {
       const prev = regionMap[selectedId];
       if (prev) {
         prev.targetEmissive = prev.baseEmissive;
         prev.labelEl.classList.remove('selected');
+        if (prev.sidebarBtn) prev.sidebarBtn.classList.remove('active');
       }
     }
 
+    // Toggle off if same region clicked again, or explicit deselect
     if (!regionId || regionId === selectedId) {
       selectedId = null;
       infoPanel.classList.remove('visible');
+      infoPanel.style.borderLeftColor = 'rgba(255,255,255,0.15)';
       return;
     }
 
     selectedId = regionId;
-    const reg = regionMap[regionId];
+    const reg  = regionMap[regionId];
+
     reg.targetEmissive = reg.baseEmissive * 3.8;
     reg.labelEl.classList.add('selected');
+    if (reg.sidebarBtn) reg.sidebarBtn.classList.add('active');
 
-    panelName.textContent    = reg.name;
-    panelRole.textContent    = reg.role;
+    // Populate info panel
+    panelName.textContent      = reg.name;
+    panelName.style.color      = reg.color;
+    panelRole.textContent      = reg.role;
     panelRole.style.background = reg.color + '28';
     panelRole.style.color      = reg.color;
     panelRole.style.border     = '1px solid ' + reg.color + '55';
-    panelDesc.textContent    = reg.description;
+    panelDesc.textContent      = reg.description;
+    infoPanel.style.borderLeftColor = reg.color;
     infoPanel.classList.add('visible');
 
-    instructions.classList.add('hidden');
+    console.log('[AgentCortex] region:selected', { region: reg.name, id: reg.id, timestamp: Date.now() });
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  KEYBOARD SIDEBAR
+  //  Provides full content access for keyboard-only and AT users.
+  //  Each button triggers the same selection logic as a 3D click.
+  // ═══════════════════════════════════════════════════════════════
+  let isSidebarOpen = false;
+
+  REGIONS.forEach(region => {
+    const btn = document.createElement('button');
+    btn.className    = 'sidebar-btn';
+    btn.textContent  = region.name;
+    btn.style.setProperty('--region-color', region.color);
+    btn.setAttribute('aria-label', `${region.name} — ${region.role}`);
+    btn.addEventListener('click', () => {
+      applySelection(region.id);
+      // Focus the info panel after selection so screen readers read the description
+      infoPanel.focus && infoPanel.focus();
+    });
+    sidebarInner.appendChild(btn);
+    region.sidebarBtn = btn;
+  });
+
+  sidebarToggle.addEventListener('click', () => {
+    isSidebarOpen = !isSidebarOpen;
+    sidebarEl.classList.toggle('open', isSidebarOpen);
+    sidebarToggle.setAttribute('aria-expanded', String(isSidebarOpen));
+    sidebarToggle.style.left = isSidebarOpen ? '200px' : '0';
+    sidebarToggle.textContent = isSidebarOpen ? '✕' : '☰';
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  RAYCASTING & INTERACTION
+  //  Drag disambiguation: only fire selection if the mouse moved
+  //  less than DRAG_THRESHOLD_PX between mousedown and mouseup.
+  //  This prevents orbit-rotate gestures from triggering clicks.
+  // ═══════════════════════════════════════════════════════════════
+  const raycaster = new THREE.Raycaster();
+  const mouseNDC  = new THREE.Vector2();
+  let   _mouseDownX = 0;
+  let   _mouseDownY = 0;
+  let   _isDragging = false;
 
   function getNDC(event) {
     const rect = renderer.domElement.getBoundingClientRect();
@@ -631,82 +903,120 @@
     mouseNDC.y = -((event.clientY - rect.top)  / rect.height) * 2 + 1;
   }
 
-  renderer.domElement.addEventListener('click', e => {
+  renderer.domElement.addEventListener('mousedown', e => {
+    _mouseDownX = e.clientX;
+    _mouseDownY = e.clientY;
+    _isDragging = false;
+  });
+
+  renderer.domElement.addEventListener('mousemove', e => {
+    // Hover cursor feedback
     getNDC(e);
     raycaster.setFromCamera(mouseNDC, camera);
-    const hits = raycaster.intersectObjects(regionMeshes);
+    const hits = raycaster.intersectObjects(hitboxMeshes);
+    renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'default';
+
+    // Mark as dragging if moved beyond threshold
+    const dx = e.clientX - _mouseDownX;
+    const dy = e.clientY - _mouseDownY;
+    if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD_PX) _isDragging = true;
+  });
+
+  renderer.domElement.addEventListener('mouseup', e => {
+    if (_isDragging) return; // Was a drag — suppress selection
+
+    getNDC(e);
+    raycaster.setFromCamera(mouseNDC, camera);
+    const hits = raycaster.intersectObjects(hitboxMeshes);
     if (hits.length > 0) {
       applySelection(hits[0].object.userData.regionId);
     } else {
+      applySelection(null); // Click on empty space deselects
+    }
+  });
+
+  // ESC closes the info panel
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && selectedId) {
       applySelection(null);
     }
   });
 
-  renderer.domElement.addEventListener('mousemove', e => {
-    getNDC(e);
-    raycaster.setFromCamera(mouseNDC, camera);
-    const hits = raycaster.intersectObjects(regionMeshes);
-    renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'default';
-  });
-
   // ═══════════════════════════════════════════════════════════════
-  //  RENDER LOOP
+  //  ANIMATION LOOP
+  //  Sections in order:
+  //    1. Controls update (damping, auto-rotate)
+  //    2. Per-region mesh animation (rotation + emissive lerp + breathe)
+  //    3. Pathway opacity pulse
+  //    4. HTML label world-to-screen projection
+  //    5. Render
+  //  Delta is capped at 50ms to prevent large jumps after tab-switch.
   // ═══════════════════════════════════════════════════════════════
-  let   clock   = 0;
+  const _clock  = new THREE.Clock();
   const _vec    = new THREE.Vector3();
-  const LERPK   = 0.075;
+  let   elapsed = 0;
+
+  // Check prefers-reduced-motion once at startup
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (prefersReducedMotion) {
+    controls.autoRotate = false;
+    console.log('[AgentCortex] prefers-reduced-motion: animations suppressed');
+  }
 
   function animate() {
     requestAnimationFrame(animate);
-    clock += 0.016;
+    const rawDelta = _clock.getDelta();
+    const delta    = Math.min(rawDelta, 0.05); // cap at 50ms
+    elapsed       += delta;
 
     controls.update();
 
-    // — Per-region animation ———————————————————————————————————
+    // 1. Per-region animation
     REGIONS.forEach(region => {
-      const [rx, ry, rz] = region.rotationSpeed;
-      region.mesh.rotation.x += rx;
-      region.mesh.rotation.y += ry;
-      region.mesh.rotation.z += rz;
+      if (!prefersReducedMotion) {
+        const [rx, ry, rz] = region.rotationSpeed;
+        region.mesh.rotation.x += rx * delta * 60;
+        region.mesh.rotation.y += ry * delta * 60;
+        region.mesh.rotation.z += rz * delta * 60;
+      }
 
-      // Emissive lerp (selection highlight)
-      const cur = region.mesh.material.emissiveIntensity;
-      region.mesh.material.emissiveIntensity += (region.targetEmissive - cur) * LERPK;
+      // Emissive lerp toward target — frame-rate independent
+      const lerpRate = 1.0 - Math.pow(1.0 - LERP_K, delta * 60);
+      const cur      = region.mesh.material.emissiveIntensity;
+      region.mesh.material.emissiveIntensity += (region.targetEmissive - cur) * lerpRate;
 
-      // Breathing pulse on selected node
-      if (region.id === selectedId) {
-        const breathe = 1.0 + 0.055 * Math.sin(clock * 2.2);
+      // Breathing pulse on selected node — suppressed under reduced-motion
+      if (!prefersReducedMotion && region.id === selectedId) {
+        const breathe = 1.0 + 0.055 * Math.sin(elapsed * 2.2);
         region.mesh.scale.setScalar(breathe);
       } else {
         const s = region.mesh.scale.x;
-        region.mesh.scale.setScalar(s + (1.0 - s) * LERPK * 2);
+        region.mesh.scale.setScalar(s + (1.0 - s) * lerpRate * 2);
       }
     });
 
-    // — Pathway pulse animation ————————————————————————————————
-    pathwayObjects.forEach(({ mat, pw, baseOpacity, pulseAmp }) => {
-      const pulse = Math.sin(clock * pw.speed + pw.phase) * 0.5 + 0.5;
-      mat.opacity = baseOpacity + pulseAmp * pulse;
-    });
+    // 2. Pathway opacity pulse
+    if (!prefersReducedMotion) {
+      pathwayObjects.forEach(({ mat, pw, baseOpacity, pulseAmp }) => {
+        const pulse = Math.sin(elapsed * pw.speed + pw.phase) * 0.5 + 0.5;
+        mat.opacity = baseOpacity + pulseAmp * pulse;
+      });
+    }
 
-    // — Update HTML label positions ————————————————————————————
+    // 3. Project region labels from world-space to screen-space each frame
     REGIONS.forEach(region => {
-      // Project a point slightly above the mesh center
       _vec.copy(region.mesh.position);
       _vec.y += region.radius + 0.55;
       _vec.project(camera);
 
       if (_vec.z >= 1.0) {
-        // Behind or on clip plane — hide
+        // Behind or on clip plane — hide label
         region.labelEl.style.display = 'none';
         return;
       }
-
       region.labelEl.style.display = '';
-      const sx = (_vec.x * 0.5 + 0.5) * window.innerWidth;
-      const sy = (-_vec.y * 0.5 + 0.5) * window.innerHeight;
-      region.labelEl.style.left = sx + 'px';
-      region.labelEl.style.top  = sy + 'px';
+      region.labelEl.style.left    = (_vec.x *  0.5 + 0.5) * window.innerWidth  + 'px';
+      region.labelEl.style.top     = (_vec.y * -0.5 + 0.5) * window.innerHeight + 'px';
     });
 
     renderer.render(scene, camera);
@@ -716,11 +1026,27 @@
 
   // ═══════════════════════════════════════════════════════════════
   //  RESIZE HANDLER
+  //  Must update camera aspect and renderer size on window reshape.
   // ═══════════════════════════════════════════════════════════════
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  //  INITIALIZATION LOG
+  //  Structured confirmation that CDN loads succeeded and scene is ready.
+  //  This is the complete observability story for a static HTML artifact.
+  // ═══════════════════════════════════════════════════════════════
+  console.log('[AgentCortex] scene:ready', {
+    threeVersion:    THREE.REVISION,
+    orbitControls:   typeof THREE.OrbitControls !== 'undefined' ? 'loaded' : 'MISSING',
+    regionCount:     REGIONS.length,
+    pathwayCount:    PATHWAYS.length,
+    hitboxCount:     hitboxMeshes.length,
+    reducedMotion:   prefersReducedMotion,
+    timestamp:       Date.now(),
   });
 
   </script>

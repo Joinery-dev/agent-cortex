@@ -53,8 +53,10 @@ import { quickTriage } from "../../kernel/quick-triage.js";
 import { applySurgery, validateProposal } from "../../kernel/graph-surgery.js";
 import { deepSynthesis } from "../../kernel/deep-synthesis.js";
 import { newId } from "../../util/ids.js";
-import { setCostTaskId } from "../../llm/client.js";
+import { setCostTaskId, setModelSelector, clearModelsUsed } from "../../llm/client.js";
 import type { CostTracker } from "../cost-tracker.js";
+import { selectModel } from "../../kernel/model-selector.js";
+import type { ModelQualityPredictor } from "../../kernel/model-selector.js";
 import { reallocateBudget } from "../../kernel/budget-allocator.js";
 import { computeAttentionBudget } from "../../kernel/attention-budget.js";
 import { simulationRelevanceThreshold } from "../../types/territory-observation.js";
@@ -351,6 +353,7 @@ export function createTaskDispatchDefinition(
   prospectiveMemory?: ProspectiveMemory,
   integrationChecker?: IntegrationChecker,
   costTracker?: CostTracker,
+  qualityPredictor?: ModelQualityPredictor,
 ): RhythmDefinition<TaskDispatchContext, TaskDispatchResult, PreparedDispatch, ExecutedDispatch, IntegratedDispatch> {
   const sensoryCortexDef = createSensoryCortexDefinition(config, library, hooks, wm, thalamus, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, pns);
   const restDef = createRestCycleDefinition(
@@ -807,6 +810,17 @@ export function createTaskDispatchDefinition(
       // Attribute LLM call costs to this task
       setCostTaskId(taskNode.task.id);
 
+      // Wire model selector — NE captured at dispatch, budget pressure read live
+      const taskNE = prepared.neLevel ?? 0.5;
+      if (qualityPredictor) {
+        setModelSelector((purpose, configuredModel) =>
+          selectModel(
+            { purpose, neLevel: taskNE, budgetPressure: costTracker?.getBudgetPressure() ?? 0, configuredModel },
+            qualityPredictor,
+          )
+        );
+      }
+
       // Compute coarse attention budget from NE + importance (Phase 1).
       // Cerebellum refinement happens in sensory-cortex prepare (Phase 2)
       // after consultation produces a fingerprint.
@@ -1108,6 +1122,9 @@ export function createTaskDispatchDefinition(
         // Clear this task's gestalt — it's done, consumers have extracted what they need
         thalamus.clearGestalt(taskId);
 
+        // Clear model selector — between-tasks processing uses configured defaults
+        setModelSelector(null);
+
         // Between-tasks fast path
         // Pipeline boundary: dopamine computation requires evaluations
         if (executed.taskResult.evaluations.length === 0) {
@@ -1118,15 +1135,28 @@ export function createTaskDispatchDefinition(
           });
         }
         const budgetSnapshot = acc.lastAttentionBudget?.cycleRange;
+
+        // Gather cost data for episode learning (model selection + cost metadata)
+        const taskCostSummary = costTracker?.getTaskBudget(taskId);
+        const costData = taskCostSummary ? {
+          cost: taskCostSummary.spent,
+          callCount: taskCostSummary.callCount,
+          costByPurpose: taskCostSummary.byPurpose as Partial<Record<import("../../llm/client.js").Purpose, number>>,
+          modelsByPurpose: costTracker!.getTaskModelsByPurpose(taskId),
+        } : undefined;
+
         const dopamine = await hooks.computeDopamineSignal(taskId, executed.taskResult.evaluations, {
           outerCycles: executed.taskResult.outerCycles ?? executed.taskResult.cycles,
           attentionBudget: budgetSnapshot
             ? { floor: budgetSnapshot.floor, expected: budgetSnapshot.expected, ceiling: budgetSnapshot.ceiling }
             : undefined,
-        });
+        }, costData);
         acc.lastDopamine = dopamine;
         await hooks.recordEpisode(taskId, executed.taskResult, dopamine);
         await hooks.updateRoutines(taskId, dopamine);
+
+        // Clean up models-used tracking for this task
+        clearModelsUsed(taskId);
 
         // Resolution Rework (#13): feed resolution quality into plasticity
         if (executed.taskResult.resolutionOutcomes?.length) {

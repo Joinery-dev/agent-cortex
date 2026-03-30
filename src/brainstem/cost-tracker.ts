@@ -37,6 +37,7 @@ export class CostTracker {
   private taskSpent = new Map<string, number>();
   private taskCalls = new Map<string, number>();
   private taskByPurpose = new Map<string, Partial<Record<Purpose, number>>>();
+  private taskModelsByPurpose = new Map<string, Partial<Record<Purpose, string>>>();
   private ledger: CostRecord[] = [];
 
   /** Milestone tracking — emit once per threshold per task. */
@@ -134,6 +135,11 @@ export class CostTracker {
       const byPurpose = this.taskByPurpose.get(taskId) ?? {};
       byPurpose[record.purpose] = (byPurpose[record.purpose] ?? 0) + record.cost;
       this.taskByPurpose.set(taskId, byPurpose);
+
+      // Track which model was used for each purpose (for Cerebellum learning)
+      const models = this.taskModelsByPurpose.get(taskId) ?? {};
+      models[record.purpose] = record.model;
+      this.taskModelsByPurpose.set(taskId, models);
     } else {
       // No task context — attribute to planning cost
       this.planningCost += record.cost;
@@ -186,6 +192,11 @@ export class CostTracker {
     if (allocated <= 0) return 0;
     const spent = this.taskSpent.get(taskId) ?? 0;
     return Math.min(1, spent / allocated);
+  }
+
+  /** Which model tier was used for each purpose during this task. */
+  getTaskModelsByPurpose(taskId: string): Partial<Record<Purpose, string>> {
+    return this.taskModelsByPurpose.get(taskId) ?? {};
   }
 
   /** Budget pressure: utilization^2 (quadratic — gentle at 50%, sharp at 80%+). */

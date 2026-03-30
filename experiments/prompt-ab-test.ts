@@ -29,11 +29,11 @@ import { join } from "path";
 import { execSync } from "child_process";
 import { callStructured } from "../src/llm/structured.js";
 import {
-  SHAELA_PREAMBLE,
   consultationUser,
   motorCortexSystem,
   assembleMotorPrompt,
 } from "../src/llm/prompts.js";
+import { SHAELA_WORLDVIEW } from "../src/types/worldview.js";
 import { CORRECTNESS_TREE } from "../src/senses/personas/correctness.js";
 import { DESIGN_TREE } from "../src/senses/personas/design.js";
 import { INTENT_ALIGNMENT_TREE } from "../src/senses/personas/intent-alignment.js";
@@ -153,7 +153,7 @@ const BASES: BaseFraming[] = [
     name: "Preamble + Task Focused",
     build: (sense, subTree, mods) => {
       const subConcerns = buildSubConcerns(subTree);
-      return `${SHAELA_PREAMBLE}
+      return `${SHAELA_WORLDVIEW.preamble}
 
 You are ${sense.name}. ${sense.sensitivity}
 ${mods.hint ? activationHintBlock(sense) : ""}
@@ -217,7 +217,7 @@ Return JSON:
     name: "Preamble + Shaela Terminology",
     build: (sense, subTree, mods) => {
       const subConcerns = buildSubConcerns(subTree);
-      return `${SHAELA_PREAMBLE}
+      return `${SHAELA_WORLDVIEW.preamble}
 
 You are ${sense.name}. ${sense.sensitivity}
 ${mods.hint ? activationHintBlock(sense) : ""}
@@ -250,7 +250,7 @@ Return JSON:
     name: "Recommended",
     build: (sense, subTree, mods) => {
       const subConcerns = buildSubConcerns(subTree);
-      return `${SHAELA_PREAMBLE}
+      return `${SHAELA_WORLDVIEW.preamble}
 
 You are ${sense.name}. ${sense.sensitivity}
 ${mods.hint ? activationHintBlock(sense) : ""}

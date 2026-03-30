@@ -42,7 +42,7 @@ export async function callStructured<T>(
         contentBlock(`Parsed ${purpose} result`, jsonText),
       ],
       purpose,
-      model,
+      model: result.model,
     });
 
     return validated;
@@ -84,7 +84,7 @@ export async function callStructured<T>(
             contentBlock(`Parsed ${purpose} result`, jsonText),
           ],
           purpose,
-          model,
+          model: result.model,
         });
 
         return validated;
@@ -116,7 +116,7 @@ export async function callStructured<T>(
           contentBlock(`Parsed ${purpose} result`, jsonText),
         ],
         purpose,
-        model,
+        model: retry.model,
       });
 
       return validated;

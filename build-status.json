@@ -200,6 +200,11 @@
               "detail": "Reframed from eviction engine to dollar-budget-driven cognitive economy. New files: src/types/cost.ts, src/brainstem/cost-tracker.ts, src/kernel/budget-allocator.ts, src/kernel/model-selector.ts, src/util/tokens.ts. Types reshaped: ContextSlot→BriefingSlot, ContextTransition→CompactionConfig/Response. Budget flows end-to-end: ProjectIntent.budget → Planner (cost estimation + budget-aware prompts) → BudgetAllocator → CostTracker (per-task allocation) → Scheduler (budgetExhausted check + taskBudget on dispatch) → SensoryCortexContext → BuildCycleContext → Gate SignalLandscape. NE: budgetPressure as risk factor. Thalamus: budget-aware depth selection (full/standard/compressed/minimal) driven by NE+budgetPressure. Homeostasis: budgetUtilization vital sign + tighten-budget reflex. Cerebellum: cost/model/depth recorded per episode, predictCost + predictQualityByModel for learned model selection + depth selection. Model selection and briefing depth are LEARNED (Cerebellum predictions), not hardcoded — cold-start defaults act as training wheels."
             },
             {
+              "name": "Wire Model Selector into LLM call path",
+              "status": "complete",
+              "detail": "Injectable callback in src/llm/client.ts (setModelSelector/clearModelsUsed/getModelsUsed). Brainstem wires selector closure at task dispatch (NE captured, budgetPressure live). CostTracker gains taskModelsByPurpose tracking. costData (including modelsByPurpose) flows through hooks.computeDopamineSignal → cerebellum.recordOutcome. Episode learning loop complete. Threading: brainstem/index.ts → project.ts → task-dispatch.ts (qualityPredictor param). Pricing updated to March 2026. structured.ts trace records use effective model."
+            },
+            {
               "name": "Wire runner pause/resume for human escalation",
               "status": "complete",
               "detail": "src/brainstem/runner.ts — Promise-based pause/resume. driveLoop awaits resolve callback, resume() invokes it. Hard interrupt races via AbortSignal. Resolution on accumulator as __escalationResolution. Implemented as part of Escalation Pathways (#23)."

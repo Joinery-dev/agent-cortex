@@ -352,6 +352,7 @@ export class Brainstem {
       this.projectDiagnostics,
       this.prospectiveMemory,
       this.costTracker ?? undefined,
+      this.cerebellum,
     );
 
     return this.runner.run(definition, context);

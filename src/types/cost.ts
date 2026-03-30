@@ -40,9 +40,9 @@ export interface ModelPricing {
  * not a service call.
  */
 export const MODEL_PRICING: ModelPricing[] = [
-  { modelPattern: "haiku",  inputPer1M: 0.80,  outputPer1M: 4.00 },
+  { modelPattern: "haiku",  inputPer1M: 1.00,  outputPer1M: 5.00 },
   { modelPattern: "sonnet", inputPer1M: 3.00,  outputPer1M: 15.00 },
-  { modelPattern: "opus",   inputPer1M: 15.00, outputPer1M: 75.00 },
+  { modelPattern: "opus",   inputPer1M: 5.00,  outputPer1M: 25.00 },
 ];
 
 /**

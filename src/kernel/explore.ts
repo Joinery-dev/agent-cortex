@@ -73,7 +73,24 @@ The selection criterion is surprise × quality. A surprising AND viable path bea
 Tag each path with 1-3 archetype tags from this fixed vocabulary:
 ${ARCHETYPE_LIST}
 
-Return JSON: { "paths": [ ... ] }`;
+Return JSON matching this exact structure:
+{
+  "paths": [
+    {
+      "name": "short descriptive name",
+      "approach": "strategic description of this path",
+      "archetypeTags": ["tag1", "tag2"],
+      "divergenceRationale": "why this path is different from the others",
+      "tradeoffs": ["tradeoff 1", "tradeoff 2"],
+      "senseAlignment": {
+        "serves": ["sense names this path particularly serves"],
+        "sacrifices": ["sense names this path sacrifices"]
+      },
+      "quality": 0.7,
+      "surprise": 0.5
+    }
+  ]
+}`;
 }
 
 function exploreUser(
