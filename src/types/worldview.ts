@@ -121,7 +121,43 @@ export interface Worldview {
   frames: Partial<WorldviewFrames>;
 }
 
-// ─── Frame accessor ──────────────────────────────────────────────
+// ─── Frame loading ─────��────────────────────────────────────────
+// SHAELA_WORLDVIEW starts with empty frames. On first access, we
+// load them from worldviews/shaela.md (sync — loadWorldview uses
+// readFileSync). This avoids duplicating the .md prose in code.
+
+// No circular dep: worldview-loader uses `import type` from this
+// file, which is erased at compile time. At runtime the import
+// graph is one-directional: worldview.ts → worldview-loader.ts.
+
+import { loadWorldview } from "../util/worldview-loader.js";
+import { fileURLToPath } from "node:url";
+import { resolve, dirname, join } from "node:path";
+import { existsSync } from "node:fs";
+
+let _defaultFramesLoaded = false;
+
+/**
+ * Populate SHAELA_WORLDVIEW.frames from worldviews/shaela.md.
+ * Safe to call multiple times — loads once. Fails silently if
+ * the .md file isn't found (frames fall back to code defaults).
+ */
+export function ensureDefaultFrames(): void {
+  if (_defaultFramesLoaded) return;
+  _defaultFramesLoaded = true;
+  try {
+    const here = fileURLToPath(import.meta.url);
+    const root = resolve(dirname(here), "../..");
+    const mdPath = join(root, "worldviews/shaela.md");
+    if (!existsSync(mdPath)) return;
+    const loaded = loadWorldview(mdPath);
+    Object.assign(SHAELA_WORLDVIEW.frames, loaded.frames);
+  } catch {
+    // Fail silently — bodyOrDefault falls back to hardcoded defaults
+  }
+}
+
+// ─── Frame accessor ─────────────���────────────────────────────────
 
 /**
  * Get a frame from a worldview, falling back to the default worldview.
@@ -131,6 +167,7 @@ export function getFrame(
   key: keyof WorldviewFrames,
   worldview?: Worldview,
 ): string | undefined {
+  ensureDefaultFrames();
   return worldview?.frames?.[key] ?? DEFAULT_WORLDVIEW.frames?.[key];
 }
 

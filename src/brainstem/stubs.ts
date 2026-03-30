@@ -69,6 +69,13 @@ export interface SubcorticalHooks {
       outerCycles: number;
       attentionBudget?: { floor: number; expected: number; ceiling: number };
     },
+    costData?: {
+      cost: number;
+      callCount: number;
+      costByPurpose: Partial<Record<import("../llm/client.js").Purpose, number>>;
+      modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
+      briefingDepth?: import("../types/cost.js").BriefingDepth;
+    },
   ): Promise<number>;
 
   /** Hippocampus: record a full task episode with its dopamine signal. */
@@ -216,6 +223,13 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
     _cycleData?: {
       outerCycles: number;
       attentionBudget?: { floor: number; expected: number; ceiling: number };
+    },
+    _costData?: {
+      cost: number;
+      callCount: number;
+      costByPurpose: Partial<Record<import("../llm/client.js").Purpose, number>>;
+      modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
+      briefingDepth?: import("../types/cost.js").BriefingDepth;
     },
   ): Promise<number> {
     log.debug("[stub] computeDopamineSignal", { taskId });

@@ -72,6 +72,36 @@ export function setCostTaskId(taskId: string | null): void {
   currentTaskId = taskId;
 }
 
+// ─── Model selector callback ───────────────────────────────────
+// Registered by the Brainstem at task dispatch. Picks the cheapest
+// model tier whose predicted quality meets the NE-modulated threshold.
+// When null, call() uses the model passed by the caller (cold start).
+
+type ModelSelectorFn = (purpose: Purpose, configuredModel: string) => { model: string; source: string };
+let activeModelSelector: ModelSelectorFn | null = null;
+
+/** Set (or clear) the active model selector for subsequent LLM calls. */
+export function setModelSelector(fn: ModelSelectorFn | null): void {
+  activeModelSelector = fn;
+}
+
+// ─── Models-used tracking (per task) ────────────────────────────
+// Records which model tier was actually used for each purpose during
+// a task. Read by the Brainstem at task completion to populate
+// episode.modelsByPurpose for Cerebellum learning.
+
+const taskModelsUsed = new Map<string, Partial<Record<Purpose, string>>>();
+
+/** Get the models used for each purpose during a task. */
+export function getModelsUsed(taskId: string): Partial<Record<Purpose, string>> {
+  return taskModelsUsed.get(taskId) ?? {};
+}
+
+/** Clean up models-used tracking for a completed task. */
+export function clearModelsUsed(taskId: string): void {
+  taskModelsUsed.delete(taskId);
+}
+
 // Running totals for observability
 const totalUsage: Record<Purpose, TokenUsage> = {
   consultation: { inputTokens: 0, outputTokens: 0 },
@@ -149,7 +179,18 @@ export async function call(
     return { text: cached.text, usage, model: cached.model, costDollars: 0 };
   }
 
-  const sdkModel = resolveModel(model);
+  // Model selection — transparent to callers
+  const effectiveModel = activeModelSelector
+    ? activeModelSelector(purpose, model).model
+    : model;
+  const sdkModel = resolveModel(effectiveModel);
+
+  // Track which model was used for this purpose (for episode learning)
+  if (currentTaskId) {
+    const used = taskModelsUsed.get(currentTaskId) ?? {};
+    used[purpose] = sdkModel;
+    taskModelsUsed.set(currentTaskId, used);
+  }
 
   log.debug(`${purpose} call via Agent SDK (${sdkModel})`, {
     systemLength: system.length,
@@ -402,7 +443,19 @@ export async function agenticCall(
     };
   }
 
-  const sdkModel = resolveModel(model);
+  // Model selection — transparent to callers
+  const effectiveModel = activeModelSelector
+    ? activeModelSelector(purpose, model).model
+    : model;
+  const sdkModel = resolveModel(effectiveModel);
+
+  // Track which model was used for this purpose (for episode learning)
+  if (currentTaskId) {
+    const used = taskModelsUsed.get(currentTaskId) ?? {};
+    used[purpose] = sdkModel;
+    taskModelsUsed.set(currentTaskId, used);
+  }
+
   const maxTurns = opts?.maxTurns ?? 15;
   const startTime = Date.now();
 

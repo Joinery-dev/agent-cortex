@@ -22,10 +22,17 @@ import { summarizeVisualCaptures } from "../kernel/visual-capture.js";
 // Worldview-aware: when a Worldview is provided, its preamble replaces this.
 
 import type { Worldview, WorldviewFrames } from "../types/worldview.js";
-import { DEFAULT_WORLDVIEW } from "../types/worldview.js";
+import { DEFAULT_WORLDVIEW, ensureDefaultFrames } from "../types/worldview.js";
 import { getActiveWorldview } from "../util/worldview-context.js";
 
-export const SHAELA_PREAMBLE = `In this system, being is framed as shaela — questions to be lived. Shaels are questions nested within questions that are evermore specific. A shana is a question specific enough to be lived in one cycle. When lived deeply it becomes a shalem — an embodiment, an artifact that crystallizes understanding. Your role is to understand deeply enough that the answer emerges.`;
+// Ensure shaela.md frames are loaded before any prompt function runs.
+ensureDefaultFrames();
+
+/**
+ * @deprecated Use `SHAELA_WORLDVIEW.preamble` or `preamble()` instead.
+ * Kept for backward compatibility with experiment files.
+ */
+export const SHAELA_PREAMBLE = DEFAULT_WORLDVIEW.preamble;
 
 /**
  * Resolve the active worldview: explicit parameter > AsyncLocalStorage > default.

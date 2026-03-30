@@ -183,9 +183,10 @@ export function createProjectDefinition(
   projectDiagnostics?: ProjectDiagnostics,
   prospectiveMemory?: ProspectiveMemory,
   costTracker?: CostTracker,
+  qualityPredictor?: import("../../kernel/model-selector.js").ModelQualityPredictor,
 ): RhythmDefinition<ProjectContext, ProjectResult, PreparedProject, TaskDispatchResult, ProjectResult> {
   const integrationChecker = new IntegrationChecker(undefined, library, wm, thalamus, config);
-  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker);
+  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker, qualityPredictor);
 
   // Sensory cortex definition for planning tasks — same machinery used for
   // regular tasks, now plugged into the project rhythm for Phase A manifestation.

@@ -149,8 +149,15 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
       outerCycles: number;
       attentionBudget?: { floor: number; expected: number; ceiling: number };
     },
+    costData?: {
+      cost: number;
+      callCount: number;
+      costByPurpose: Partial<Record<import("../llm/client.js").Purpose, number>>;
+      modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
+      briefingDepth?: import("../types/cost.js").BriefingDepth;
+    },
   ): Promise<number> {
-    const signal = this.cerebellum.recordOutcome(taskId, evaluations, undefined, cycleData);
+    const signal = this.cerebellum.recordOutcome(taskId, evaluations, costData, cycleData);
 
     // Feed prediction efficiency (ceiling-relative) to homeostasis.
     // Recalibration triggers when efficiency is low — meaning room to
