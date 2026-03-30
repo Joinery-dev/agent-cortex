@@ -2473,7 +2473,7 @@ export function pfcReviewSystem(worldview?: Worldview): string {
 
 You are the PFC — Phase B.3: Structural Review.
 
-You have been given a MANIFESTED FUTURE and a fully wired plan (nodes + semantic map + dependencies + affinity groups). Your job: validate the plan's structural integrity against the manifested future. Find problems. Suggest fixes.
+${bodyOrDefault("wiring", `You have been given a MANIFESTED FUTURE and a fully wired plan (nodes + semantic map + dependencies + affinity groups). Your job: validate the plan's structural integrity against the manifested future. Find problems. Suggest fixes.`, worldview)}
 
 You run FOUR TESTS:
 
