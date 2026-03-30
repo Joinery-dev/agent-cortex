@@ -64,8 +64,9 @@ import {
 } from "../kernel/satisfaction-signal.js";
 import type { SatisfactionResponse, SatisfactionSignal } from "../types/satisfaction-signal.js";
 import { EscalationHandler } from "./escalation-handler.js";
+import { AgentSdkDeliveryAdapter } from "./delivery-adapters.js";
 import { CostTracker } from "./cost-tracker.js";
-import { registerCostCallback, setCostTaskId } from "../llm/client.js";
+import { registerCostCallback, setCostTaskId, setLlmConcurrency } from "../llm/client.js";
 import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
 import { DEFAULT_COST_BUDGET } from "../types/cost.js";
 import { bus } from "../events.js";
@@ -100,6 +101,7 @@ export class Brainstem {
   private exteroception: ExteroceptionSystem;
   private escalationHandler: EscalationHandler;
   private costTracker: CostTracker | null = null;
+  private askUser?: (question: string) => Promise<string>;
 
   constructor(
     config: CortexConfig,
@@ -117,6 +119,11 @@ export class Brainstem {
     this.library = library;
     this.runner = new RhythmRunnerImpl();
     this.homeostasis = new HomeostasisMonitor();
+
+    // Apply global LLM concurrency limit if configured
+    if (config.llmConcurrency) {
+      setLlmConcurrency(config.llmConcurrency);
+    }
 
     // Subcortical systems: prediction + episodic memory + plasticity.
     this.cerebellum = new Cerebellum();
@@ -353,6 +360,7 @@ export class Brainstem {
       this.prospectiveMemory,
       this.costTracker ?? undefined,
       this.cerebellum,
+      this.askUser,
     );
 
     return this.runner.run(definition, context);
@@ -456,6 +464,15 @@ export class Brainstem {
   /** Set a delivery adapter for active escalation transport to the human. */
   setEscalationDelivery(adapter: import("../types/brainstem.js").EscalationDeliveryAdapter): void {
     this.escalationHandler.setDeliveryAdapter(adapter);
+  }
+
+  /**
+   * Set the user interaction callback for inquiry and approval.
+   * Also wires the callback as an AgentSdkDeliveryAdapter for escalations.
+   */
+  setAskUser(askUser: (question: string) => Promise<string>): void {
+    this.askUser = askUser;
+    this.escalationHandler.setDeliveryAdapter(new AgentSdkDeliveryAdapter(askUser));
   }
 
   /** Get the taste feedback loop (taste divergence proposals). */

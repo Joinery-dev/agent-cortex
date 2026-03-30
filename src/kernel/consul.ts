@@ -8,7 +8,7 @@ import type { ConsultationBriefing } from "../types/thalamus.js";
 import type { WeightedEvaluation, WeightedComposite } from "./evaluation-weighter.js";
 import { SensoryCortex } from "../senses/cortex.js";
 import { callStructured } from "../llm/structured.js";
-import { consultationSystem, consultationUser, reconsultationSystem, reconsultationUser } from "../llm/prompts.js";
+import { consultationSystem, consultationUser, reconsultationSystem, reconsultationUser, inquirySystem, inquiryUser } from "../llm/prompts.js";
 import { createLogger } from "../util/logger.js";
 import { emit, emitWarn } from "../events.js";
 import { getContentStore, contentBlock } from "../trace/content-store.js";
@@ -210,6 +210,155 @@ export async function consult(
   });
 
   return consultation;
+}
+
+// ─── INQUIRY (Phase 1a) ────────────────────────────────────
+
+export interface InquiryQuestion {
+  question: string;
+  why: string;
+}
+
+export interface SenseInquiry {
+  senseId: string;
+  senseName: string;
+  questions: InquiryQuestion[];
+  stake: number;
+}
+
+const InquiryResultSchema = z.object({
+  questions: z.array(z.object({
+    question: z.string(),
+    why: z.string(),
+  })),
+  stake: z.number().min(0).max(1),
+});
+
+/**
+ * Run senses in inquiry mode — each sense asks clarifying questions
+ * from its perspective before advising. Returns per-sense questions
+ * with stakes indicating how much guidance depends on answers.
+ */
+export async function inquire(
+  senses: Sense[],
+  library: SensoryCortex,
+  config: CortexConfig,
+  intent: import("../types/intent.js").ProjectIntent,
+  taste: import("../types/intent.js").TasteProfile,
+): Promise<SenseInquiry[]> {
+  emit("inquiry:start", {
+    senseCount: senses.length,
+    names: senses.map((s) => s.name),
+  });
+
+  log.info("Running inquiry", { count: senses.length });
+
+  const userPrompt = inquiryUser(intent, taste);
+
+  const results = await Promise.all(
+    senses.map(async (sense) => {
+      const subTree = library.getSubTree(sense.id).filter((g) => g.id !== sense.id);
+      try {
+        const result = await callStructured(
+          "inquiry",
+          config.models.consultation,
+          inquirySystem(sense, subTree),
+          userPrompt,
+          InquiryResultSchema,
+        );
+
+        emit("inquiry:sense-complete", {
+          sense: sense.name,
+          questionCount: result.questions.length,
+          stake: result.stake,
+        });
+
+        log.info(`${sense.name} inquiry`, {
+          questions: result.questions.length,
+          stake: result.stake,
+        });
+
+        return {
+          senseId: sense.id,
+          senseName: sense.name,
+          questions: result.questions,
+          stake: result.stake,
+        };
+      } catch (err) {
+        log.warn(`Inquiry failed for ${sense.name}`, { error: String(err) });
+        return {
+          senseId: sense.id,
+          senseName: sense.name,
+          questions: [],
+          stake: 0,
+        };
+      }
+    }),
+  );
+
+  const withQuestions = results.filter((r) => r.questions.length > 0);
+  const totalQuestions = withQuestions.reduce((sum, r) => sum + r.questions.length, 0);
+
+  emit("inquiry:complete", {
+    sensesWithQuestions: withQuestions.length,
+    totalQuestions,
+  });
+
+  log.info("Inquiry complete", {
+    sensesWithQuestions: withQuestions.length,
+    totalQuestions,
+  });
+
+  return results;
+}
+
+/**
+ * Format inquiry results into a human-readable message.
+ * Groups questions by sense with context on why each matters.
+ */
+export function formatInquiryForHuman(
+  inquiries: SenseInquiry[],
+  intent: import("../types/intent.js").ProjectIntent,
+): string {
+  const sections: string[] = [];
+  sections.push(`Before I build a vision for "${intent.summary}", I have some questions from different perspectives:\n`);
+
+  for (const inquiry of inquiries) {
+    if (inquiry.questions.length === 0) continue;
+    sections.push(`**${inquiry.senseName}:**`);
+    for (const q of inquiry.questions) {
+      sections.push(`- ${q.question}`);
+    }
+    sections.push("");
+  }
+
+  sections.push("Please answer what you can. For anything you'd rather leave to my judgment, just say so.");
+
+  return sections.join("\n");
+}
+
+/**
+ * Format the manifested future for human approval.
+ */
+export function formatApprovalForHuman(
+  future: import("../types/planner.js").ManifestedFuture,
+): string {
+  const sections: string[] = [];
+  sections.push("Here's the concrete vision for this project:\n");
+  sections.push(future.vision);
+
+  const contributions = Object.entries(future.senseContributions);
+  if (contributions.length > 0) {
+    sections.push("\n**Per-dimension assessments:**");
+    for (const [sense, contribution] of contributions) {
+      sections.push(`- **${sense}:** ${contribution}`);
+    }
+  }
+
+  sections.push(`\nConfidence: ${(future.confidence * 100).toFixed(0)}%`);
+  sections.push("\nIs this what you see? Confirm to proceed, or tell me what's different.");
+
+  return sections.join("\n");
 }
 
 // ─── RE-CONSULTATION ────────────────────────────────────────

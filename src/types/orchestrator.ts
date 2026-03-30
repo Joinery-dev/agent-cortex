@@ -52,6 +52,8 @@ export interface CortexConfig {
     /** Defaults to evaluation model if not specified. */
     integrationCheck?: string;
   };
+  /** Max concurrent LLM API calls across the entire system. Prevents rate-limit thundering herds. Default: 8. */
+  llmConcurrency?: number;
   /** Reliability thresholds and timeouts. Uses DEFAULT_RELIABILITY_CONFIG when absent. */
   reliability?: Partial<ReliabilityConfig>;
   /** Hierarchical planning configuration. */

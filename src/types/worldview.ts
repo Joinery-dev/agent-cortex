@@ -68,6 +68,8 @@ export interface WorldviewFrames {
   integration: string;
   /** What the manifested future IS. Used by: Planner.createManifestationTask. */
   manifestation: string;
+  /** How senses ask clarifying questions before advising. Used by: inquirySystem. */
+  inquiry: string;
   /** What to watch for ahead. Used by: prospectiveMatchingSystem. */
   prospective: string;
   /** What emerges after completion. Used by: generativeCompletionSystem. */

@@ -144,7 +144,7 @@ export class Planner {
    * what the finished outcome must look like, and the motor cortex
    * will synthesize their perspectives into the manifested future.
    */
-  createManifestationTask(intent: ProjectIntent): Task {
+  createManifestationTask(intent: ProjectIntent, additionalContext?: string): Task {
     const id = `plan-manifest-${newId()}`;
 
     const defaultBody = [
@@ -165,15 +165,21 @@ export class Planner {
 
     const body = getFrame("manifestation", this.worldview) ?? defaultBody;
 
-    return createTask(id, [
+    const descriptionParts = [
       `Manifest the completed outcome for this project.`,
       ``,
       `Project: ${intent.summary}`,
       `Vision: ${intent.vision}`,
       `Audience: ${intent.audience}`,
-      ``,
-      body,
-    ].join("\n"), {
+    ];
+
+    if (additionalContext) {
+      descriptionParts.push(``, `CONTEXT FROM INQUIRY:`, additionalContext);
+    }
+
+    descriptionParts.push(``, body);
+
+    return createTask(id, descriptionParts.join("\n"), {
       planningPhase: "manifestation",
       intentId: intent.id,
     });

@@ -117,7 +117,8 @@ export async function evaluate(
   // Track senses that couldn't evaluate — these feed the self-healing loop
   const skippedSenses: EvaluationOutcome["skippedSenses"] = [];
 
-  // Run all evaluations in parallel
+  // Run all evaluations in parallel — concurrency is bounded globally
+  // by the LLM client semaphore, so individual evaluators queue naturally.
   const evaluationPromises = entries.map(async (entry) => {
     const sense = library.get(entry.receptorId);
     if (!sense) {

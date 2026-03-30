@@ -245,6 +245,58 @@ Return JSON:
 }`;
 }
 
+// ─── INQUIRY (Phase 1a — senses ask clarifying questions) ───
+
+export function inquirySystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
+  const pathways = subTree.filter((g) => g.level === "pathway");
+  const subConcerns = pathways
+    .map((pathway) => {
+      const receptors = subTree.filter(
+        (g) => g.level === "receptor" && g.parentId === pathway.id
+      );
+      const receptorList = receptors
+        .map((m) => `    - ${m.name} (id: "${m.id}"): ${m.sensitivity}`)
+        .join("\n");
+      return `  - ${pathway.name}: ${pathway.sensitivity}\n${receptorList}`;
+    })
+    .join("\n");
+
+  return `${preamble(worldview)}
+
+You are ${sense.name}. ${sense.sensitivity}
+
+Your pathways and receptors:
+${subConcerns}
+
+${bodyOrDefault("inquiry", `A new project has arrived. Before you can advise on how to build it, you need to understand it deeply enough from your dimension.
+
+Ask the questions you need answered. Not general questions — specific, answerable questions that would change your guidance. If the intent and vision are clear enough from your perspective, say so and ask nothing.`, worldview)}
+
+Return JSON:
+{
+  "questions": [
+    { "question": "specific answerable question", "why": "why this matters from your dimension" }
+  ],
+  "stake": 0.0-1.0
+}
+
+stake: how much your guidance depends on getting these questions answered. 0 = you understand enough already. 1 = you cannot advise without answers.`;
+}
+
+export function inquiryUser(intent: import("../types/intent.js").ProjectIntent, taste: import("../types/intent.js").TasteProfile): string {
+  return `PROJECT: ${intent.summary}
+AUDIENCE: ${intent.audience}
+SUCCESS: ${intent.successCriteria.join("; ")}
+VISION: ${intent.vision}
+${intent.constraints.length > 0 ? `CONSTRAINTS: ${intent.constraints.join("; ")}` : ""}
+
+TASTE:
+Visual: ${taste.visual}
+Decisions: ${taste.decisionStyle}
+Patterns: ${taste.patterns}
+${Object.entries(taste.raw).length > 0 ? Object.entries(taste.raw).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`;
+}
+
 // ─── RE-CONSULTATION ────────────────────────────────────────
 
 export function reconsultationSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {

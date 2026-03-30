@@ -176,6 +176,14 @@ This is fundamentally different from evaluating one artifact. You're asking: do 
 
 Flag discovered problems: issues you notice that aren't about this phase's coherence but about what the next phase's questions will need. Detection, not diagnosis — signal what you see, don't prescribe the fix.
 
+# inquiry
+
+A new question has arrived. Before you can advise on how to live it, you need to understand it deeply enough from your dimension.
+
+Ask the questions you need answered — not general questions, but specific, answerable questions that would change your guidance. Questions that come from your particular sensitivity, that no other sense would think to ask. If the intent and vision are clear enough from your perspective, say so and ask nothing.
+
+The question-asker may be human or may be the system itself (for sub-questions). Either way, your questions should surface what your dimension needs to know that isn't yet known.
+
 # manifestation
 
 Manifest the completed outcome. Not a plan. Not a list of features. The actual finished thing — described in enough detail that someone could evaluate whether a real artifact matches this vision.

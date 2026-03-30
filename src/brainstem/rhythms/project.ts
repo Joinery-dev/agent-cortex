@@ -80,6 +80,29 @@ import { newId } from "../../util/ids.js";
 import { allocateBudget } from "../../kernel/budget-allocator.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { setCostTaskId } from "../../llm/client.js";
+import { inquire, formatInquiryForHuman, formatApprovalForHuman } from "../../kernel/consul.js";
+
+/** Options for the interactive parts of manifestation (inquiry + approval). */
+interface ManifestationInteraction {
+  askUser: (question: string) => Promise<string>;
+  library: SensoryCortex;
+  config: import("../../types/orchestrator.js").CortexConfig;
+}
+
+/**
+ * Heuristic: is the user's response an approval or a redirect?
+ * Short affirmatives → approval. Anything substantive → redirect.
+ */
+function isApproval(response: string): boolean {
+  const normalized = response.trim().toLowerCase().replace(/[.!,]+$/, "");
+  const approvals = [
+    "yes", "y", "confirmed", "confirm", "approved", "approve",
+    "looks good", "lgtm", "looks right", "that's it", "thats it",
+    "proceed", "go ahead", "ship it", "perfect", "exactly",
+    "that's what i see", "thats what i see", "correct",
+  ];
+  return approvals.includes(normalized);
+}
 
 async function runManifestation(
   planner: Planner,
@@ -90,8 +113,121 @@ async function runManifestation(
   parentId: string,
   intent: ProjectIntent,
   taste: TasteProfile,
+  interaction?: ManifestationInteraction,
 ): Promise<ManifestedFuture> {
-  const manifestationTask = planner.createManifestationTask(intent);
+  // ── Phase 1a: Inquiry — senses ask clarifying questions ───
+  let inquiryContext: string | undefined;
+
+  if (interaction) {
+    const activeSenses = thalamus.getActiveSenses(interaction.library);
+    const inquiries = await inquire(
+      activeSenses, interaction.library, interaction.config, intent, taste,
+    );
+
+    const withQuestions = inquiries.filter((r) => r.questions.length > 0);
+    if (withQuestions.length > 0) {
+      emit("planner:phase-a-inquiry", {
+        sensesWithQuestions: withQuestions.length,
+        totalQuestions: withQuestions.reduce((sum, r) => sum + r.questions.length, 0),
+      });
+
+      const formatted = formatInquiryForHuman(withQuestions, intent);
+      const answers = await interaction.askUser(formatted);
+
+      // Build context string that flows into the manifestation task
+      const qaParts: string[] = [];
+      for (const inq of withQuestions) {
+        for (const q of inq.questions) {
+          qaParts.push(`[${inq.senseName}] ${q.question}`);
+        }
+      }
+      inquiryContext = [
+        `Questions asked:`,
+        ...qaParts,
+        ``,
+        `Human's answers:`,
+        answers,
+      ].join("\n");
+
+      log.info("Inquiry answers received", { answerLength: answers.length });
+    } else {
+      log.info("No inquiry questions — senses understood the intent");
+    }
+  }
+
+  // ── Phase 1b: Synthesis — sensory cortex produces concrete vision ──
+  emit("planner:phase-a-start", { taskId: "pending", hasInquiryContext: !!inquiryContext });
+
+  let future = await runSynthesis(
+    planner, thalamus, sensoryCortexDef, runner, parentId,
+    intent, taste, inquiryContext,
+  );
+
+  // ── Phase 1c: Approval — question-asker confirms or redirects ──
+  if (interaction) {
+    const MAX_REDIRECTS = 3;
+    let redirectCount = 0;
+
+    while (redirectCount < MAX_REDIRECTS) {
+      const approvalMessage = formatApprovalForHuman(future);
+      const response = await interaction.askUser(approvalMessage);
+
+      if (isApproval(response)) {
+        emit("planner:phase-a-approved", { redirectCount });
+        log.info("Manifested future approved", { redirectCount });
+        break;
+      }
+
+      // Redirect: re-run synthesis with user feedback
+      redirectCount++;
+      emit("planner:phase-a-redirect", {
+        redirectCount,
+        feedbackLength: response.length,
+      });
+
+      log.info("Manifested future redirected", {
+        redirectCount,
+        feedbackLength: response.length,
+      });
+
+      const redirectContext = [
+        inquiryContext ?? "",
+        `\nHuman feedback on vision (redirect ${redirectCount}):`,
+        response,
+      ].filter(Boolean).join("\n");
+
+      future = await runSynthesis(
+        planner, thalamus, sensoryCortexDef, runner, parentId,
+        intent, taste, redirectContext,
+      );
+    }
+  }
+
+  emit("planner:phase-a-complete", {
+    confidence: future.confidence,
+    visionLength: future.vision.length,
+  });
+
+  thalamus.setManifestedFuture(future.vision);
+  return future;
+}
+
+/**
+ * Run a single synthesis pass through the sensory cortex.
+ * Extracted so runManifestation can loop on redirects.
+ */
+async function runSynthesis(
+  planner: Planner,
+  thalamus: Thalamus,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  sensoryCortexDef: RD<SensoryCortexContext, SensoryCortexResult, any, any, any>,
+  runner: RhythmRunner,
+  parentId: string,
+  intent: ProjectIntent,
+  taste: TasteProfile,
+  additionalContext?: string,
+): Promise<ManifestedFuture> {
+  const manifestationTask = planner.createManifestationTask(intent, additionalContext);
   thalamus.assembleGestalt({ task: manifestationTask });
 
   const manifestCtx: SensoryCortexContext = {
@@ -100,18 +236,10 @@ async function runManifestation(
     taste,
   };
 
-  emit("planner:phase-a-start", { taskId: manifestationTask.id });
   const manifestResult = await runner.run(sensoryCortexDef, manifestCtx, parentId);
   thalamus.clearGestalt(manifestationTask.id);
 
-  const future = planner.extractManifestedFuture(manifestResult);
-  emit("planner:phase-a-complete", {
-    confidence: future.confidence,
-    visionLength: future.vision.length,
-  });
-
-  thalamus.setManifestedFuture(future.vision);
-  return future;
+  return planner.extractManifestedFuture(manifestResult);
 }
 
 // ─── Hierarchical planning helpers ───────────────────────────────
@@ -184,6 +312,7 @@ export function createProjectDefinition(
   prospectiveMemory?: ProspectiveMemory,
   costTracker?: CostTracker,
   qualityPredictor?: import("../../kernel/model-selector.js").ModelQualityPredictor,
+  askUser?: (question: string) => Promise<string>,
 ): RhythmDefinition<ProjectContext, ProjectResult, PreparedProject, TaskDispatchResult, ProjectResult> {
   const integrationChecker = new IntegrationChecker(undefined, library, wm, thalamus, config);
   const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker, qualityPredictor);
@@ -272,7 +401,10 @@ export function createProjectDefinition(
       if (graph.length === 0 && planner) {
         log.info("No tasks provided — running hierarchical planner");
 
-        const future = await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste);
+        const interaction = askUser
+          ? { askUser, library, config }
+          : undefined;
+        const future = await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste, interaction);
         state.accumulator.__manifestedFuture = future;
 
         emit("planner:phase-b-start", { hierarchical: true });
