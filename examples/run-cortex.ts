@@ -41,8 +41,10 @@ import { DEFAULT_WORLDVIEW } from "../src/types/worldview.js";
 import type { Worldview } from "../src/types/worldview.js";
 import { persistSession, loadSession, clearSession } from "../src/session/state.js";
 import { TerminalTransport } from "../src/conversation/terminal-transport.js";
+import { Claus } from "../src/conversation/claus.js";
 import { setupTaste } from "../src/taste/setup.js";
 import { loadTasteProfile, DEFAULT_TASTE } from "../src/taste/store.js";
+import { detectExistingWorldview } from "../src/worldview/store.js";
 
 // ─── Parse arguments ────────────────────────────────────────────
 
@@ -86,6 +88,7 @@ let taste: TasteProfile;
 let brainstem: Brainstem;
 let worldview: Worldview;
 let terminalTransport: TerminalTransport;
+let claus: Claus;
 let askUser: (question: string) => Promise<string>;
 let dashboardUrl: string;
 let shuttingDown = false;
@@ -211,29 +214,16 @@ async function boot(): Promise<void> {
 
   getTraceCollector();
 
-  console.log(`
-╔══════════════════════════════════════════════════════════════╗
-║   Agent Cortex                                               ║
-╚══════════════════════════════════════════════════════════════╝
-`);
+  // ── 1. Terminal + Dashboard (infrastructure, before Claus) ─────
 
-  if (stepMode) console.log("  Mode: step-by-step");
-  if (replayAll) console.log(`  Mode: full replay (${getContentStore().size} entries)`);
-  if (replayFromId !== null) console.log(`  Mode: replay from content ID ${replayFromId}`);
-  if (resumeMode) console.log(`  Mode: resume from checkpoint${resumeId ? ` ${resumeId}` : " (latest)"}`);
-  if (noCheckpoint) console.log("  Checkpointing: disabled");
-
-  // Dashboard (stays running across projects)
-  const dashboard = await startDashboard(port, undefined, { returnHandle: true }) as DashboardHandle;
-  dashboardUrl = dashboard.url;
-  console.log(`  Dashboard: ${dashboardUrl}/trace`);
-  console.log(`  Conversation: ${dashboardUrl}/conversation\n`);
-
-  // Sensory library + terminal transport
   resetUsage();
   const library = SensoryCortex.withDefaults();
   terminalTransport = new TerminalTransport();
 
+  const dashboard = await startDashboard(port, undefined, { returnHandle: true }) as DashboardHandle;
+  dashboardUrl = dashboard.url;
+
+  // Raw askUser for pre-Claus setup (worldview discovery needs it briefly)
   askUser = (question: string): Promise<string> => {
     const rl = terminalTransport.getReadline();
     return new Promise((resolve) => {
@@ -246,37 +236,86 @@ async function boot(): Promise<void> {
     });
   };
 
-  // Worldview (one-time — persisted selection means no re-prompting)
+  // ── 2. Worldview (needed before Claus can speak) ──────────────
+
   if (resumeMode) {
     worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
   } else {
-    worldview = await setupWorldview(askUser, { model: "opus" });
+    // Check if a worldview already exists before involving Claus
+    const existing = detectExistingWorldview();
+    if (existing) {
+      worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
+    } else {
+      worldview = await setupWorldview(askUser, { model: "opus" });
+    }
   }
-  console.log(`  Worldview: ${worldview.name}`);
 
-  // Taste profile (one-time — persisted, refined by feedback loop over time)
+  // ── 3. Boot Claus (standalone, before brainstem) ──────────────
+
+  claus = new Claus({
+    transports: [terminalTransport, dashboard.wsTransport],
+    worldview,
+  });
+
+  // From here, everything goes through Claus
+  askUser = (question: string) => claus.formulateQuestion(question, "", undefined)
+    .then(async (formulated) => {
+      // Send as a question message through the terminal
+      terminalTransport.sendMessage({
+        id: "q-" + Date.now(),
+        role: "cortex",
+        kind: "question",
+        text: formulated,
+        timestamp: new Date(),
+      });
+      // Wait for the response via readline
+      return new Promise<string>((resolve) => {
+        const rl = terminalTransport.getReadline();
+        rl.question("", (answer) => resolve(answer));
+      });
+    });
+
+  // Claus greets the Parsifal
+  const greeting = await claus.respondToMessage(
+    `[system] Cortex is starting up. Worldview: ${worldview.name}. ` +
+    `Dashboard: ${dashboardUrl}/conversation. ` +
+    (resumeMode ? "Resuming from checkpoint." : "Ready for a new project.") +
+    (stepMode ? " Step-by-step mode is active." : ""),
+  );
+  terminalTransport.sendMessage({
+    id: "greeting",
+    role: "cortex",
+    kind: "acknowledgment",
+    text: greeting,
+    timestamp: new Date(),
+  });
+
+  // ── 4. Taste profile ──────────────────────────────────────────
+
   if (resumeMode) {
     taste = loadTasteProfile() ?? DEFAULT_TASTE;
   } else {
     taste = await setupTaste(askUser);
   }
-  console.log(`  Taste: ${taste.id} (working for ${taste.name})\n`);
 
-  // Brainstem (single instance, reused across projects)
-  brainstem = new Brainstem(DEFAULT_CONFIG, library, undefined, undefined, undefined, undefined, undefined, undefined, undefined, worldview);
+  // ── 5. Brainstem (pass Claus in) ──────────────────────────────
+
+  brainstem = new Brainstem(
+    DEFAULT_CONFIG, library, undefined, undefined, undefined,
+    undefined, undefined, undefined, undefined, worldview, claus,
+  );
 
   if (noCheckpoint) {
     brainstem.getRunner().setCheckpointConfig({ enabled: false });
   }
 
-  // Wire conversation transports
+  // Wire conversation transports (activates Claus heartbeat + amygdala)
   brainstem.setConversationTransport(terminalTransport);
   brainstem.setConversationTransport(dashboard.wsTransport);
 
   // First-project modes (step, replay)
   if (stepMode) {
     getStepBarrier().enable();
-    console.log("  Step barrier enabled.\n");
   }
 
   if (replayAll || replayFromId !== null) {
@@ -285,20 +324,15 @@ async function boot(): Promise<void> {
     if (cache.total > 0) {
       enableReplay(cache, "replay");
       getStepBarrier().setMode("replaying");
-      console.log(`  Replay cache: ${cache.total} responses loaded.\n`);
-    } else {
-      console.log("  Warning: no cached responses found. Running live.\n");
     }
   }
 
   // Graceful shutdown
   process.on("SIGINT", () => {
     if (shuttingDown) {
-      console.log("\n  Force exit.");
       process.exit(1);
     }
     shuttingDown = true;
-    console.log("\n  Shutting down after current project... (Ctrl+C again to force)");
     try { terminalTransport.getReadline().close(); } catch { /* ignore */ }
   });
 }

@@ -83,6 +83,7 @@ import { allocateBudget } from "../../kernel/budget-allocator.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { setCostTaskId } from "../../llm/client.js";
 import { inquire, followUpInquire, formatInquiryForParsifal, formatApprovalForParsifal, synthesizeInquiry, formatSynthesizedForParsifal, formatSynthesizedFollowUpForParsifal, buildSynthesizedInquiryContext, manifestSenses, synthesizeVision, evaluateVision } from "../../kernel/consul.js";
+import { synthesizePlanningEvaluatorModel } from "../../kernel/problem-model.js";
 
 /** Options for the interactive parts of manifestation (inquiry + approval). */
 interface ManifestationInteraction {
@@ -187,33 +188,71 @@ async function runManifestation(
   emit("planner:phase-a-start", { taskId: "pending", hasInquiryContext: !!inquiryContext });
 
   const activeSensesForManifest = thalamus.getActiveSenses(library);
+  const activeWorldview = getActiveWorldview();
 
   // Step 1: Each sense manifests its perspective
   const perspectives = await manifestSenses(
-    activeSensesForManifest, library, config, intent, taste, inquiryContext,
+    activeSensesForManifest, library, config, intent, taste, inquiryContext, activeWorldview,
   );
 
   // Step 2: Synthesize into unified vision
   let synthesis = await synthesizeVision(
-    perspectives, config, intent, taste, inquiryContext,
+    perspectives, config, intent, taste, inquiryContext, undefined, undefined, activeWorldview,
   );
 
-  // Steps 3-4: Sense evaluation → convergence loop
+  // Steps 3-4: Sense evaluation → convergence loop (dialectic)
   const MAX_CONVERGENCE_ROUNDS = 4;
   let convergenceRound = 0;
+  let evaluatorModel: string | null = null;
+  let dialecticConvergence: number | null = null;
+  let lastEvaluations: import("../../kernel/consul.js").SenseEvalResult[] = [];
 
   while (convergenceRound < MAX_CONVERGENCE_ROUNDS) {
     convergenceRound++;
 
     const evaluations = await evaluateVision(
       activeSensesForManifest, library, config,
-      synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+      synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions, activeWorldview,
     );
 
+    // Dialectic: synthesize evaluator model + measure convergence
+    if (synthesis.problemModel) {
+      try {
+        const evalSynthesis = await synthesizePlanningEvaluatorModel({
+          evaluations,
+          intent,
+          previousEvaluatorModel: evaluatorModel,
+          synthesizerModel: synthesis.problemModel,
+        }, config.models.consultation);
+        evaluatorModel = evalSynthesis.model;
+        dialecticConvergence = evalSynthesis.convergence;
+      } catch {
+        // Non-fatal — convergence is supplementary, not required
+      }
+    }
+
+    lastEvaluations = evaluations;
     const allSatisfied = evaluations.every((e) => e.satisfied);
 
+    // Dialectic convergence: models agree on what the project requires
+    if (dialecticConvergence != null && dialecticConvergence >= 0.8) {
+      log.info("Manifestation converged — dialectic convergence", {
+        rounds: convergenceRound,
+        convergence: dialecticConvergence,
+        allSatisfied,
+      });
+      emit("manifestation-synthesis:dialectic-converged", {
+        rounds: convergenceRound,
+        convergence: dialecticConvergence,
+      });
+      break;
+    }
+
     if (allSatisfied) {
-      log.info("Manifestation converged — all senses satisfied", { rounds: convergenceRound });
+      log.info("Manifestation converged — all senses satisfied", {
+        rounds: convergenceRound,
+        convergence: dialecticConvergence,
+      });
       emit("manifestation-synthesis:converged", { rounds: convergenceRound });
       break;
     }
@@ -227,24 +266,27 @@ async function runManifestation(
     log.info("Manifestation not converged — re-synthesizing", {
       round: convergenceRound,
       unsatisfied: evaluations.filter((e) => !e.satisfied).map((e) => e.senseName),
+      convergence: dialecticConvergence,
     });
 
     emit("manifestation-synthesis:reconverge", {
       round: convergenceRound,
       unsatisfied: evaluations.filter((e) => !e.satisfied).map((e) => e.senseName),
+      convergence: dialecticConvergence,
     });
 
-    // Re-synthesize with sense feedback
+    // Re-synthesize with sense feedback + dialectic context
     synthesis = await synthesizeVision(
       perspectives, config, intent, taste, inquiryContext, unsatisfiedFeedback,
+      dialecticConvergence != null ? {
+        synthesizerModel: synthesis.problemModel,
+        evaluatorModel: evaluatorModel ?? undefined,
+        convergence: dialecticConvergence,
+      } : undefined, activeWorldview,
     );
   }
 
-  // Derive confidence from sense evaluations + synthesis confidence
-  const lastEvaluations = await evaluateVision(
-    activeSensesForManifest, library, config,
-    synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
-  );
+  // Derive confidence from the last convergence round's evaluations (no extra call needed)
   const avgSenseConfidence = lastEvaluations.length > 0
     ? lastEvaluations.reduce((sum, e) => sum + e.confidence, 0) / lastEvaluations.length
     : synthesis.confidence;
@@ -255,6 +297,9 @@ async function runManifestation(
     senseContributions: synthesis.senseContributions,
     confidence: overallConfidence,
     cycles: convergenceRound,
+    problemModel: synthesis.problemModel,
+    evaluatorModel: evaluatorModel ?? undefined,
+    convergence: dialecticConvergence ?? undefined,
   };
 
   // ── Phase 1c: Approval — question-asker confirms or redirects ──
@@ -289,9 +334,9 @@ async function runManifestation(
         response,
       ].join("\n");
 
-      // Re-synthesize with Parsifal feedback
+      // Re-synthesize with feedback
       synthesis = await synthesizeVision(
-        perspectives, config, intent, taste, inquiryContext, parsiFeedback,
+        perspectives, config, intent, taste, inquiryContext, parsiFeedback, undefined, activeWorldview,
       );
 
       // Run sense evaluation on the redirected vision
@@ -300,7 +345,7 @@ async function runManifestation(
         redirectRound++;
         const evals = await evaluateVision(
           activeSensesForManifest, library, config,
-          synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+          synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions, activeWorldview,
         );
 
         if (evals.every((e) => e.satisfied)) {
@@ -315,13 +360,13 @@ async function runManifestation(
 
         synthesis = await synthesizeVision(
           perspectives, config, intent, taste, inquiryContext,
-          [parsiFeedback, `\nSense feedback:`, fb].join("\n"),
+          [parsiFeedback, `\nSense feedback:`, fb].join("\n"), undefined, activeWorldview,
         );
       }
 
       const redirectEvals = await evaluateVision(
         activeSensesForManifest, library, config,
-        synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+        synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions, activeWorldview,
       );
       const redirectConfidence = redirectEvals.length > 0
         ? redirectEvals.reduce((sum, e) => sum + e.confidence, 0) / redirectEvals.length
@@ -414,6 +459,9 @@ async function runShaelDispatchLoop(args: ShaelDispatchArgs): Promise<{
       totalShaels: reviewedShaels.length,
     });
 
+    // Plan tab: mark shael as active
+    emit("plan:node-update", { id: shael.id, status: "active" });
+
     log.info("Dispatching shael", {
       shaelId: shael.id,
       description: shael.description.slice(0, 80),
@@ -464,6 +512,21 @@ async function runShaelDispatchLoop(args: ShaelDispatchArgs): Promise<{
       shanaGraph = planner.buildGraphFromShana(shanaNodes, shanaWiring, shanaPhases);
     }
 
+    // Plan tab: add shana (leaf tasks) under this shael
+    if (shanaGraph.length > 0) {
+      const leafLevel = getActiveWorldview()?.vocabulary.leafUnit.singular ?? "shana";
+      emit("plan:nodes-added", {
+        nodes: shanaGraph.map((n) => ({
+          id: n.task.id,
+          description: n.task.description,
+          level: leafLevel,
+          phaseGroup: n.phaseGroup ?? shael.phaseGroup,
+          parentId: shael.id,
+          status: "pending",
+        })),
+      });
+    }
+
     const dispatchCtx: TaskDispatchContext = {
       intent,
       taste,
@@ -488,6 +551,9 @@ async function runShaelDispatchLoop(args: ShaelDispatchArgs): Promise<{
         completedTasks: result.completedTasks.length,
         escalatedTasks: result.escalatedTasks.length,
       });
+
+      // Plan tab: mark shael as complete
+      emit("plan:node-update", { id: shael.id, status: "complete" });
 
       log.info("Shael complete", {
         shaelId: shael.id,
@@ -519,6 +585,9 @@ async function runShaelDispatchLoop(args: ShaelDispatchArgs): Promise<{
         });
         completedShaelIds.add(shael.id);
         allEscalatedTasks.push(shael.id);
+
+        // Plan tab: mark shael as escalated
+        emit("plan:node-update", { id: shael.id, status: "escalated" });
       } else {
         throw err;
       }
@@ -845,6 +914,23 @@ export function createProjectDefinition(
           criticalWarnings: pfcReview.warnings.filter((w) => w.severity === "critical").length,
           patches: pfcReview.patches.length,
           thoroughReview: pfcReview.thoroughReview,
+        });
+
+        // Emit full plan for the UI Plan tab
+        emit("plan:established", {
+          vision: future.vision,
+          nodes: reviewedShaels.map((s) => ({
+            id: s.id,
+            description: s.description,
+            level: s.level,
+            phaseGroup: s.phaseGroup,
+            parentId: s.parentId,
+            status: "pending",
+          })),
+          phases: (hierarchicalPlan.phases ?? []).map((p) => ({
+            name: p.name,
+            purpose: p.purpose,
+          })),
         });
 
         // Checkpoint after planning — full shael graph is built, ready for dispatch

@@ -507,6 +507,9 @@ export function createTaskDispatchDefinition(
             reasoning: decision.reasoning,
           });
 
+          // Plan tab: mark task as active
+          emit("plan:node-update", { id: taskNode.task.id, status: "active" });
+
           return {
             action: "run-task",
             task: taskNode,
@@ -1076,6 +1079,18 @@ export function createTaskDispatchDefinition(
         acc.completedTasks.add(taskId);
         acc.taskResults.set(taskId, executed.taskResult);
 
+        // Artifact + plan update for the UI
+        const taskNode = acc.liveGraph.find((n) => n.task.id === taskId);
+        if (executed.taskResult.work) {
+          emit("artifact:produced", {
+            taskId,
+            title: taskNode?.task.description ?? taskId,
+            work: executed.taskResult.work,
+            confidence: executed.taskResult.confidence,
+          });
+        }
+        emit("plan:node-update", { id: taskId, status: "complete", confidence: executed.taskResult.confidence });
+
         // Dynamic budget reallocation — return unspent budget to remaining tasks
         if (costTracker) {
           const unspent = costTracker.returnUnspent(taskId);
@@ -1601,6 +1616,9 @@ export function createTaskDispatchDefinition(
       thalamus.clearGestalt(taskId);
       acc.escalatedTasks.add(taskId);
       wm.failTask(taskId, "Task escalated");
+
+      // Plan tab: mark task as escalated
+      emit("plan:node-update", { id: taskId, status: "escalated" });
 
       return {
         allComplete: allTasksDone(

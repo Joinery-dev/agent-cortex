@@ -19,6 +19,8 @@ import type {
   ConversationMessage,
   NarrationItem,
   SystemStatus,
+  PlanSnapshot,
+  ArtifactItem,
 } from "../types/conversation.js";
 import { createLogger } from "../util/logger.js";
 
@@ -27,7 +29,7 @@ const log = createLogger("websocket-transport");
 // ─── Wire types ────────────────────────────────────────────────
 
 interface WireMessage {
-  channel: "message" | "narration" | "status" | "input";
+  channel: "message" | "narration" | "status" | "plan" | "artifact" | "input";
   payload: unknown;
 }
 
@@ -109,6 +111,24 @@ export class WebSocketTransport implements ConversationTransport {
     if (this.closed) return;
     const wire: WireMessage = { channel: "status", payload: status };
     // Status doesn't need replay buffering — just send latest
+    this.broadcast(wire);
+  }
+
+  sendPlan(plan: PlanSnapshot): void {
+    if (this.closed) return;
+    const wire: WireMessage = { channel: "plan", payload: plan };
+    if (plan.kind === "full") {
+      // Full snapshots replace any buffered plan messages
+      this.replayBuffer = this.replayBuffer.filter((w) => w.channel !== "plan");
+    }
+    this.buffer(wire);
+    this.broadcast(wire);
+  }
+
+  sendArtifact(artifact: ArtifactItem): void {
+    if (this.closed) return;
+    const wire: WireMessage = { channel: "artifact", payload: artifact };
+    this.buffer(wire);
     this.broadcast(wire);
   }
 

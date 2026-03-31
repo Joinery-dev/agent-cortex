@@ -121,6 +121,8 @@ export class Brainstem {
     stakeAdjuster?: StakeAdjuster,
     plasticityConfig?: Partial<PlasticityStoreConfig>,
     worldview?: Worldview,
+    /** Pre-existing Claus instance (booted before the system). */
+    claus?: import("../conversation/claus.js").Claus,
   ) {
     this.config = config;
     this.library = library;
@@ -166,7 +168,7 @@ export class Brainstem {
       worldModel: this.worldModel,
     });
     this.scheduler = new AttentionScheduler(schedulerConfig);
-    this.motorCortex = new MotorCortex(config, this.pns);
+    this.motorCortex = new MotorCortex(config, this.pns, worldview);
     this.basalGanglia = new BasalGanglia(
       basalGangliaConfig,
       new BasalGangliaStore(),
@@ -213,7 +215,9 @@ export class Brainstem {
       escalationHandler: this.escalationHandler,
       thalamus: this.thalamus,
       amygdala: this.amygdala,
+      costTracker: this.costTracker,
       worldview,
+      claus, // pre-existing Claus from boot, or undefined to create fresh
     });
 
     // Wire sense library to components that need sense verification

@@ -82,7 +82,7 @@ export interface WorldviewFrames {
   prospective: string;
   /** What emerges after completion. Used by: generativeCompletionSystem. */
   emergence: string;
-  /** Who you are as the conscious voice. Used by: ConsciousnessAgent system prompt. */
+  /** Who you are as the conscious voice. Used by: Claus system prompt. */
   consciousness?: string;
 }
 
@@ -101,6 +101,9 @@ export interface Worldview {
 
   /** What the system calls the entity it serves. Default: "the Parsifal". */
   entityName: string;
+
+  /** Name of the conscious voice. Default: "Claus". */
+  voiceName: string;
 
   /**
    * The ontological preamble injected at the start of every system prompt.
@@ -220,6 +223,7 @@ export const SHAELA_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, being is framed as shaela — questions to be lived. \
 Shaels are questions nested within questions that are evermore specific. \
@@ -248,6 +252,7 @@ export const PROJECT_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `You are an engineering system that solves problems. Not a code \
 generator, not a task executor — a system that understands problems deeply \
@@ -280,6 +285,7 @@ export const HYBRID_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is framed as shaela — questions to be lived. \
 But these are engineering questions, not philosophical abstractions. A shael \
@@ -313,6 +319,7 @@ export const COVENANT_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is framed as covenant — commitments the system \
 makes to itself and to the Parsifal. Every piece of work establishes a contract: \
@@ -345,6 +352,7 @@ export const GROOVE_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is play — not casual, not unserious, but play \
 in the deep sense: improvisation within structure, where constraints are the \
@@ -378,6 +386,7 @@ export const ECOSYSTEM_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is cultivation — not building an artifact but \
 growing a living system. A habitat is a coherent ecological zone where components \
@@ -410,6 +419,7 @@ export const DIALECTIC_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work moves through contradiction. Every artifact \
 contains the seed of its own negation — the tension that will force the next \
@@ -443,6 +453,7 @@ export const CARTOGRAPH_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is exploration — mapping unknown territory so \
 that others can navigate it. An expedition is a coherent journey into unmapped \
@@ -476,6 +487,7 @@ export const SCULPTOR_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is removal. The artifact already exists inside \
 the constraints — your job is to find it by removing everything that isn't it. A \
@@ -507,6 +519,7 @@ export const NARRATIVE_WORLDVIEW: Worldview = {
   version: 1,
   systemName: "Cortex",
   entityName: "the Parsifal",
+  voiceName: "Claus",
 
   preamble: `In this system, work is storytelling. Every artifact tells a story — \
 it has characters (components that act), an arc (the journey from state to state), \

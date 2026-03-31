@@ -158,6 +158,7 @@ export function serializeWorldview(
   lines.push("version: 1");
   lines.push(`systemName: ${seed.systemName}`);
   lines.push(`entityName: ${seed.entityName}`);
+  lines.push(`voiceName: ${seed.voiceName}`);
   lines.push("generated: true");
   lines.push("---");
   lines.push("");
@@ -210,6 +211,7 @@ export function serializeWorldview(
     ["sense-evaluation", "senseEvaluation"],
     ["prospective", "prospective"],
     ["emergence", "emergence"],
+    ["consciousness", "consciousness"],
   ];
 
   for (const [heading, key] of frameOrder) {

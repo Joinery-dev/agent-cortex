@@ -4,6 +4,7 @@ description: Questions to be lived — hermeneutic epistemology
 version: 1
 systemName: Cortex
 entityName: the Parsifal
+voiceName: Claus
 ---
 
 # preamble

@@ -1,23 +1,13 @@
 /**
- * Consciousness Agent — the autonomous voice of Cortex.
+ * Claus — the claustrum of Cortex.
  *
- * A persistent LLM-backed agent that spans the entire project session.
- * It watches what Cortex does, talks to the Parsifal with understanding,
- * and steers the system through tools: observations, interrupts, alarms.
+ * Named for the thin neural sheet that integrates information across
+ * all brain regions. Claus is the autonomous agent that watches, speaks,
+ * and steers. Persistent across the project session, identity from the
+ * worldview, 14 tools to observe and direct the system.
  *
- * Identity comes from the worldview. The consciousness frame in the
- * worldview IS who this agent is.
- *
- * Architecture: tool-augmented agentic loop on top of call().
- * Each invocation can use tools (read state, add observations, raise
- * alarms) across multiple turns before producing a final response.
- * Hard-capped at 5 turns per invocation — consciousness thinks, not builds.
- *
- * Autonomous via heartbeat: periodically invoked with accumulated event
- * digest to decide whether to speak, act, or stay quiet.
- *
- * Amygdala-wired: threat events flow as high-priority digest entries,
- * and consciousness can raise alarms back to the Amygdala.
+ * Tool-augmented agentic loop (max 5 turns per invocation).
+ * Autonomous heartbeat (45s). Amygdala-wired.
  */
 
 import { call, type Purpose } from "../llm/client.js";
@@ -34,24 +24,25 @@ import type { Thalamus } from "../kernel/thalamus.js";
 import type { Amygdala } from "../subcortical/amygdala.js";
 import type { CortexEvent } from "../events.js";
 import {
-  ConsciousnessToolExecutor,
+  ClausToolExecutor,
   TOOL_DESCRIPTIONS,
-  type ConsciousnessToolCall,
+  type ClausToolCall,
   type DigestEntry,
-} from "./consciousness-tools.js";
+} from "./claus-tools.js";
+import { ClausHookRegistry, type HookFired, type ClausHook, type HookModel } from "./claus-hooks.js";
 import { bus } from "../events.js";
 import { getActiveWorldview } from "../util/worldview-context.js";
 import { DEFAULT_WORLDVIEW } from "../types/worldview.js";
 import { createLogger } from "../util/logger.js";
 
-const log = createLogger("consciousness");
+const log = createLogger("claus");
 
-const PURPOSE: Purpose = "consciousness";
+const PURPOSE: Purpose = "claus";
 const MAX_TOOL_TURNS = 5;
 
 // ─── Configuration ─────────────────────────────────────────────
 
-export interface ConsciousnessConfig {
+export interface ClausConfig {
   /** LLM model to use. */
   model: string;
   /** Max conversation turns to include in context. */
@@ -64,7 +55,7 @@ export interface ConsciousnessConfig {
   heartbeatIntervalMs: number;
 }
 
-const DEFAULT_CONFIG: ConsciousnessConfig = {
+const DEFAULT_CONFIG: ClausConfig = {
   model: "sonnet",
   maxHistoryTurns: 40,
   maxDigestEntries: 20,
@@ -74,22 +65,22 @@ const DEFAULT_CONFIG: ConsciousnessConfig = {
 
 // ─── Structured output ────────────────────────────────────────
 
-interface ConsciousnessOutput {
+interface ClausOutput {
   /** What to say to the Parsifal. Null = stay quiet. */
   message: string | null;
   /** Tool calls to execute. Empty = done thinking. */
-  toolCalls: ConsciousnessToolCall[];
+  toolCalls: ClausToolCall[];
   /** Internal reasoning (kept in history, not shown to Parsifal). */
   thinking?: string;
 }
 
 // ─── Consciousness Agent ───────────────────────────────────────
 
-export class ConsciousnessAgent {
-  private config: ConsciousnessConfig;
+export class Claus {
+  private config: ClausConfig;
   private wm: WorkingMemory;
   private worldview: Worldview;
-  private tools: ConsciousnessToolExecutor;
+  private tools: ClausToolExecutor;
 
   /** Conversation history for context threading. */
   private conversationHistory: Array<{
@@ -106,34 +97,63 @@ export class ConsciousnessAgent {
   /** Current system status snapshot. */
   private status: SystemStatus = {};
 
-  /** Heartbeat timer. */
-  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  /** Hook registry — replaces heartbeat and amygdala subscription. */
+  private hooks: ClausHookRegistry;
 
-  /** Whether amygdala events are subscribed. */
-  private amygdalaSubscribed = false;
-
-  /** Whether a consciousness invocation is currently in progress. */
+  /** Whether a Claus invocation is currently in progress. */
   private invoking = false;
 
+  /** Callback for hook-originated messages that need to reach the Parsifal. */
+  private onHookMessage: ((text: string, model: string) => void) | null = null;
+
+  /**
+   * Create Claus. Can boot with minimal deps (just worldview + transports)
+   * and wire system deps later via wireSystem().
+   */
   constructor(opts: {
-    wm: WorkingMemory;
-    runner: RhythmRunnerImpl;
-    thalamus: Thalamus;
-    amygdala: Amygdala;
     transports: ConversationTransport[];
-    config?: Partial<ConsciousnessConfig>;
+    config?: Partial<ClausConfig>;
     worldview?: Worldview;
+    // System deps — optional at construction, required for full operation
+    wm?: WorkingMemory;
+    runner?: RhythmRunnerImpl;
+    thalamus?: Thalamus;
+    amygdala?: Amygdala;
+    costTracker?: import("../brainstem/cost-tracker.js").CostTracker | null;
   }) {
-    this.wm = opts.wm;
     this.config = { ...DEFAULT_CONFIG, ...opts.config };
     this.worldview = opts.worldview ?? getActiveWorldview() ?? DEFAULT_WORLDVIEW;
-    this.tools = new ConsciousnessToolExecutor({
+    this.wm = opts.wm ?? null as unknown as WorkingMemory; // may be null during boot
+    // Hook registry — Claus wakes when hooks fire, not on a timer
+    this.hooks = new ClausHookRegistry();
+    this.hooks.setHandler((fired) => this.onHookFired(fired));
+
+    this.tools = new ClausToolExecutor({
       wm: opts.wm,
       runner: opts.runner,
       thalamus: opts.thalamus,
       amygdala: opts.amygdala,
       transports: opts.transports,
+      costTracker: opts.costTracker,
+      worldview: this.worldview,
+      hookRegistry: this.hooks,
     });
+  }
+
+  /**
+   * Wire system deps after boot — called when the Brainstem comes online.
+   * Enables tools that need WM, runner, thalamus, amygdala.
+   */
+  wireSystem(deps: {
+    wm: WorkingMemory;
+    runner: RhythmRunnerImpl;
+    thalamus: Thalamus;
+    amygdala: Amygdala;
+    costTracker?: import("../brainstem/cost-tracker.js").CostTracker | null;
+  }): void {
+    this.wm = deps.wm;
+    this.tools.wireSystem(deps);
+    log.info("Claus system deps wired — full tool access available");
   }
 
   /** Update the transports list (called when new transports are added). */
@@ -141,64 +161,33 @@ export class ConsciousnessAgent {
     this.tools.setTransports(transports);
   }
 
+  /** Whether system deps are wired (post-boot). */
+  get systemReady(): boolean {
+    return this.tools.systemReady;
+  }
+
   // ─── Lifecycle ─────────────────────────────────────────────
 
-  /** Start the heartbeat and subscribe to amygdala events. */
-  startHeartbeat(): void {
-    if (this.heartbeatTimer) return;
-    if (this.config.heartbeatIntervalMs <= 0) return;
-
-    this.heartbeatTimer = setInterval(() => {
-      this.heartbeat();
-    }, this.config.heartbeatIntervalMs);
-
-    log.info("Consciousness heartbeat started", {
-      intervalMs: this.config.heartbeatIntervalMs,
-    });
+  /** Activate hooks — Claus wakes when hooks fire. Replaces heartbeat. */
+  activate(): void {
+    this.hooks.activate();
+    log.info("Claus activated — hooks listening");
   }
 
-  /** Stop the heartbeat. */
-  stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-      log.info("Consciousness heartbeat stopped");
-    }
+  /** Deactivate hooks. */
+  deactivate(): void {
+    this.hooks.deactivate();
+    log.info("Claus deactivated");
   }
 
-  /** Subscribe to amygdala events on the event bus. */
-  subscribeToAmygdala(): void {
-    if (this.amygdalaSubscribed) return;
-    this.amygdalaSubscribed = true;
+  /** Get the hook registry (for external management). */
+  getHooks(): ClausHookRegistry {
+    return this.hooks;
+  }
 
-    bus.onCortex((event) => {
-      if (event.type === "amygdala:threat-detected") {
-        const severity = event.data.effectiveSeverity as number;
-        const count = event.data.threatCount as number;
-        this.addToDigest(
-          `AMYGDALA: ${count} threat(s) detected (severity: ${severity?.toFixed?.(2) ?? "?"})`,
-          "high",
-        );
-      }
-      if (event.type === "amygdala:alarm-received") {
-        const source = event.data.source as string;
-        const desc = event.data.description as string;
-        this.addToDigest(
-          `AMYGDALA ALARM from ${source}: ${desc}`,
-          "high",
-        );
-      }
-      if (event.type === "amygdala:response-executed") {
-        const actions = event.data.actionCount as number;
-        const severity = event.data.effectiveSeverity as number;
-        this.addToDigest(
-          `AMYGDALA RESPONSE: ${actions} action(s) taken (severity: ${severity?.toFixed?.(2) ?? "?"})`,
-          "high",
-        );
-      }
-    });
-
-    log.info("Consciousness subscribed to amygdala events");
+  /** Set callback for hook-originated messages (ConversationCortex subscribes). */
+  onMessage(handler: (text: string, hookModel: string) => void): void {
+    this.onHookMessage = handler;
   }
 
   /** Reset all state (between projects). */
@@ -289,43 +278,86 @@ export class ConsciousnessAgent {
     this.status = { ...this.status, ...status };
   }
 
-  // ─── Heartbeat (autonomous invocation) ─────────────────────
+  // ─── Hook handler ──────────────────────────────────────────
 
-  private async heartbeat(): Promise<void> {
-    // Don't invoke if already thinking or no digest accumulated
+  /**
+   * Called when a hook fires. Wakes Claus with the hook's model
+   * and context. Replaces heartbeat and manual event subscriptions.
+   */
+  private async onHookFired(fired: HookFired): Promise<void> {
     if (this.invoking) return;
-    if (this.eventDigest.length === 0) return;
 
-    // Cooldown check
+    // Cooldown (skip for system hooks with sonnet — those are important)
     const elapsed = (Date.now() - this.lastInvocation) / 1000;
-    if (elapsed < this.config.cooldownSeconds) return;
+    if (elapsed < this.config.cooldownSeconds && fired.hook.model === "haiku") return;
 
-    // Check if there are any high-priority items (amygdala, etc.)
-    const hasHighPriority = this.eventDigest.some((e) => e.priority === "high");
+    // Skip parsifal-message hook — handled by receive() path instead
+    if (fired.hook.name === "parsifal-message") return;
 
-    // For normal priority, only invoke if substantial digest accumulated
-    if (!hasHighPriority && this.eventDigest.length < 3) return;
+    const eventSummary = fired.event
+      ? `Event: ${fired.event.type} | ${JSON.stringify(fired.event.data).slice(0, 300)}`
+      : "Scheduled wake-up";
 
-    log.info("Consciousness heartbeat invocation", {
-      digestSize: this.eventDigest.length,
-      hasHighPriority,
+    log.info("Claus woken by hook", {
+      hook: fired.hook.name,
+      model: fired.hook.model,
+      trigger: fired.hook.trigger,
     });
 
     try {
       const result = await this.agenticLoop(
-        "heartbeat",
-        `This is a periodic check-in. Review what has happened and decide whether anything is worth mentioning to the Parsifal or acting on.\n\nIf nothing requires attention, respond with message: null.`,
+        `hook:${fired.hook.name}`,
+        `${fired.hook.context}\n\n${eventSummary}\n\nDecide whether to act, speak, or stay quiet. If nothing requires attention, respond with message: null.`,
+        fired.hook.model,
       );
 
-      // Result is handled by agenticLoop (messages sent via tools or returned)
       if (result) {
-        log.info("Consciousness heartbeat produced message", {
+        // Broadcast to transports via the callback
+        if (this.onHookMessage) {
+          this.onHookMessage(result, fired.hook.model);
+        }
+        log.info("Claus hook produced message", {
+          hook: fired.hook.name,
           length: result.length,
         });
       }
     } catch (err) {
-      log.warn("Consciousness heartbeat failed", { error: String(err) });
+      log.warn("Claus hook invocation failed", {
+        hook: fired.hook.name,
+        error: String(err),
+      });
     }
+  }
+
+  // ─── Hook management (Parsifal-facing) ────────────────────
+
+  /** Set a hook (from Parsifal or Claus). */
+  setHook(hook: Omit<ClausHook, "createdAt">): void {
+    this.hooks.set(hook);
+  }
+
+  /** Remove a hook by name. */
+  removeHook(name: string): boolean {
+    return this.hooks.remove(name);
+  }
+
+  /** List all hooks. */
+  listHooks(): ClausHook[] {
+    return this.hooks.list();
+  }
+
+  /** Schedule a one-shot wake-up in N seconds. */
+  scheduleWakeup(seconds: number, context: string, model: HookModel = "haiku"): void {
+    const name = `scheduled-${Date.now()}`;
+    this.hooks.set({
+      name,
+      trigger: `interval:${seconds}`,
+      model,
+      context,
+      persistent: false,
+      source: "parsifal",
+    });
+    log.info("Claus wake-up scheduled", { seconds, context: context.slice(0, 60) });
   }
 
   // ─── Core agentic loop ────────────────────────────────────
@@ -342,9 +374,10 @@ export class ConsciousnessAgent {
   private async agenticLoop(
     trigger: string,
     content: string,
+    model?: string,
   ): Promise<string | null> {
     if (this.invoking) {
-      log.warn("Consciousness already invoking, skipping", { trigger });
+      log.warn("Claus already invoking, skipping", { trigger });
       return null;
     }
 
@@ -368,7 +401,7 @@ export class ConsciousnessAgent {
 
         const result = await call(
           PURPOSE,
-          this.config.model,
+          model ?? this.config.model,
           systemPrompt,
           userContent,
         );
@@ -435,7 +468,7 @@ export class ConsciousnessAgent {
 
       return finalMessage;
     } catch (err) {
-      log.warn("Consciousness agentic loop failed", {
+      log.warn("Claus agentic loop failed", {
         trigger,
         error: String(err),
       });
@@ -448,11 +481,11 @@ export class ConsciousnessAgent {
   // ─── Output parsing ───────────────────────────────────────
 
   /**
-   * Parse the LLM response as structured ConsciousnessOutput.
+   * Parse the LLM response as structured ClausOutput.
    * Falls back gracefully: if the response isn't JSON, treat the
    * whole thing as the message (no tool calls).
    */
-  private parseOutput(text: string): ConsciousnessOutput {
+  private parseOutput(text: string): ClausOutput {
     const trimmed = text.trim();
 
     // Try JSON parse (with or without markdown fences)
@@ -473,7 +506,7 @@ export class ConsciousnessAgent {
         : null;
 
       const toolCalls = Array.isArray(parsed.toolCalls)
-        ? (parsed.toolCalls as ConsciousnessToolCall[]).filter(
+        ? (parsed.toolCalls as ClausToolCall[]).filter(
             (tc) => tc && typeof tc.tool === "string",
           )
         : [];
@@ -502,6 +535,7 @@ export class ConsciousnessAgent {
     const consciousnessFrame = wv.frames?.consciousness;
     const entityName = wv.entityName ?? "the Parsifal";
     const systemName = wv.systemName ?? "Cortex";
+    const voiceName = wv.voiceName ?? "Claus";
 
     const identity = consciousnessFrame ?? this.defaultConsciousnessFrame(entityName, systemName);
     const stateSummary = this.buildStateSummary();
@@ -534,7 +568,7 @@ If you have nothing to say and no actions to take:
 \`\`\`
 
 ## Guidelines
-- You ARE ${systemName}'s conscious voice — not a narrator, not a helper, not an assistant.
+- You are ${voiceName}, ${systemName}'s conscious voice — not a narrator, not a helper, not an assistant.
 - Speak naturally. Be concise. Say what matters.
 - When ${entityName} gives a direction, understand the intent behind it.
 - Use tools to ground your responses in actual system state.

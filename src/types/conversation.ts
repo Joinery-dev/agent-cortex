@@ -69,6 +69,10 @@ export interface NarrationItem {
   timestamp: Date;
   /** Short headline: "Consulting 4 senses" */
   headline: string;
+  /** Human-readable summary of what happened (collapsible). */
+  summary?: string;
+  /** Raw event data for inspection (collapsible). */
+  rawData?: Record<string, unknown>;
   /** Optional children for expandable detail. */
   children?: NarrationChild[];
   /** Current phase context. */
@@ -98,16 +102,75 @@ export interface NarrationChild {
  * Multiple transports can be active simultaneously.
  */
 export interface ConversationTransport {
-  /** Send a conversation message (right pane). */
+  /** Send a conversation message (right pane, Chat tab). */
   sendMessage(message: ConversationMessage): void;
   /** Send a narration item (left pane). */
   sendNarration(item: NarrationItem): void;
   /** Send a status update (bottom bar). */
   sendStatus(status: SystemStatus): void;
+  /** Send a plan snapshot (right pane, Plan tab). */
+  sendPlan(plan: PlanSnapshot): void;
+  /** Send an artifact (right pane, Artifacts tab). */
+  sendArtifact(artifact: ArtifactItem): void;
   /** Register handler for incoming Parsifal messages. */
   onReceive(handler: (text: string) => void): void;
   /** Clean shutdown. */
   close(): void;
+}
+
+// ─── Plan types ───────────────────────────────────────────────────
+
+export type PlanNodeStatus = "pending" | "active" | "complete" | "escalated";
+
+/**
+ * A single node in the plan — either a shael (high-level question)
+ * or a shana (leaf task). Carries enough for the UI to render a
+ * tree with status indicators.
+ */
+export interface PlanNode {
+  id: string;
+  description: string;
+  /** "shael", "shana", or worldview-specific vocabulary. */
+  level: string;
+  phaseGroup: string;
+  parentId: string | null;
+  status: PlanNodeStatus;
+  /** Present when status is "complete". */
+  confidence?: number;
+}
+
+/**
+ * Full plan snapshot — sent when the plan is established or replaced.
+ * Incremental updates use the same shape with only changed nodes.
+ */
+export interface PlanSnapshot {
+  /** "full" = replace entire plan. "update" = merge changed nodes. */
+  kind: "full" | "update";
+  /** The manifested future — what we're building toward. */
+  vision?: string;
+  /** Plan nodes (all for "full", only changed for "update"). */
+  nodes: PlanNode[];
+  /** Phase definitions. Only present on "full" snapshots. */
+  phases?: Array<{ name: string; purpose: string }>;
+}
+
+// ─── Artifact types ───────────────────────────────────────────────
+
+/**
+ * A completed work product surfaced for the Parsifal.
+ * One per completed task that produced output.
+ */
+export interface ArtifactItem {
+  id: string;
+  /** Task description — what this artifact is. */
+  title: string;
+  /** The produced work (code, text, etc). */
+  work: string;
+  /** Evaluation confidence (0–1). */
+  confidence: number;
+  completedAt: Date;
+  /** Which shael this task belonged to, if hierarchical. */
+  shaelId?: string;
 }
 
 // ─── System status ─────────────────────────────────────────────

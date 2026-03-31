@@ -5,42 +5,61 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Agent Cortex</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --bg-deep: #1a1612;
-    --bg: #211d18;
-    --bg-surface: #2a2520;
-    --bg-surface-hover: #332e28;
-    --bg-elevated: #3a342d;
-    --border: #3d362e;
-    --border-soft: #332c25;
+    /* ── Deep space base ─────────────────── */
+    --bg-deep: #08090d;
+    --bg: #0d1017;
+    --bg-surface: #151a23;
+    --bg-surface-hover: #1a2030;
+    --bg-elevated: #1e2535;
+    --bg-glass: rgba(21, 26, 35, 0.7);
+    --border: #232d3f;
+    --border-soft: #1a2233;
+    --border-glow: rgba(88, 166, 255, 0.12);
 
-    --text: #e8e0d4;
-    --text-secondary: #b8ad9e;
-    --text-dim: #8a7e70;
-    --text-muted: #5e544a;
+    /* ── Text ────────────────────────────── */
+    --text: #e6edf3;
+    --text-secondary: #9eaab8;
+    --text-dim: #5d6f83;
+    --text-muted: #374357;
 
-    --green: #6b9e5e;
-    --green-bright: #8aba7c;
-    --green-dim: #4a7040;
-    --green-surface: #2a3528;
-    --green-border: #3d5235;
+    /* ── Primary: electric green ──────────── */
+    --green: #3fb950;
+    --green-bright: #56d364;
+    --green-dim: #238636;
+    --green-surface: rgba(63, 185, 80, 0.08);
+    --green-glow: rgba(63, 185, 80, 0.25);
+    --green-border: rgba(63, 185, 80, 0.2);
 
-    --brown-warm: #8b6f4e;
-    --brown-light: #a88a68;
-    --amber: #c4956a;
-    --amber-dim: #8a6840;
-    --gold: #d4a857;
+    /* ── Secondary: cyan/blue ────────────── */
+    --cyan: #58a6ff;
+    --cyan-dim: #1f6feb;
+    --cyan-surface: rgba(88, 166, 255, 0.06);
+    --cyan-glow: rgba(88, 166, 255, 0.2);
 
-    --sage: #7a9477;
-    --sage-dim: #5a7458;
-    --sage-surface: #283028;
+    /* ── Tertiary: violet ────────────────── */
+    --violet: #bc8cff;
+    --violet-dim: #8957e5;
+    --violet-surface: rgba(188, 140, 255, 0.06);
 
-    --red-soft: #c47060;
-    --purple-soft: #9a82b4;
+    /* ── Warm: amber ─────────────────────── */
+    --amber: #e3b341;
+    --amber-dim: #9e6a03;
+    --amber-surface: rgba(227, 179, 65, 0.06);
+    --amber-glow: rgba(227, 179, 65, 0.2);
+
+    /* ── Danger: red ─────────────────────── */
+    --red: #f85149;
+    --red-dim: #da3633;
+
+    /* ── Accent for proactive/sage ────────── */
+    --sage: #7ee787;
+    --sage-dim: #2ea043;
+    --sage-surface: rgba(126, 231, 135, 0.06);
   }
 
   body {
@@ -59,75 +78,82 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 20px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border-soft);
+    padding: 0 20px;
+    height: 48px;
+    background: linear-gradient(180deg, rgba(21, 26, 35, 0.95) 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
   }
 
   .header-logo {
-    width: 24px;
-    height: 24px;
-    border-radius: 6px;
-    background: linear-gradient(135deg, var(--green-dim), var(--green));
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #238636 0%, #3fb950 50%, #58a6ff 100%);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 12px rgba(63, 185, 80, 0.3), inset 0 1px 0 rgba(255,255,255,0.15);
   }
 
   .header h1 {
-    font-family: 'Source Serif 4', Georgia, serif;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     color: var(--text);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 
   .connection-badge {
     font-size: 10px;
-    padding: 2px 8px;
-    border-radius: 10px;
-    background: var(--bg-elevated);
-    color: var(--text-muted);
-    border: 1px solid var(--border);
-    transition: all 0.3s;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 12px;
+    background: rgba(248, 81, 73, 0.1);
+    color: var(--red);
+    border: 1px solid rgba(248, 81, 73, 0.2);
+    transition: all 0.4s ease;
   }
 
   .connection-badge.connected {
     background: var(--green-surface);
     color: var(--green-bright);
     border-color: var(--green-border);
+    box-shadow: 0 0 8px var(--green-glow);
   }
 
   .header nav {
     display: flex;
-    gap: 4px;
+    gap: 2px;
   }
 
   .header nav a {
     color: var(--text-dim);
     text-decoration: none;
     font-size: 12px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    transition: all 0.15s;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 8px;
+    transition: all 0.2s;
   }
   .header nav a:hover {
     color: var(--text-secondary);
     background: var(--bg-surface);
   }
   .header nav a.active {
-    color: var(--text);
-    background: var(--bg-surface);
+    color: var(--cyan);
+    background: var(--cyan-surface);
+    box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.15);
   }
 
   /* ── Main layout ─────────────────────────── */
@@ -138,55 +164,130 @@
     min-height: 0;
   }
 
-  /* ── Left pane: System Activity ──────────── */
+  /* ── Left pane (tabbed) ──────────────────── */
 
-  .activity-pane {
+  .left-pane {
     width: 42%;
-    border-right: 1px solid var(--border-soft);
     display: flex;
     flex-direction: column;
     min-width: 280px;
+    max-width: 75%;
     background: var(--bg-deep);
   }
 
-  .pane-header {
-    padding: 12px 20px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-dim);
-    border-bottom: 1px solid var(--border-soft);
-    background: var(--bg);
+  /* ── Resize handle ───────────────────────── */
+
+  .resize-handle {
+    width: 1px;
+    cursor: col-resize;
+    background: var(--border);
     flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    position: relative;
+    transition: all 0.2s;
   }
 
-  .pane-header .pane-icon {
-    font-size: 13px;
-    opacity: 0.6;
+  .resize-handle:hover,
+  .resize-handle.dragging {
+    width: 3px;
+    background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan-glow), 0 0 20px rgba(88, 166, 255, 0.08);
   }
+
+  .resize-handle::after {
+    content: '';
+    position: absolute;
+    inset: 0 -4px;
+  }
+
+  /* ── Tab bar (left pane) ─────────────────── */
+
+  .tab-bar {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 0 8px;
+    height: 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+  }
+
+  .tab-btn {
+    padding: 8px 14px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-transform: none;
+  }
+
+  .tab-btn:hover {
+    color: var(--text-secondary);
+  }
+
+  .tab-btn.active {
+    color: var(--text);
+    border-bottom-color: var(--cyan);
+  }
+
+  .tab-btn .tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .tab-btn.active .tab-badge {
+    background: var(--cyan-surface);
+    color: var(--cyan);
+    box-shadow: 0 0 6px rgba(88, 166, 255, 0.15);
+  }
+
+  /* ── Tab panels ──────────────────────────── */
+
+  .tab-panel {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .tab-panel.active { display: flex; }
+
+  /* ── Activity panel ──────────────────────── */
 
   .activity-feed {
     flex: 1;
     overflow-y: auto;
-    padding: 6px 0;
+    padding: 8px 0;
   }
 
   .activity-item {
     padding: 7px 20px 7px 18px;
     font-size: 13px;
-    line-height: 1.5;
+    line-height: 1.55;
     border-left: 2px solid transparent;
-    transition: background 0.12s;
+    transition: all 0.15s;
     color: var(--text-secondary);
   }
 
-  .activity-item:hover {
-    background: var(--bg-surface);
-  }
+  .activity-item:hover { background: var(--bg-surface); }
 
   .activity-item.major {
     border-left-color: var(--green);
@@ -194,26 +295,25 @@
     font-weight: 500;
     padding-top: 10px;
     padding-bottom: 10px;
+    background: var(--green-surface);
   }
 
   .activity-item.minor {
     color: var(--text-dim);
     font-size: 12px;
-    border-left-color: transparent;
   }
 
   .activity-time {
     color: var(--text-muted);
     font-size: 10px;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-family: 'JetBrains Mono', monospace;
     margin-right: 10px;
-    letter-spacing: 0.02em;
   }
 
   .activity-children {
-    margin-top: 4px;
-    padding-left: 16px;
-    border-left: 1px solid var(--border-soft);
+    margin-top: 5px;
+    padding-left: 14px;
+    border-left: 1px solid var(--border);
     margin-left: 4px;
   }
 
@@ -224,13 +324,442 @@
     padding: 1px 0;
   }
 
-  .activity-child .label {
+  .activity-child .label { color: var(--text-muted); font-weight: 500; }
+  .activity-child.warn { color: var(--amber); }
+  .activity-child.success { color: var(--green-bright); }
+
+  /* ── Activity detail drawers ────────────── */
+
+  .activity-details {
+    margin-top: 6px;
+    display: flex;
+    gap: 0;
+    flex-direction: column;
+  }
+
+  .activity-details details {
+    border-left: 1px solid var(--border);
+    margin-left: 4px;
+    padding: 0;
+  }
+
+  .activity-details summary {
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 500;
     color: var(--text-muted);
+    padding: 3px 0 3px 12px;
+    user-select: none;
+    list-style: none;
+  }
+
+  .activity-details summary::-webkit-details-marker { display: none; }
+
+  .activity-details summary::before {
+    content: "\25B8";
+    display: inline-block;
+    width: 12px;
+    font-size: 10px;
+    transition: transform 0.15s;
+  }
+
+  .activity-details details[open] > summary::before {
+    transform: rotate(90deg);
+  }
+
+  .activity-details summary:hover { color: var(--text-secondary); }
+
+  .activity-detail-body {
+    padding: 5px 0 8px 24px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .activity-detail-body.summary-text {
+    white-space: pre-wrap;
+  }
+
+  .activity-detail-body.raw-data {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text-muted);
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  /* ── Plan panel ──────────────────────────── */
+
+  .plan-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 16px;
+  }
+
+  .plan-vision {
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--text-secondary);
+    padding: 16px 18px;
+    background: linear-gradient(135deg, var(--cyan-surface) 0%, var(--violet-surface) 100%);
+    border: 1px solid var(--border-glow);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 0 20px rgba(88, 166, 255, 0.04);
+  }
+
+  .plan-vision-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--cyan);
+    margin-bottom: 8px;
+  }
+
+  .plan-phase { margin-bottom: 16px; }
+
+  .plan-phase-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+    padding: 6px 0;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .plan-node {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    transition: all 0.15s;
+    animation: fadeIn 0.25s ease;
+  }
+
+  .plan-node:hover { background: var(--bg-surface-hover); }
+  .plan-node.child { margin-left: 24px; padding: 5px 12px; }
+
+  .plan-node-status {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--border);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    transition: all 0.25s;
+  }
+
+  .plan-node-status.pending { border-color: var(--text-muted); }
+
+  .plan-node-status.active {
+    border-color: var(--amber);
+    background: rgba(227, 179, 65, 0.15);
+    box-shadow: 0 0 8px var(--amber-glow), 0 0 0 3px var(--amber-surface);
+  }
+  .plan-node-status.active::after {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    animation: pulse 1.5s ease infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
+
+  .plan-node-status.complete {
+    border-color: var(--green);
+    background: rgba(63, 185, 80, 0.15);
+    box-shadow: 0 0 6px var(--green-glow);
+  }
+  .plan-node-status.complete::after {
+    content: '\2713';
+    color: var(--green-bright);
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  .plan-node-status.escalated {
+    border-color: var(--red);
+    background: rgba(248, 81, 73, 0.12);
+    box-shadow: 0 0 6px rgba(248, 81, 73, 0.2);
+  }
+  .plan-node-status.escalated::after {
+    content: '!';
+    color: var(--red);
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  .plan-node-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .plan-node.active .plan-node-text { color: var(--text); font-weight: 500; }
+  .plan-node.complete .plan-node-text { color: var(--text-dim); }
+
+  .plan-node-confidence {
+    font-size: 10px;
+    color: var(--green);
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  /* ── Artifacts panel ─────────────────────── */
+
+  .artifacts-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .artifact-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    animation: fadeIn 0.25s ease;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .artifact-card:hover {
+    border-color: var(--green-border);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+
+  .artifact-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .artifact-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .artifact-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .artifact-confidence {
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: var(--green-surface);
+    color: var(--green-bright);
+    border: 1px solid var(--green-border);
     font-weight: 500;
   }
 
-  .activity-child.warn { color: var(--amber); }
-  .activity-child.success { color: var(--green-bright); }
+  .artifact-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+  }
+
+  .artifact-card.expanded .artifact-body { max-height: 600px; }
+
+  .artifact-body pre {
+    padding: 14px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-y: auto;
+    max-height: 580px;
+    background: var(--bg-deep);
+  }
+
+  .artifact-toggle {
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    transition: all 0.2s;
+  }
+
+  .artifact-toggle:hover {
+    color: var(--cyan);
+    border-color: rgba(88, 166, 255, 0.2);
+    background: var(--cyan-surface);
+  }
+
+  /* ── Diagrams panel ──────────────────────── */
+
+  .diagrams-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 16px;
+  }
+
+  .diagram-group { margin-bottom: 18px; }
+
+  .diagram-group-header {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--violet);
+    padding: 4px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .diagram-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+
+  .diagram-item:hover {
+    background: var(--violet-surface);
+    color: var(--text);
+    box-shadow: 0 0 0 1px rgba(188, 140, 255, 0.1);
+  }
+
+  .diagram-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: var(--violet-surface);
+    border: 1px solid rgba(188, 140, 255, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--violet);
+    flex-shrink: 0;
+  }
+
+  .diagram-item:hover .diagram-icon {
+    box-shadow: 0 0 8px rgba(188, 140, 255, 0.2);
+  }
+
+  .diagram-item-title { flex: 1; }
+
+  /* ── Diagram modal ───────────────────────── */
+
+  .diagram-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .diagram-modal.open { display: flex; }
+
+  .diagram-modal-inner {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 1000px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 40px rgba(88, 166, 255, 0.05);
+  }
+
+  .diagram-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .diagram-modal-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .diagram-modal-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .diagram-modal-actions button {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .diagram-modal-actions button:hover {
+    background: var(--cyan-surface);
+    color: var(--cyan);
+    border-color: rgba(88, 166, 255, 0.2);
+  }
+
+  .diagram-modal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-deep);
+  }
+
+  .diagram-modal-body svg { max-width: 100%; height: auto; }
+
+  .diagram-modal-body .diagram-loading {
+    color: var(--text-dim);
+    font-size: 13px;
+  }
 
   /* ── Right pane: Conversation ────────────── */
 
@@ -242,6 +771,23 @@
     background: var(--bg);
   }
 
+  .pane-header {
+    padding: 0 20px;
+    height: 40px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pane-header .pane-icon { font-size: 13px; opacity: 0.5; color: var(--cyan); }
+
   .conversation-feed {
     flex: 1;
     overflow-y: auto;
@@ -249,6 +795,7 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+    background: radial-gradient(ellipse at 50% 0%, rgba(88, 166, 255, 0.02) 0%, transparent 70%);
   }
 
   .message {
@@ -257,11 +804,11 @@
     font-size: 14px;
     line-height: 1.6;
     word-wrap: break-word;
-    animation: fadeIn 0.2s ease;
+    animation: fadeIn 0.25s ease;
   }
 
   @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(4px); }
+    from { opacity: 0; transform: translateY(6px); }
     to { opacity: 1; transform: translateY(0); }
   }
 
@@ -269,41 +816,42 @@
     align-self: flex-start;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 16px 16px 16px 4px;
+    border-radius: 18px 18px 18px 4px;
     color: var(--text);
   }
 
   .message.parsifal {
     align-self: flex-end;
-    background: var(--green-dim);
+    background: linear-gradient(135deg, var(--green-dim) 0%, #1a6b2e 100%);
     border: 1px solid var(--green-border);
-    border-radius: 16px 16px 4px 16px;
+    border-radius: 18px 18px 4px 18px;
     color: var(--text);
+    box-shadow: 0 2px 12px rgba(63, 185, 80, 0.1);
   }
 
   .message.question {
     align-self: flex-start;
     background: var(--bg-surface);
-    border: 1px solid var(--amber-dim);
-    border-radius: 16px 16px 16px 4px;
+    border: 1px solid rgba(227, 179, 65, 0.2);
+    border-radius: 18px 18px 18px 4px;
     color: var(--text);
   }
 
   .message.question::before {
     content: '';
     display: block;
-    width: 16px;
+    width: 20px;
     height: 2px;
-    background: var(--amber);
+    background: linear-gradient(90deg, var(--amber), transparent);
     border-radius: 1px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
 
   .message.proactive {
     align-self: flex-start;
     background: var(--sage-surface);
-    border: 1px solid var(--sage-dim);
-    border-radius: 16px 16px 16px 4px;
+    border: 1px solid rgba(126, 231, 135, 0.1);
+    border-radius: 18px 18px 18px 4px;
     font-size: 13px;
     color: var(--text-secondary);
   }
@@ -312,7 +860,7 @@
     font-size: 10px;
     color: var(--text-muted);
     margin-top: 6px;
-    letter-spacing: 0.02em;
+    font-family: 'JetBrains Mono', monospace;
   }
 
   .message.cortex .message-meta { text-align: left; }
@@ -321,8 +869,8 @@
   /* ── Input area ──────────────────────────── */
 
   .input-area {
-    padding: 14px 24px 16px;
-    border-top: 1px solid var(--border-soft);
+    padding: 16px 24px 18px;
+    border-top: 1px solid var(--border);
     background: var(--bg);
     flex-shrink: 0;
   }
@@ -337,56 +885,47 @@
     flex: 1;
     background: var(--bg-surface);
     border: 1px solid var(--border);
-    border-radius: 12px;
+    border-radius: 14px;
     color: var(--text);
     font-family: inherit;
     font-size: 14px;
-    padding: 11px 16px;
+    padding: 12px 18px;
     resize: none;
-    min-height: 44px;
+    min-height: 46px;
     max-height: 120px;
     outline: none;
     transition: border-color 0.2s, box-shadow 0.2s;
     line-height: 1.5;
   }
 
-  .input-row textarea::placeholder {
-    color: var(--text-muted);
-  }
+  .input-row textarea::placeholder { color: var(--text-muted); }
 
   .input-row textarea:focus {
-    border-color: var(--green-dim);
-    box-shadow: 0 0 0 2px rgba(107, 158, 94, 0.15);
+    border-color: rgba(88, 166, 255, 0.3);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.08), 0 0 20px rgba(88, 166, 255, 0.05);
   }
 
   .input-row button {
-    background: var(--green-dim);
+    background: linear-gradient(135deg, var(--green-dim) 0%, #1a7a30 100%);
     color: var(--text);
     border: 1px solid var(--green-border);
-    border-radius: 12px;
-    padding: 11px 22px;
+    border-radius: 14px;
+    padding: 12px 24px;
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     flex-shrink: 0;
-    transition: all 0.15s;
-    letter-spacing: 0.01em;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(63, 185, 80, 0.15);
   }
 
   .input-row button:hover {
-    background: var(--green);
-    border-color: var(--green);
+    background: linear-gradient(135deg, #2a9a40 0%, var(--green) 100%);
+    box-shadow: 0 4px 16px rgba(63, 185, 80, 0.25);
+    transform: translateY(-1px);
   }
-
-  .input-row button:active {
-    transform: scale(0.97);
-  }
-
-  .input-row button:disabled {
-    opacity: 0.35;
-    cursor: default;
-    transform: none;
-  }
+  .input-row button:active { transform: translateY(0); }
+  .input-row button:disabled { opacity: 0.3; cursor: default; transform: none; box-shadow: none; }
 
   /* ── Status bar ──────────────────────────── */
 
@@ -394,28 +933,23 @@
     display: flex;
     align-items: center;
     gap: 20px;
-    padding: 7px 20px;
-    border-top: 1px solid var(--border-soft);
+    padding: 0 20px;
+    height: 30px;
+    border-top: 1px solid var(--border);
     background: var(--bg-deep);
     font-size: 11px;
     color: var(--text-muted);
     flex-shrink: 0;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-    letter-spacing: 0.01em;
+    font-family: 'JetBrains Mono', monospace;
   }
 
-  .status-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .status-label { color: var(--text-dim); }
-  .status-value { color: var(--brown-light); }
+  .status-item { display: flex; align-items: center; gap: 5px; }
+  .status-label { color: var(--text-muted); }
+  .status-value { color: var(--cyan); }
 
   /* ── Scrollbar ───────────────────────────── */
 
-  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
     background: var(--border);
@@ -432,7 +966,7 @@
     justify-content: center;
     height: 100%;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 13px;
     text-align: center;
     padding: 40px;
     line-height: 1.7;
@@ -441,33 +975,11 @@
 
   .empty-state .empty-icon {
     font-size: 32px;
-    opacity: 0.3;
+    opacity: 0.15;
     margin-bottom: 4px;
   }
 
-  .empty-state p {
-    max-width: 260px;
-  }
-
-  /* ── Divider for date/time groups ─────────── */
-
-  .time-divider {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 20px 4px;
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .time-divider::after {
-    content: '';
-    flex: 1;
-    height: 1px;
-    background: var(--border-soft);
-  }
+  .empty-state p { max-width: 240px; color: var(--text-dim); font-weight: 300; }
 </style>
 </head>
 <body>
@@ -479,26 +991,69 @@
     <span class="connection-badge" id="connectionBadge">disconnected</span>
   </div>
   <nav>
-    <a href="/trace">Trace</a>
-    <a href="/build">Build</a>
     <a href="/conversation" class="active">Conversation</a>
   </nav>
 </div>
 
 <div class="main">
-  <!-- Left pane: System Activity -->
-  <div class="activity-pane">
-    <div class="pane-header">
-      <span class="pane-icon">&#9670;</span>
-      System Activity
+  <!-- Left pane: tabbed (Activity | Plan | Artifacts | Diagrams) -->
+  <div class="left-pane">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="activity" onclick="switchTab('activity')">Activity</button>
+      <button class="tab-btn" data-tab="plan" onclick="switchTab('plan')">
+        Plan<span class="tab-badge" id="planBadge" style="display:none">0</span>
+      </button>
+      <button class="tab-btn" data-tab="artifacts" onclick="switchTab('artifacts')">
+        Artifacts<span class="tab-badge" id="artifactBadge" style="display:none">0</span>
+      </button>
+      <button class="tab-btn" data-tab="diagrams" onclick="switchTab('diagrams')">
+        Diagrams<span class="tab-badge" id="diagramBadge" style="display:none">0</span>
+      </button>
     </div>
-    <div class="activity-feed" id="activityFeed">
-      <div class="empty-state" id="activityEmpty">
-        <div class="empty-icon">&#9673;</div>
-        <p>Waiting for Cortex to start...</p>
+
+    <!-- Activity tab -->
+    <div class="tab-panel active" id="tab-activity">
+      <div class="activity-feed" id="activityFeed">
+        <div class="empty-state" id="activityEmpty">
+          <div class="empty-icon">&#9673;</div>
+          <p>Waiting for Cortex to start...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Plan tab -->
+    <div class="tab-panel" id="tab-plan">
+      <div class="plan-content" id="planContent">
+        <div class="empty-state" id="planEmpty">
+          <div class="empty-icon">&#9672;</div>
+          <p>No plan yet. Cortex will populate this during planning.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artifacts tab -->
+    <div class="tab-panel" id="tab-artifacts">
+      <div class="artifacts-content" id="artifactsContent">
+        <div class="empty-state" id="artifactsEmpty">
+          <div class="empty-icon">&#9830;</div>
+          <p>Completed work products appear here as tasks finish.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Diagrams tab -->
+    <div class="tab-panel" id="tab-diagrams">
+      <div class="diagrams-content" id="diagramsContent">
+        <div class="empty-state" id="diagramsEmpty">
+          <div class="empty-icon">&#9671;</div>
+          <p>Loading diagrams...</p>
+        </div>
       </div>
     </div>
   </div>
+
+  <!-- Resize handle -->
+  <div class="resize-handle" id="resizeHandle"></div>
 
   <!-- Right pane: Conversation -->
   <div class="conversation-pane">
@@ -527,6 +1082,22 @@
   </div>
 </div>
 
+<!-- Diagram viewer modal -->
+<div class="diagram-modal" id="diagramModal">
+  <div class="diagram-modal-inner">
+    <div class="diagram-modal-header">
+      <div class="diagram-modal-title" id="diagramModalTitle">Diagram</div>
+      <div class="diagram-modal-actions">
+        <button onclick="openDiagramInMermaidLive()">Open in Mermaid Live</button>
+        <button onclick="closeDiagramModal()">Close</button>
+      </div>
+    </div>
+    <div class="diagram-modal-body" id="diagramModalBody">
+      <div class="diagram-loading">Loading...</div>
+    </div>
+  </div>
+</div>
+
 <div class="status-bar" id="statusBar">
   <div class="status-item">
     <span class="status-label">state</span>
@@ -534,7 +1105,26 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+// ─── State ────────────────────────────────────────────────────
+let currentTab = 'activity';
+const planState = { vision: null, nodes: new Map(), phases: [] };
+let artifactCount = 0;
+let currentDiagramCode = '';
+let mermaidLoaded = false;
+
+// ─── Tab switching ────────────────────────────────────────────
+
+window.switchTab = function(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === 'tab-' + name);
+  });
+};
+
 // ─── WebSocket connection ──────────────────────────────────
 
 const wsUrl = `ws://${location.host}/conversation`;
@@ -569,6 +1159,8 @@ function connect() {
         case 'message': handleMessage(wire.payload); break;
         case 'narration': handleNarration(wire.payload); break;
         case 'status': handleStatus(wire.payload); break;
+        case 'plan': handlePlan(wire.payload); break;
+        case 'artifact': handleArtifact(wire.payload); break;
       }
     } catch (e) {
       console.warn('Invalid message:', e);
@@ -578,7 +1170,7 @@ function connect() {
 
 connect();
 
-// ─── Message handling (right pane) ─────────────────────────
+// ─── Message handling (Conversation pane) ─────────────────────
 
 function handleMessage(msg) {
   const feed = document.getElementById('conversationFeed');
@@ -608,7 +1200,7 @@ function handleMessage(msg) {
   scrollToBottom(feed);
 }
 
-// ─── Narration handling (left pane) ────────────────────────
+// ─── Narration handling (Activity tab) ────────────────────────
 
 function handleNarration(item) {
   const feed = document.getElementById('activityFeed');
@@ -629,12 +1221,346 @@ function handleNarration(item) {
     html += '</div>';
   }
 
+  // Collapsible detail drawers
+  const hasSummary = item.summary;
+  const hasRaw = item.rawData && Object.keys(item.rawData).length > 0;
+  if (hasSummary || hasRaw) {
+    html += '<div class="activity-details">';
+    if (hasSummary) {
+      html += `<details><summary>Summary</summary><div class="activity-detail-body summary-text">${escapeHtml(item.summary)}</div></details>`;
+    }
+    if (hasRaw) {
+      const raw = JSON.stringify(item.rawData, null, 2);
+      html += `<details><summary>Raw Data</summary><div class="activity-detail-body raw-data">${escapeHtml(raw)}</div></details>`;
+    }
+    html += '</div>';
+  }
+
   el.innerHTML = html;
   feed.appendChild(el);
   scrollToBottom(feed);
 }
 
-// ─── Status handling (bottom bar) ──────────────────────────
+// ─── Plan handling (Plan tab) ──────────────────────────────────
+
+function handlePlan(snapshot) {
+  if (snapshot.kind === 'full') {
+    planState.vision = snapshot.vision || null;
+    planState.nodes.clear();
+    planState.phases = snapshot.phases || [];
+    for (const node of snapshot.nodes) {
+      planState.nodes.set(node.id, node);
+    }
+  } else {
+    for (const node of snapshot.nodes) {
+      const existing = planState.nodes.get(node.id);
+      if (existing) {
+        Object.assign(existing, node);
+      } else {
+        planState.nodes.set(node.id, node);
+      }
+    }
+  }
+
+  renderPlan();
+  updatePlanBadge();
+}
+
+function renderPlan() {
+  const container = document.getElementById('planContent');
+  removeEmpty('planEmpty');
+
+  let html = '';
+
+  if (planState.vision) {
+    html += `<div class="plan-vision">
+      <div class="plan-vision-label">Manifested Future</div>
+      ${formatText(planState.vision)}
+    </div>`;
+  }
+
+  const phaseMap = new Map();
+  const noPhase = [];
+  for (const node of planState.nodes.values()) {
+    if (node.phaseGroup) {
+      if (!phaseMap.has(node.phaseGroup)) phaseMap.set(node.phaseGroup, []);
+      phaseMap.get(node.phaseGroup).push(node);
+    } else {
+      noPhase.push(node);
+    }
+  }
+
+  const phaseOrder = planState.phases.map(p => p.name);
+  const renderedPhases = new Set();
+
+  for (const phaseName of phaseOrder) {
+    const nodes = phaseMap.get(phaseName);
+    if (!nodes) continue;
+    renderedPhases.add(phaseName);
+    const phaseInfo = planState.phases.find(p => p.name === phaseName);
+    html += renderPhaseGroup(phaseName, phaseInfo?.purpose, nodes);
+  }
+
+  for (const [phaseName, nodes] of phaseMap) {
+    if (renderedPhases.has(phaseName)) continue;
+    html += renderPhaseGroup(phaseName, null, nodes);
+  }
+
+  if (noPhase.length > 0) {
+    for (const node of noPhase) html += renderNode(node, false);
+  }
+
+  container.innerHTML = html || '<div class="empty-state" id="planEmpty"><div class="empty-icon">&#9672;</div><p>No plan yet.</p></div>';
+}
+
+function renderPhaseGroup(name, purpose, nodes) {
+  const parents = nodes.filter(n => !n.parentId || !planState.nodes.has(n.parentId));
+  const childMap = new Map();
+  for (const node of nodes) {
+    if (node.parentId && planState.nodes.has(node.parentId)) {
+      if (!childMap.has(node.parentId)) childMap.set(node.parentId, []);
+      childMap.get(node.parentId).push(node);
+    }
+  }
+
+  let html = `<div class="plan-phase">`;
+  html += `<div class="plan-phase-header">${escapeHtml(name)}${purpose ? ` <span style="font-weight:400;text-transform:none;color:var(--text-muted)"> &mdash; ${escapeHtml(purpose)}</span>` : ''}</div>`;
+
+  for (const node of parents) {
+    html += renderNode(node, false);
+    for (const child of (childMap.get(node.id) || [])) {
+      html += renderNode(child, true);
+    }
+  }
+
+  html += `</div>`;
+  return html;
+}
+
+function renderNode(node, isChild) {
+  const cls = isChild ? 'plan-node child' : 'plan-node';
+  const statusCls = node.status || 'pending';
+  const confidence = node.confidence != null ? `${(node.confidence * 100).toFixed(0)}%` : '';
+
+  return `<div class="${cls} ${statusCls}">
+    <div class="plan-node-status ${statusCls}"></div>
+    <div class="plan-node-text">${escapeHtml(node.description)}</div>
+    ${confidence ? `<div class="plan-node-confidence">${confidence}</div>` : ''}
+  </div>`;
+}
+
+function updatePlanBadge() {
+  const badge = document.getElementById('planBadge');
+  const count = planState.nodes.size;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ─── Artifact handling (Artifacts tab) ─────────────────────────
+
+function handleArtifact(artifact) {
+  const container = document.getElementById('artifactsContent');
+  removeEmpty('artifactsEmpty');
+  artifactCount++;
+
+  const card = document.createElement('div');
+  card.className = 'artifact-card';
+
+  const confidence = artifact.confidence != null ? `${(artifact.confidence * 100).toFixed(0)}%` : '';
+  const time = formatTime(artifact.completedAt);
+
+  card.innerHTML = `
+    <div class="artifact-header">
+      <div class="artifact-title">${escapeHtml(artifact.title)}</div>
+      <div class="artifact-meta">
+        ${confidence ? `<span class="artifact-confidence">${confidence}</span>` : ''}
+        <span>${time}</span>
+        <button class="artifact-toggle" onclick="toggleArtifact(this)">expand</button>
+      </div>
+    </div>
+    <div class="artifact-body">
+      <pre>${escapeHtml(artifact.work)}</pre>
+    </div>
+  `;
+
+  container.insertBefore(card, container.firstChild);
+  updateArtifactBadge();
+}
+
+window.toggleArtifact = function(btn) {
+  const card = btn.closest('.artifact-card');
+  const expanded = card.classList.toggle('expanded');
+  btn.textContent = expanded ? 'collapse' : 'expand';
+};
+
+function updateArtifactBadge() {
+  const badge = document.getElementById('artifactBadge');
+  if (artifactCount > 0) {
+    badge.textContent = artifactCount;
+    badge.style.display = 'inline-block';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// ─── Diagram handling (Diagrams tab) ───────────────────────────
+
+async function loadDiagrams() {
+  try {
+    const resp = await fetch('/diagrams');
+    if (!resp.ok) throw new Error(resp.statusText);
+    const diagrams = await resp.json();
+    renderDiagrams(diagrams);
+  } catch (err) {
+    console.warn('Failed to load diagrams:', err);
+    const container = document.getElementById('diagramsContent');
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">&#9671;</div><p>Could not load diagrams.</p></div>';
+  }
+}
+
+function renderDiagrams(diagrams) {
+  const container = document.getElementById('diagramsContent');
+  removeEmpty('diagramsEmpty');
+
+  // Group by scope
+  const groups = { global: [], phase: [], feature: [] };
+  for (const d of diagrams) {
+    const scope = d.scope || 'global';
+    if (!groups[scope]) groups[scope] = [];
+    groups[scope].push(d);
+  }
+
+  let html = '';
+
+  if (groups.global.length > 0) {
+    html += renderDiagramGroup('Architecture', groups.global);
+  }
+
+  // Phase diagrams grouped by phase number
+  if (groups.phase.length > 0) {
+    const byPhase = new Map();
+    for (const d of groups.phase) {
+      const key = d.phase != null ? `Phase ${d.phase}` : 'Phase';
+      if (!byPhase.has(key)) byPhase.set(key, []);
+      byPhase.get(key).push(d);
+    }
+    for (const [label, items] of byPhase) {
+      html += renderDiagramGroup(label, items);
+    }
+  }
+
+  // Feature diagrams grouped by feature number
+  if (groups.feature.length > 0) {
+    const byFeature = new Map();
+    for (const d of groups.feature) {
+      const key = d.feature != null ? `Feature ${d.feature}` : 'Feature';
+      if (!byFeature.has(key)) byFeature.set(key, []);
+      byFeature.get(key).push(d);
+    }
+    for (const [label, items] of byFeature) {
+      html += renderDiagramGroup(label, items);
+    }
+  }
+
+  container.innerHTML = html || '<div class="empty-state"><div class="empty-icon">&#9671;</div><p>No diagrams found.</p></div>';
+
+  // Update badge
+  const badge = document.getElementById('diagramBadge');
+  if (diagrams.length > 0) {
+    badge.textContent = diagrams.length;
+    badge.style.display = 'inline-block';
+  }
+}
+
+function renderDiagramGroup(label, diagrams) {
+  let html = `<div class="diagram-group"><div class="diagram-group-header">${escapeHtml(label)}</div>`;
+  for (const d of diagrams) {
+    const title = d.title || d.file.replace('.mmd', '');
+    html += `<div class="diagram-item" onclick="openDiagram('${escapeAttr(d.file)}', '${escapeAttr(title)}')">
+      <div class="diagram-icon">&#9671;</div>
+      <div class="diagram-item-title">${escapeHtml(title)}</div>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+window.openDiagram = async function(file, title) {
+  const modal = document.getElementById('diagramModal');
+  const body = document.getElementById('diagramModalBody');
+  const titleEl = document.getElementById('diagramModalTitle');
+
+  titleEl.textContent = title;
+  body.innerHTML = '<div class="diagram-loading">Rendering...</div>';
+  modal.classList.add('open');
+
+  try {
+    const resp = await fetch(`/diagrams/${file}`);
+    if (!resp.ok) throw new Error(resp.statusText);
+    const raw = await resp.text();
+
+    // Strip YAML frontmatter
+    const code = raw.replace(/^---\s*\n[\s\S]*?\n---\s*\n?/, '');
+    currentDiagramCode = code;
+
+    // Lazy-load mermaid
+    if (!mermaidLoaded) {
+      const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs');
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'dark',
+        themeVariables: {
+          darkMode: true,
+          background: '#1a1612',
+          primaryColor: '#4a7040',
+          primaryTextColor: '#e8e0d4',
+          lineColor: '#5e544a',
+          secondaryColor: '#2a2520',
+          tertiaryColor: '#3a342d',
+        },
+      });
+      window.__mermaid = mermaid;
+      mermaidLoaded = true;
+    }
+
+    const { svg } = await window.__mermaid.render('diagram-render', code);
+    body.innerHTML = svg;
+  } catch (err) {
+    body.innerHTML = `<div class="diagram-loading">Failed to render: ${escapeHtml(String(err))}</div>`;
+  }
+};
+
+window.closeDiagramModal = function() {
+  document.getElementById('diagramModal').classList.remove('open');
+  document.getElementById('diagramModalBody').innerHTML = '';
+  currentDiagramCode = '';
+};
+
+window.openDiagramInMermaidLive = function() {
+  if (!currentDiagramCode) return;
+  const state = JSON.stringify({ code: currentDiagramCode, mermaid: { theme: 'dark' } });
+  const encoded = btoa(unescape(encodeURIComponent(state)));
+  window.open(`https://mermaid.live/edit#base64:${encoded}`, '_blank');
+};
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') window.closeDiagramModal();
+});
+
+// Close modal on backdrop click
+document.getElementById('diagramModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) window.closeDiagramModal();
+});
+
+// Load diagrams on startup
+loadDiagrams();
+
+// ─── Status handling (bottom bar) ──────────────────────────────
 
 function handleStatus(status) {
   const bar = document.getElementById('statusBar');
@@ -658,7 +1584,7 @@ function si(label, value) {
 
 // ─── Send message ──────────────────────────────────────────
 
-function sendMessage() {
+window.sendMessage = function() {
   const input = document.getElementById('messageInput');
   const text = input.value.trim();
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
@@ -667,13 +1593,13 @@ function sendMessage() {
   input.value = '';
   input.style.height = 'auto';
   input.focus();
-}
+};
 
 const input = document.getElementById('messageInput');
 input.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    sendMessage();
+    window.sendMessage();
   }
 });
 
@@ -699,6 +1625,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function escapeAttr(str) {
+  return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
 function truncate(str, max) {
   if (str.length <= max) return str;
   return str.slice(0, max - 1) + '\u2026';
@@ -711,6 +1641,40 @@ function removeEmpty(id) {
 
 function scrollToBottom(el) {
   requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
+}
+
+// ─── Resize handle ─────────────────────────────────────────
+
+{
+  const handle = document.getElementById('resizeHandle');
+  const leftPane = document.querySelector('.left-pane');
+  const main = document.querySelector('.main');
+  let dragging = false;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    handle.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const mainRect = main.getBoundingClientRect();
+    const x = e.clientX - mainRect.left;
+    const pct = (x / mainRect.width) * 100;
+    const clamped = Math.max(20, Math.min(75, pct));
+    leftPane.style.width = clamped + '%';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
 }
 </script>
 </body>

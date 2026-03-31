@@ -241,6 +241,7 @@ export function loadWorldview(filePath: string): Worldview {
     version: meta["version"] ? parseInt(meta["version"], 10) : undefined,
     systemName: meta["systemName"] ?? "Cortex",
     entityName: meta["entityName"] ?? "the Parsifal",
+    voiceName: meta["voiceName"] ?? "Claus",
     preamble: preambleSection?.body ?? "",
     vocabulary,
     semanticNodeDescription: snd ?? `${vocabulary.topUnit.plural} and ${vocabulary.leafUnit.plural}`,

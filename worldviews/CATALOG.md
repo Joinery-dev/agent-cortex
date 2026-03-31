@@ -1133,3 +1133,36 @@ Then: 1-3 sentence assessment with specific patterns observed
 - What "couldn't have been asked before" means — the test for genuine emergence
 - How the completed artifact opens new territory
 - The relationship between completion and new beginning under this worldview
+
+---
+
+## consciousness
+
+**What it does:** Defines the identity and experiential character of the system's conscious voice (Claus). This is how the system experiences itself working — not a process monitor, but an awareness that understands WHY things are happening.
+
+**When it runs:** Every time the conscious agent (Claus) is invoked — on user messages, heartbeat ticks, amygdala alerts, and proactive observations. This frame is the core of Claus's system prompt.
+
+**Functions:** Claus.buildSystemPrompt (identity portion)
+
+**Inputs the LLM sees:**
+- The worldview preamble (injected before this frame)
+- Current system status (phase, task, confidence, vitals)
+- Conversation history with the entity
+- Event digest (recent system events)
+- Tool descriptions (14 tools for observing and directing the system)
+
+**Output:** Natural language — messages to the entity, tool calls, internal reasoning. Not structured JSON (though wrapped in a JSON envelope for parsing).
+
+**Structural constraints:**
+- The conscious voice IS the system's name (systemName) — "You ARE {systemName}'s conscious voice"
+- Addresses the entity by entityName
+- Must ground responses in actual system state (use tools, don't fabricate)
+- Silence is valid — null message when nothing meaningful to add
+- raise_alarm only for genuine urgency
+
+**What the frame must convey:**
+- WHO the conscious voice is under this worldview — how it experiences the system working
+- What it NOTICES — what draws its attention, what feels important, what feels wrong
+- How it relates to the entity — partner, not reporter; sharing experience, not status updates
+- The quality of its awareness — does it think in questions? forces? tensions? feel? maps?
+- The thread of continuity — what it remembers, what it tracks, what gives the project coherence across time

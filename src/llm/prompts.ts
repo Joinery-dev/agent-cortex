@@ -522,7 +522,8 @@ Return JSON:
   "tensionResolutions": [
     { "tension": "the tension between dimensions", "resolution": "how it was resolved and why" }
   ],
-  "confidence": 0.0-1.0
+  "confidence": 0.0-1.0,
+  "problemModel": "your understanding of what this project fundamentally requires — constraints, key tensions, what the solution must satisfy (2-3 sentences). This will be compared against the evaluators' model to measure alignment."
 }
 
 confidence: how well you were able to synthesize the perspectives. 1 = clean synthesis. Lower = significant unresolved tensions or vague input.`;
@@ -537,6 +538,7 @@ export function visionSynthesisUser(
   taste: import("../types/intent.js").TasteProfile,
   inquiryContext?: string,
   feedback?: string,
+  dialectic?: { synthesizerModel?: string; evaluatorModel?: string; convergence?: number },
 ): string {
   const parts = [
     `PROJECT: ${intent.summary}`,
@@ -563,6 +565,15 @@ export function visionSynthesisUser(
 
   if (feedback) {
     parts.push(``, `FEEDBACK FROM PREVIOUS ROUND (address these concerns):`, feedback);
+  }
+
+  if (dialectic?.synthesizerModel || dialectic?.evaluatorModel) {
+    parts.push(``, `DIALECTIC CONVERGENCE:`);
+    parts.push(`YOUR PREVIOUS UNDERSTANDING: ${dialectic.synthesizerModel ?? "(first round)"}`);
+    parts.push(`EVALUATORS' UNDERSTANDING: ${dialectic.evaluatorModel ?? "(not yet synthesized)"}`);
+    if (dialectic.convergence != null) {
+      parts.push(`CONVERGENCE: ${(dialectic.convergence * 100).toFixed(0)}%${dialectic.convergence < 0.8 ? " — close the gap between these understandings." : " — models aligned."}`);
+    }
   }
 
   return parts.join("\n");
@@ -687,6 +698,10 @@ export interface ReconsultationUserInput {
   ownEvaluations: SenseEvaluation[];
   otherEvaluationSummaries: { senseName: string; score: number; assessment: string }[];
   tensions: Tension[];
+  /** Evaluators' synthesized understanding of what the problem requires (from dialectic convergence). */
+  evaluatorModel?: string;
+  /** Convergence between builder and evaluator models (0–1). */
+  convergence?: number;
 }
 
 export function reconsultationUser(input: ReconsultationUserInput): string {
@@ -734,6 +749,13 @@ ${work}`);
       .map((t) => `- ${t.senseA.path.join(" > ")} (${t.senseA.score}/10) vs ${t.senseB.path.join(" > ")} (${t.senseB.score}/10) [${t.severity}]: ${t.description}`)
       .join("\n");
     sections.push(`TENSIONS INVOLVING YOUR DIMENSION:\n${tensionLines}`);
+  }
+
+  if (input.evaluatorModel) {
+    const convergenceText = input.convergence != null
+      ? ` (builder-evaluator convergence: ${(input.convergence * 100).toFixed(0)}%)`
+      : "";
+    sections.push(`COLLECTIVE EVALUATOR UNDERSTANDING${convergenceText}:\n${input.evaluatorModel}\n\nYour updated perspective should be consistent with this established understanding. If you disagree with it, explain why — don't silently diverge.`);
   }
 
   return sections.join("\n\n");
@@ -1675,7 +1697,8 @@ ${revision.evaluations.map((e) => `- ${e.activationPath.join(" > ")} (${e.score}
   }
 
   // Dialectic convergence: show both models so the premotor can close the gap.
-  // Replaces the constraint list — two compact paragraphs instead of a growing list.
+  // The evaluator model provides integrated understanding.
+  // Hard constraints (formally verified) are rendered separately — they're non-negotiable facts.
   let dialecticSection = "";
   if (revision.builderModel || revision.evaluatorModel) {
     const builderText = revision.builderModel ?? "(first attempt — no model yet)";
@@ -1696,12 +1719,23 @@ ${convergenceText}
 Update your problem model to reflect what you've learned. Your revised plan should close the gap between these two understandings.`;
   }
 
+  // Hard constraints: formally verified facts that are non-negotiable regardless of convergence.
+  // These survive independently of the dialectic model — convergence can't override a failing test.
+  let hardConstraintSection = "";
+  if (revision.problemConstraints && revision.problemConstraints.length > 0) {
+    const hard = revision.problemConstraints.filter((c) => c.category === "hard");
+    if (hard.length > 0) {
+      hardConstraintSection = `\n\nHARD CONSTRAINTS (formally verified — these MUST be satisfied, convergence does not override them):\n${hard.map((c) => `- [cycle ${c.cycle}] ${c.constraint.slice(0, 200)} [${c.source}, formal]`).join("\n")}`;
+    }
+  }
+
   return `${body}
 
 PREVIOUS PLAN:
 ${prevPlanSummary}
 ${failureHint}
 ${dialecticSection}
+${hardConstraintSection}
 
 ${evalSection}
 

@@ -16,6 +16,8 @@ import type {
   ConversationMessage,
   NarrationItem,
   SystemStatus,
+  PlanSnapshot,
+  ArtifactItem,
 } from "../types/conversation.js";
 
 // ─── ANSI helpers ──────────────────────────────────────────────
@@ -109,7 +111,14 @@ export class TerminalTransport implements ConversationTransport {
 
   sendStatus(_status: SystemStatus): void {
     // Terminal doesn't have a persistent status bar (yet).
-    // Could use terminal escape codes for a bottom bar in v2.
+  }
+
+  sendPlan(_plan: PlanSnapshot): void {
+    // Plan tab is webapp-only — terminal shows plan events via narration.
+  }
+
+  sendArtifact(_artifact: ArtifactItem): void {
+    // Artifacts tab is webapp-only — terminal shows completion via narration.
   }
 
   onReceive(handler: (text: string) => void): void {

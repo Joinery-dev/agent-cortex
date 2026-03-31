@@ -45,6 +45,7 @@ import {
   efferenceCopySystem,
   efferenceCopyUser,
 } from "../llm/prompts.js";
+import type { Worldview } from "../types/worldview.js";
 import { createLogger } from "../util/logger.js";
 import { emit } from "../events.js";
 import { newId } from "../util/ids.js";
@@ -183,10 +184,12 @@ export interface MotorCortexOpts {
 export class MotorCortex {
   private config: CortexConfig;
   private pns?: PeripheralNervousSystem;
+  private worldview?: Worldview;
 
-  constructor(config: CortexConfig, pns?: PeripheralNervousSystem) {
+  constructor(config: CortexConfig, pns?: PeripheralNervousSystem, worldview?: Worldview) {
     this.config = config;
     this.pns = pns;
+    this.worldview = worldview;
   }
 
   /**
@@ -418,7 +421,7 @@ export class MotorCortex {
     const raw = await callStructured(
       "efference-copy",
       model,
-      efferenceCopySystem(),
+      efferenceCopySystem(this.worldview),
       efferenceCopyUser(context),
       EfferenceCopyOutputSchema,
       2048,
@@ -491,7 +494,7 @@ export class MotorCortex {
     return callStructured<MotorPlan>(
       "premotor",
       model,
-      premotorSystem(),
+      premotorSystem(this.worldview),
       userPrompt,
       MotorPlanSchema,
       4096,
@@ -511,7 +514,7 @@ export class MotorCortex {
     return callStructured<RevisionPlan>(
       "premotor",
       model,
-      premotorSystem(),
+      premotorSystem(this.worldview),
       premotorRevisionUser(briefing, revision),
       RevisionPlanSchema,
       4096,
@@ -537,7 +540,7 @@ export class MotorCortex {
     const result = await call(
       "motorCortex",
       this.config.models.motorCortex,
-      motorCortexSystem(),
+      motorCortexSystem(this.worldview),
       motorCortexUser(prompt, previousWork),
       8192,
     );
@@ -577,7 +580,7 @@ export class MotorCortex {
     const result = await agenticCall(
       "agenticMotor",
       this.config.models.motorCortex,
-      motorCortexAgenticSystem(),
+      motorCortexAgenticSystem(this.worldview),
       motorCortexAgenticUser(briefing, plan, opts?.previousWork),
       toolSet,
       {
@@ -610,7 +613,7 @@ export class MotorCortex {
     return callStructured<SelfAssessment>(
       "proprioception",
       model,
-      proprioceptionSystem(),
+      proprioceptionSystem(this.worldview),
       proprioceptionUser(plan, work),
       SelfAssessmentSchema,
       2048,

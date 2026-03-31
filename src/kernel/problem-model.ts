@@ -305,3 +305,105 @@ export async function synthesizeEvaluatorModel(
     };
   }
 }
+
+// ─── Planning Evaluator Model (Phase A Manifestation) ──────────
+
+import type { ProjectIntent } from "../types/intent.js";
+
+export interface PlanningEvaluatorInput {
+  evaluations: Array<{ senseName: string; satisfied: boolean; assessment: string; feedback: string; confidence: number }>;
+  intent: ProjectIntent;
+  previousEvaluatorModel: string | null;
+  synthesizerModel: string | null;
+}
+
+const PLANNING_EVALUATOR_SYSTEM = `You maintain the evaluators' model of what a project's solution must satisfy.
+
+You synthesize sense evaluation feedback from a manifestation round into a concise model — what the project MUST deliver, anchored to the Parsifal's intent.
+
+You also assess convergence with the synthesizer's model: how aligned are the synthesizer's understanding and the evaluators' understanding? Score 0-1.
+
+The Parsifal's intent is the ceiling: your model should describe what's needed to FULLY satisfy the intent, not just what's needed to get approval.
+
+Return JSON:
+{
+  "model": "2-3 sentences: what the evaluators have collectively established the project must satisfy",
+  "convergence": 0.0-1.0,
+  "divergenceNote": "what specifically differs (empty string if convergence >= 0.8)"
+}`;
+
+/**
+ * Synthesize the evaluators' problem model during Phase A manifestation.
+ *
+ * Simpler than the build-cycle variant: no formal observations, no failure
+ * classification, no SoL data. The ceiling anchor is the intent itself.
+ */
+export async function synthesizePlanningEvaluatorModel(
+  input: PlanningEvaluatorInput,
+  model: string,
+): Promise<EvaluatorSynthesisResult> {
+  const parts: string[] = [];
+
+  if (input.previousEvaluatorModel) {
+    parts.push(`PREVIOUS EVALUATOR MODEL:\n${input.previousEvaluatorModel}`);
+  }
+
+  if (input.synthesizerModel) {
+    parts.push(`SYNTHESIZER'S CURRENT MODEL:\n${input.synthesizerModel}`);
+  } else {
+    parts.push("SYNTHESIZER'S CURRENT MODEL: (first round — no model yet)");
+  }
+
+  // Intent as ceiling
+  parts.push(`PARSIFAL'S INTENT (the ceiling — what the project must achieve):
+Summary: ${input.intent.summary}
+Audience: ${input.intent.audience}
+Success criteria: ${input.intent.successCriteria.join("; ")}
+Vision: ${input.intent.vision}`);
+
+  // Sense evaluations
+  const satisfied = input.evaluations.filter((e) => e.satisfied);
+  const unsatisfied = input.evaluations.filter((e) => !e.satisfied);
+
+  if (unsatisfied.length > 0) {
+    parts.push(`UNSATISFIED SENSES (focus here):\n${unsatisfied.map((e) =>
+      `- ${e.senseName}: ${e.assessment} → ${e.feedback}`).join("\n")}`);
+  }
+  if (satisfied.length > 0) {
+    parts.push(`SATISFIED SENSES:\n${satisfied.map((e) =>
+      `- ${e.senseName}: ${e.assessment}`).join("\n")}`);
+  }
+
+  parts.push("Synthesize the evaluators' model. Assess convergence with the synthesizer's model.");
+
+  try {
+    const result = await callStructured<EvaluatorSynthesisResult>(
+      "evaluator-synthesis",
+      model,
+      PLANNING_EVALUATOR_SYSTEM,
+      parts.join("\n\n"),
+      EvaluatorSynthesisSchema,
+      1024,
+    );
+
+    log.info("Planning evaluator model synthesized", {
+      convergence: result.convergence.toFixed(2),
+      modelLength: result.model.length,
+    });
+
+    emit("dialectic:planning-synthesis", {
+      convergence: result.convergence,
+      modelLength: result.model.length,
+      divergenceNote: result.divergenceNote || undefined,
+    });
+
+    return result;
+  } catch (err) {
+    log.warn("Planning evaluator synthesis failed — returning neutral", { error: String(err) });
+    return {
+      model: input.previousEvaluatorModel ?? "(synthesis failed)",
+      convergence: 0.5,
+      divergenceNote: "Synthesis call failed — using previous model.",
+    };
+  }
+}

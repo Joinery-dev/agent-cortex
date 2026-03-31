@@ -92,7 +92,7 @@ Format: `- key: value` (one per line). Terms with singular/plural forms use `sin
 
 ## Frames
 
-25 sections, each a `# heading` followed by 1-3 paragraphs of prose. Each frame replaces the identity/orientation portion of a specific cognitive act's prompt. The structural portion (JSON schemas, score ranges, output constraints) stays in code and is appended automatically.
+26 sections, each a `# heading` followed by 1-3 paragraphs of prose. Each frame replaces the identity/orientation portion of a specific cognitive act's prompt. The structural portion (JSON schemas, score ranges, output constraints) stays in code and is appended automatically.
 
 A frame answers three questions for its cognitive act:
 1. **WHO** — who is the system when performing this act?
@@ -101,7 +101,7 @@ A frame answers three questions for its cognitive act:
 
 ### Required Frames
 
-All frames are technically optional — missing frames fall back to the default worldview. But a worldview with missing frames is incomplete. A fully portable worldview should include all 25.
+All frames are technically optional — missing frames fall back to the default worldview. But a worldview with missing frames is incomplete. A fully portable worldview should include all 26.
 
 | Heading | Key | What it shapes |
 |---------|-----|---------------|
@@ -130,7 +130,7 @@ All frames are technically optional — missing frames fall back to the default 
 | `# inquiry-synthesis` | `inquirySynthesis` | How multi-sense questions are merged and prioritized. |
 | `# prospective` | `prospective` | What to watch for ahead. |
 | `# emergence` | `emergence` | What appears after completion. |
-| `# consciousness` | `consciousness` | *(Optional/emerging)* How the system relates to its own awareness. |
+| `# consciousness` | `consciousness` | Who the conscious voice is. How the system experiences itself working. |
 
 ### Frame headings
 

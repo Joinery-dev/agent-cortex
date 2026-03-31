@@ -21,6 +21,9 @@ import type {
   SystemStatus,
   MessageKind,
   ProactiveCategory,
+  PlanSnapshot,
+  PlanNode,
+  ArtifactItem,
 } from "../types/conversation.js";
 import type { TerritoryObservation } from "../types/territory-observation.js";
 import type { CortexEvent } from "../events.js";
@@ -30,7 +33,7 @@ import type { EscalationHandler } from "../brainstem/escalation-handler.js";
 import type { Thalamus } from "./thalamus.js";
 import type { Amygdala } from "../subcortical/amygdala.js";
 import type { Worldview } from "../types/worldview.js";
-import { ConsciousnessAgent, type ConsciousnessConfig } from "../conversation/consciousness.js";
+import { Claus, type ClausConfig } from "../conversation/claus.js";
 import { bus, emit } from "../events.js";
 import { narrateEvent } from "../conversation/narration-rules.js";
 import { newId } from "../util/ids.js";
@@ -47,7 +50,10 @@ export interface ConversationCortexDeps {
   thalamus: Thalamus;
   amygdala: Amygdala;
   worldview?: Worldview;
-  consciousnessConfig?: Partial<ConsciousnessConfig>;
+  costTracker?: import("../brainstem/cost-tracker.js").CostTracker | null;
+  consciousnessConfig?: Partial<ClausConfig>;
+  /** Pre-existing Claus instance (booted before the system). */
+  claus?: Claus;
 }
 
 export class ConversationCortex {
@@ -55,7 +61,7 @@ export class ConversationCortex {
   private transports: ConversationTransport[] = [];
   private history: ConversationMessage[] = [];
   private active = false;
-  private consciousness: ConsciousnessAgent;
+  private claus: Claus;
 
   /** Pending question awaiting a Parsifal response (askUser replacement). */
   private pendingQuestion: {
@@ -69,16 +75,45 @@ export class ConversationCortex {
   /** Last conviction level — for detecting drops. */
   private lastConviction: number | null = null;
 
+  /** Live plan state — maintained from plan events, broadcast to transports. */
+  private planNodes = new Map<string, PlanNode>();
+  private planVision: string | null = null;
+  private planPhases: Array<{ name: string; purpose: string }> = [];
+
+  /** Artifacts produced by completed tasks. */
+  private artifacts: ArtifactItem[] = [];
+
   constructor(deps: ConversationCortexDeps) {
     this.deps = deps;
-    this.consciousness = new ConsciousnessAgent({
-      wm: deps.wm,
-      runner: deps.runner,
-      thalamus: deps.thalamus,
-      amygdala: deps.amygdala,
-      transports: [], // populated when transports are added
-      config: deps.consciousnessConfig,
-      worldview: deps.worldview,
+
+    if (deps.claus) {
+      // Claus was booted before the system — wire system deps now
+      this.claus = deps.claus;
+      this.claus.wireSystem({
+        wm: deps.wm,
+        runner: deps.runner,
+        thalamus: deps.thalamus,
+        amygdala: deps.amygdala,
+        costTracker: deps.costTracker,
+      });
+    } else {
+      // Create Claus with full deps
+      this.claus = new Claus({
+        wm: deps.wm,
+        runner: deps.runner,
+        thalamus: deps.thalamus,
+        amygdala: deps.amygdala,
+        transports: [],
+        costTracker: deps.costTracker,
+        worldview: deps.worldview,
+        config: deps.consciousnessConfig,
+      });
+    }
+
+    // Subscribe to hook-originated messages from Claus
+    this.claus.onMessage((text, _hookModel) => {
+      const msg = this.cortexMessage("proactive", text);
+      this.recordAndBroadcast(msg);
     });
   }
 
@@ -90,7 +125,7 @@ export class ConversationCortex {
     transport.onReceive((text) => this.receive(text));
 
     // Keep consciousness aware of all transports
-    this.consciousness.updateTransports(this.transports);
+    this.claus.updateTransports(this.transports);
 
     // Send current status to the new transport
     transport.sendStatus(this.currentStatus);
@@ -102,12 +137,27 @@ export class ConversationCortex {
         transport.sendMessage(msg);
       }
     }
+
+    // Send current plan state if we have one
+    if (this.planNodes.size > 0) {
+      transport.sendPlan({
+        kind: "full",
+        vision: this.planVision ?? undefined,
+        nodes: [...this.planNodes.values()],
+        phases: this.planPhases,
+      });
+    }
+
+    // Send existing artifacts
+    for (const artifact of this.artifacts) {
+      transport.sendArtifact(artifact);
+    }
   }
 
   /** Remove a transport. */
   removeTransport(transport: ConversationTransport): void {
     this.transports = this.transports.filter((t) => t !== transport);
-    this.consciousness.updateTransports(this.transports);
+    this.claus.updateTransports(this.transports);
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────
@@ -118,17 +168,16 @@ export class ConversationCortex {
     this.active = true;
     bus.onCortex((event) => this.handleEvent(event));
 
-    // Consciousness: subscribe to amygdala events + start heartbeat
-    this.consciousness.subscribeToAmygdala();
-    this.consciousness.startHeartbeat();
+    // Activate Claus hooks (replaces heartbeat + amygdala subscription)
+    this.claus.activate();
 
-    log.info("Conversation cortex activated (consciousness heartbeat started)");
+    log.info("Conversation cortex activated (Claus hooks listening)");
   }
 
-  /** Stop listening, stop consciousness, close all transports. */
+  /** Stop listening, stop Claus, close all transports. */
   deactivate(): void {
     this.active = false;
-    this.consciousness.stopHeartbeat();
+    this.claus.deactivate();
     for (const t of this.transports) {
       t.close();
     }
@@ -204,7 +253,7 @@ export class ConversationCortex {
    */
   private async consciousnessRespond(text: string, inReplyTo: string): Promise<void> {
     try {
-      const response = await this.consciousness.respondToMessage(text);
+      const response = await this.claus.respondToMessage(text);
       const msg = this.cortexMessage("acknowledgment", response, { inReplyTo });
       this.recordAndBroadcast(msg);
     } catch (err) {
@@ -222,8 +271,16 @@ export class ConversationCortex {
    * The question appears as a conversation message. The next Parsifal
    * message resolves the promise.
    */
-  askUser(question: string): Promise<string> {
-    const msg = this.cortexMessage("question", question);
+  async askUser(question: string): Promise<string> {
+    // Route through consciousness so the question comes in its voice
+    let formulated: string;
+    try {
+      formulated = await this.claus.formulateQuestion(question, "", undefined);
+    } catch {
+      formulated = question; // fallback to raw question
+    }
+
+    const msg = this.cortexMessage("question", formulated);
     this.recordAndBroadcast(msg);
 
     return new Promise<string>((resolve) => {
@@ -241,27 +298,31 @@ export class ConversationCortex {
     if (narration) {
       this.broadcastNarration(narration);
       // Feed narration headlines to consciousness as digest
-      this.consciousness.addToDigest(narration.headline);
+      this.claus.addToDigest(narration.headline);
     }
 
     // Status bar updates
     this.updateStatus(event);
 
-    // Proactive surfacing via consciousness
-    this.checkProactive(event);
+    // Plan + artifact tracking for the right-pane tabs
+    this.handlePlanEvent(event);
+
+    // Proactive surfacing is now handled by Claus hooks (system hooks
+    // for conviction, tension, task completion fire automatically).
 
     // Escalation → consciousness formulates the question
     if (event.type === "escalation:created") {
-      const summary = (event.data.summary as string) || "Needs your input";
-      const detail = (event.data.detail as string) || "";
-      const actions = event.data.proposedActions as string[] | undefined;
+      const escalationId = event.data.id as string;
 
-      this.consciousnessEscalation(
-        summary,
-        detail,
-        actions,
-        event.data.id as string,
-      );
+      // Get the full escalation from the handler (has detail, question, proposedActions)
+      const active = this.deps.escalationHandler.getActive();
+      const escalation = active.find((e) => e.id === escalationId);
+
+      const summary = escalation?.question || escalation?.summary || (event.data.summary as string) || "Needs your input";
+      const detail = escalation?.detail || "";
+      const actions = escalation?.proposedActions;
+
+      this.consciousnessEscalation(summary, detail, actions, escalationId);
     }
   }
 
@@ -273,7 +334,7 @@ export class ConversationCortex {
     escalationId: string,
   ): Promise<void> {
     try {
-      const question = await this.consciousness.formulateQuestion(
+      const question = await this.claus.formulateQuestion(
         summary, detail, proposedActions,
       );
       const msg = this.cortexMessage("question", question, {
@@ -337,72 +398,7 @@ export class ConversationCortex {
         t.sendStatus(this.currentStatus);
       }
       // Keep consciousness aware of status changes
-      this.consciousness.updateStatus(this.currentStatus);
-    }
-  }
-
-  // ─── Proactive surfacing ───────────────────────────────────
-
-  private checkProactive(event: CortexEvent): void {
-    // Confidence drop > 20 points → consciousness observes
-    if (event.type === "conviction:result") {
-      const conviction = event.data.conviction as number | undefined;
-      const level = event.data.level as number | undefined;
-      const current = conviction ?? level ?? null;
-
-      if (current != null && this.lastConviction != null) {
-        const drop = this.lastConviction - current;
-        if (drop > 0.20) {
-          const summary = `Confidence dropped from ${(this.lastConviction * 100).toFixed(0)}% to ${(current * 100).toFixed(0)}%`;
-          this.consciousnessProactive(event, summary, "confidence");
-        }
-      }
-      if (current != null) {
-        this.lastConviction = current;
-      }
-    }
-
-    // Task completion → consciousness observes
-    if (event.type === "task:complete") {
-      const ctx = event.rhythmContext;
-      if (ctx?.rhythmType === "sensory-cortex") {
-        const confidence = event.data.confidence as number | undefined;
-        const summary = `Task complete${confidence != null ? ` (confidence: ${(confidence * 100).toFixed(0)}%)` : ""}`;
-        this.consciousnessProactive(event, summary, "progress");
-      }
-    }
-
-    // High-severity tension → consciousness observes
-    if (event.type === "tension:detection-complete") {
-      const count = event.data.tensionCount as number;
-      if (count > 0) {
-        const highSeverity = event.data.highSeverityCount as number | undefined;
-        if (highSeverity && highSeverity > 0) {
-          const summary = `${highSeverity} high-severity tension(s) detected between senses`;
-          this.consciousnessProactive(event, summary, "tension");
-        }
-      }
-    }
-  }
-
-  /**
-   * Ask consciousness whether a notable event is worth mentioning.
-   * Fire-and-forget — if consciousness decides to speak, it broadcasts.
-   */
-  private async consciousnessProactive(
-    event: CortexEvent,
-    summary: string,
-    category: ProactiveCategory,
-  ): Promise<void> {
-    try {
-      const response = await this.consciousness.observeEvent(event, summary, category);
-      if (response) {
-        const msg = this.cortexMessage("proactive", response, { category });
-        this.recordAndBroadcast(msg);
-      }
-    } catch (err) {
-      // Proactive surfacing is best-effort — don't fail silently but don't crash
-      log.warn("Consciousness proactive failed", { error: String(err), category });
+      this.claus.updateStatus(this.currentStatus);
     }
   }
 
@@ -487,6 +483,77 @@ export class ConversationCortex {
     };
   }
 
+  // ─── Plan & artifact tracking ───────────────────────────────
+
+  private handlePlanEvent(event: CortexEvent): void {
+    // Full plan established (after hierarchical planning + PFC review)
+    if (event.type === "plan:established") {
+      const nodes = event.data.nodes as PlanNode[];
+      const vision = event.data.vision as string;
+      const phases = event.data.phases as Array<{ name: string; purpose: string }>;
+
+      this.planNodes.clear();
+      for (const node of nodes) {
+        this.planNodes.set(node.id, node);
+      }
+      this.planVision = vision;
+      this.planPhases = phases;
+
+      this.broadcastPlan({ kind: "full", vision, nodes, phases });
+      return;
+    }
+
+    // Shana (leaf tasks) added during JIT per-shael planning
+    if (event.type === "plan:nodes-added") {
+      const nodes = event.data.nodes as PlanNode[];
+      for (const node of nodes) {
+        this.planNodes.set(node.id, node);
+      }
+      this.broadcastPlan({ kind: "update", nodes });
+      return;
+    }
+
+    // Single node status change (active, complete, escalated)
+    if (event.type === "plan:node-update") {
+      const id = event.data.id as string;
+      const status = event.data.status as PlanNode["status"];
+      const confidence = event.data.confidence as number | undefined;
+      const existing = this.planNodes.get(id);
+      if (existing) {
+        existing.status = status;
+        if (confidence != null) existing.confidence = confidence;
+        this.broadcastPlan({ kind: "update", nodes: [existing] });
+      }
+      return;
+    }
+
+    // Artifact produced by a completed task
+    if (event.type === "artifact:produced") {
+      const artifact: ArtifactItem = {
+        id: event.data.taskId as string,
+        title: event.data.title as string,
+        work: event.data.work as string,
+        confidence: event.data.confidence as number,
+        completedAt: new Date(event.timestamp),
+        shaelId: event.data.shaelId as string | undefined,
+      };
+      this.artifacts.push(artifact);
+      this.broadcastArtifact(artifact);
+    }
+  }
+
+  private broadcastPlan(plan: PlanSnapshot): void {
+    for (const t of this.transports) {
+      t.sendPlan(plan);
+    }
+  }
+
+  private broadcastArtifact(artifact: ArtifactItem): void {
+    for (const t of this.transports) {
+      t.sendArtifact(artifact);
+    }
+  }
+
   // ─── Broadcast ─────────────────────────────────────────────
 
   private recordAndBroadcast(msg: ConversationMessage): void {
@@ -531,6 +598,10 @@ export class ConversationCortex {
     this.currentStatus = {};
     this.lastConviction = null;
     this.pendingQuestion = null;
-    this.consciousness.reset();
+    this.planNodes.clear();
+    this.planVision = null;
+    this.planPhases = [];
+    this.artifacts = [];
+    this.claus.reset();
   }
 }

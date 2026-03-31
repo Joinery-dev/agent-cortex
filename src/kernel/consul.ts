@@ -6,6 +6,7 @@ import type { Tension } from "../types/tension.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { ConsultationBriefing } from "../types/thalamus.js";
 import type { WeightedEvaluation, WeightedComposite } from "./evaluation-weighter.js";
+import type { Worldview } from "../types/worldview.js";
 import { SensoryCortex } from "../senses/cortex.js";
 import { callStructured } from "../llm/structured.js";
 import { consultationSystem, consultationUser, reconsultationSystem, reconsultationUser, inquirySystem, inquiryUser, followUpInquirySystem, followUpInquiryUser, inquirySynthesisSystem, inquirySynthesisUser, senseManifestSystem, senseManifestUser, visionSynthesisSystem, visionSynthesisUser, senseEvaluationSystem, senseEvaluationUser } from "../llm/prompts.js";
@@ -683,6 +684,10 @@ export interface ReconsultInput {
   weighted: WeightedEvaluation[];
   composite: WeightedComposite;
   tensions: Tension[];
+  /** Evaluators' synthesized understanding of the problem (from dialectic convergence). */
+  evaluatorModel?: string;
+  /** Convergence between builder and evaluator models (0–1). */
+  convergence?: number;
 }
 
 /**
@@ -779,6 +784,8 @@ export async function reconsult(
           ownEvaluations: ownEvals,
           otherEvaluationSummaries: buildOtherSummaries(sense.id),
           tensions: relevantTensions,
+          evaluatorModel: input.evaluatorModel,
+          convergence: input.convergence,
         }),
         PerspectiveResult,
       );
@@ -936,6 +943,8 @@ export interface VisionSynthesis {
   senseContributions: Record<string, string>;
   tensionResolutions: Array<{ tension: string; resolution: string }>;
   confidence: number;
+  /** Synthesizer's understanding of what this project requires (dialectic convergence). */
+  problemModel?: string;
 }
 
 const ManifestResultSchema = z.object({
@@ -952,6 +961,7 @@ const VisionSynthesisSchema = z.object({
     resolution: z.string(),
   })),
   confidence: z.number().min(0).max(1),
+  problemModel: z.string().optional(),
 });
 
 const SenseEvalSchema = z.object({
@@ -972,6 +982,7 @@ export async function manifestSenses(
   intent: import("../types/intent.js").ProjectIntent,
   taste: import("../types/intent.js").TasteProfile,
   inquiryContext?: string,
+  worldview?: Worldview,
 ): Promise<SenseManifestPerspective[]> {
   emit("manifestation-synthesis:sense-manifest-start", {
     senseCount: senses.length,
@@ -989,7 +1000,7 @@ export async function manifestSenses(
         const result = await callStructured(
           "manifestation-sense",
           config.models.consultation,
-          senseManifestSystem(sense, subTree),
+          senseManifestSystem(sense, subTree, worldview),
           userPrompt,
           ManifestResultSchema,
         );
@@ -1057,22 +1068,26 @@ export async function synthesizeVision(
   taste: import("../types/intent.js").TasteProfile,
   inquiryContext?: string,
   feedback?: string,
+  dialectic?: { synthesizerModel?: string; evaluatorModel?: string; convergence?: number },
+  worldview?: Worldview,
 ): Promise<VisionSynthesis> {
   emit("manifestation-synthesis:synthesize-start", {
     perspectiveCount: perspectives.length,
     hasFeedback: !!feedback,
+    hasDialectic: !!dialectic,
   });
 
   log.info("Synthesizing vision", {
     perspectiveCount: perspectives.length,
     hasFeedback: !!feedback,
+    hasDialectic: !!dialectic,
   });
 
   const result = await callStructured(
     "manifestation-synthesis",
     config.models.consultation,
-    visionSynthesisSystem(),
-    visionSynthesisUser(perspectives, intent, taste, inquiryContext, feedback),
+    visionSynthesisSystem(worldview),
+    visionSynthesisUser(perspectives, intent, taste, inquiryContext, feedback, dialectic),
     VisionSynthesisSchema,
   );
 
@@ -1110,6 +1125,7 @@ export async function evaluateVision(
   vision: string,
   senseContributions: Record<string, string>,
   tensionResolutions: Array<{ tension: string; resolution: string }>,
+  worldview?: Worldview,
 ): Promise<SenseEvalResult[]> {
   emit("manifestation-synthesis:sense-eval-start", {
     senseCount: senses.length,
@@ -1126,7 +1142,7 @@ export async function evaluateVision(
         const result = await callStructured(
           "manifestation-eval",
           config.models.consultation,
-          senseEvaluationSystem(sense, subTree),
+          senseEvaluationSystem(sense, subTree, worldview),
           userPrompt,
           SenseEvalSchema,
         );

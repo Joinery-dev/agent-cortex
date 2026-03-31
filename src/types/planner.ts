@@ -75,6 +75,13 @@ export interface ManifestedFuture {
   confidence: number;
   /** How many build cycles the manifestation task took. */
   cycles: number;
+  // ── Dialectic convergence ──
+  /** Synthesizer's final understanding of what the project requires. */
+  problemModel?: string;
+  /** Senses' final synthesized understanding of what the project requires. */
+  evaluatorModel?: string;
+  /** Final convergence between synthesizer and evaluator models (0–1). */
+  convergence?: number;
 }
 
 // ─── Phase B: Path Reasoning ────────────────────────────────────

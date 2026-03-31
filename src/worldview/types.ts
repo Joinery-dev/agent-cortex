@@ -68,6 +68,8 @@ export interface WorldviewSeed {
   systemName: string;
   /** What the system calls the entity it serves. */
   entityName: string;
+  /** Name of the conscious voice. */
+  voiceName: string;
   /** Vocabulary derived from ontology. */
   vocabulary?: WorldviewVocabulary;
 }
@@ -97,6 +99,7 @@ export const WorldviewSeedSchema = z.object({
   collaborationModel: z.string().describe("System-human relationship"),
   systemName: z.string().describe("What the system should call itself — a name that fits the worldview"),
   entityName: z.string().describe("What the system should call the entity it serves — how they want to be addressed"),
+  voiceName: z.string().describe("Name for the system's conscious voice — the personality they interact with"),
   vocabulary: WorldviewVocabularySchema.optional().describe("Vocabulary derived from ontology"),
 });
 
@@ -129,6 +132,7 @@ export const FrameGenerationResultSchema = z.object({
     senseEvaluation: z.string(),
     prospective: z.string(),
     emergence: z.string(),
+    consciousness: z.string(),
   }),
   semanticNodeDescription: z.string().describe("How semantic mapping prompts describe nodes"),
 });

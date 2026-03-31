@@ -453,6 +453,8 @@ export function createSensoryCortexDefinition(
           weighted: acc.previousWeighted!,
           composite: acc.previousComposite!,
           tensions: acc.previousBuildResult!.tensions,
+          evaluatorModel: acc.previousBuildResult!.evaluatorModel,
+          convergence: acc.previousBuildResult!.convergence,
         };
 
         const updatedConsultation = await reconsult(
@@ -677,7 +679,20 @@ export function createSensoryCortexDefinition(
           }
         }
 
-        // 7. No senses to re-consult
+        // 7. Dialectic convergence: builder and evaluators agree near ceiling
+        //    BUT: hard constraint violations (any unacceptable evaluation) veto this exit.
+        //    Convergence cannot override a failing test or a formally verified violation.
+        if (!exitReason && buildResult.convergence != null && buildResult.convergence >= 0.8) {
+          const hasUnacceptable = weighted.some((w) => !w.acceptable);
+          if (!hasUnacceptable) {
+            const solCeiling = acc.speedOfLight?.compositeCeiling ?? 0;
+            if (solCeiling > 0 && composite.weightedMean >= solCeiling * 0.7) {
+              exitReason = `Dialectic convergence (${(buildResult.convergence * 100).toFixed(0)}%) near ceiling (${composite.weightedMean.toFixed(1)} / ${solCeiling.toFixed(1)})`;
+            }
+          }
+        }
+
+        // 8. No senses to re-consult
         if (!exitReason && sensesToReconsult.length === 0) {
           exitReason = "No senses identified for re-consultation";
         }
