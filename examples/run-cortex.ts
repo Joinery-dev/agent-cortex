@@ -35,6 +35,8 @@ import type { ProjectContext } from "../src/types/brainstem.js";
 import { CheckpointStore } from "../src/trace/checkpoint-store.js";
 import { createInterface } from "readline";
 import { setupWorldview } from "../src/worldview/generator.js";
+import { loadExistingWorldview } from "../src/worldview/store.js";
+import { DEFAULT_WORLDVIEW } from "../src/types/worldview.js";
 import type { Worldview } from "../src/types/worldview.js";
 
 // ─── Parse arguments ────────────────────────────────────────────
@@ -134,17 +136,24 @@ const askUser = (question: string): Promise<string> => {
 
 // ─── Worldview setup ───────────────────────────────────────────
 
-const worldview: Worldview = await setupWorldview(askUser, { model: "opus" });
-console.log(`  Worldview: ${worldview.name}\n`);
+let worldview: Worldview;
+if (resumeMode) {
+  // Resume mode: load worldview non-interactively (checkpoint has the context)
+  worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
+  console.log(`  Worldview: ${worldview.name} (loaded for resume)\n`);
+} else {
+  worldview = await setupWorldview(askUser, { model: "opus" });
+  console.log(`  Worldview: ${worldview.name}\n`);
 
-// If no prompt was given on the CLI, ask for it now
-if (!prompt) {
-  prompt = await askUser("What would you like to build?");
-  if (!prompt?.trim()) {
-    console.error("  No prompt provided. Exiting.");
-    process.exit(1);
+  // If no prompt was given on the CLI, ask for it now
+  if (!prompt) {
+    prompt = await askUser("What would you like to build?");
+    if (!prompt?.trim()) {
+      console.error("  No prompt provided. Exiting.");
+      process.exit(1);
+    }
+    prompt = prompt.trim();
   }
-  prompt = prompt.trim();
 }
 
 // ─── Build project intent from prompt ───────────────────────────
