@@ -1047,7 +1047,7 @@ export class Thalamus {
    * Uses the gestalt when available (mid-task), falls back to WM
    * directly when no gestalt exists (between tasks, boot).
    */
-  forClaus(taskId?: string): string {
+  forCommunication(taskId?: string): string {
     const parts: string[] = [];
 
     // ── Task + Intent ────────────────────────────────────────
@@ -1504,6 +1504,12 @@ export class Thalamus {
           `Failure mode confidence: ${(fmp.confidence * 100).toFixed(0)}% — targeted fix likely sufficient.`,
         );
         break;
+      case "execution-problem":
+        historicalPatterns.push(
+          `Failure mode confidence: ${(fmp.confidence * 100).toFixed(0)}% — execution barrier, not approach problem.`,
+          "Verify required tools and permissions are available before building.",
+        );
+        break;
     }
 
     // Read guidance text from store when available, fall back to hardcoded defaults
@@ -1535,6 +1541,9 @@ export class Thalamus {
       case "local-logic":
         return "Historical pattern: similar tasks fail on specific logic issues in a small number of senses. " +
           "Pay extra attention to edge cases and boundary conditions in the areas flagged by high-stake senses.";
+      case "execution-problem":
+        return "Historical pattern: builder plans well but execution is blocked by tooling or environment issues. " +
+          "Verify all required tools are available and permissions are granted before building.";
     }
   }
 

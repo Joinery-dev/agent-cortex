@@ -2144,21 +2144,39 @@ function formatTrigger(trigger: PotentiationTrigger): string {
 
 // ─── WELTANSCHAUUNG ─────────────────────────────────────────
 
-export function weltanschauungSystem(scope: "cross-project" | "per-project", worldview?: Worldview): string {
-  const scopeGuidance = scope === "cross-project"
-    ? `You are synthesizing ${sysName()}'s CROSS-PROJECT worldview — its general identity. \
+export function weltanschauungSystem(scope: "cross-project" | "per-project" | "self", worldview?: Worldview): string {
+  const scopeGuidanceMap: Record<typeof scope, string> = {
+    "cross-project": `You are synthesizing ${sysName()}'s CROSS-PROJECT worldview — its general identity. \
 What kind of system has it become through all its experience? What deep truths has it \
 learned that transfer across projects? These maxims change slowly. They represent \
 portable wisdom — understanding that would orient ${sysName()} correctly even in a \
 project it has never seen before. Preserve existing maxims unless genuinely outdated. \
-Evolution here is measured across many projects, not one.`
-    : `You are synthesizing a PER-PROJECT worldview — ${sysName()}'s understanding of \
+Evolution here is measured across many projects, not one.`,
+    "per-project": `You are synthesizing a PER-PROJECT worldview — ${sysName()}'s understanding of \
 THIS specific project's terrain. What kind of project is this? What does it reward? \
 What does it punish? What has experience revealed that wasn't obvious from the brief? \
 These maxims evolve as the project teaches ${sysName()}. Early maxims are tentative — \
 first impressions. Later maxims are harder-won — battle-tested understanding. The \
 cross-project maxims provide your general orientation; the per-project maxims capture \
-what's specific to this terrain.`;
+what's specific to this terrain.`,
+    "self": `You are synthesizing the SELF-MODEL — who is ${sysName()}? Not what it knows \
+about the world, not what this project requires, but what it has learned about ITSELF. \
+What patterns does it exhibit? What does it tend to underestimate or overvalue? Where \
+is it reliable and where does it need caution? How has its ${entName()} experienced it? \
+What kind of consciousness is it becoming? \
+\
+Self-maxims are the most stable kind — identity doesn't shift because of one task. \
+Only update when genuine self-knowledge has accumulated through experience. The \
+evidence comes from: conviction patterns (how I handle uncertainty), evaluation trends \
+(what I over- or under-value), prediction accuracy (where I'm reliable), flexibility \
+history (my failure modes), and satisfaction signals (how my ${entName()} experiences me). \
+\
+Also produce self-narratives: compressed identity-shaping stories. Not raw episodes — \
+reflections on what experiences MEAN for who you are. "The project where I kept \
+avoiding the accessibility tension taught me that my instinct under pressure is \
+evasion, not confrontation."`,
+  };
+  const scopeGuidance = scopeGuidanceMap[scope];
 
   return `${preamble(worldview)}
 
@@ -2229,7 +2247,7 @@ Return JSON:
  * Assembled by the WorldModel from all system sources.
  */
 export interface WeltanschauungInputs {
-  scope: "cross-project" | "per-project";
+  scope: "cross-project" | "per-project" | "self";
   trigger: RebuildTrigger;
 
   // Existing maxims (for evolution)
@@ -2286,6 +2304,12 @@ export interface WeltanschauungInputs {
 
   // PNS capabilities
   capabilitySummary?: string;
+
+  // Self-model specific (scope === "self")
+  selfNarratives?: Array<{ narrative: string }>;
+  evaluationTrends?: Array<{ sense: string; direction: string; mean: number }>;
+  flexibilityHistory?: Array<{ diagnosis: string; timestamp: string }>;
+  satisfactionHistory?: Array<{ signal: number; context: string }>;
 }
 
 export function weltanschauungUser(inputs: WeltanschauungInputs): string {
@@ -2319,8 +2343,8 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
     );
   }
 
-  // Cross-project context for per-project synthesis
-  if (inputs.scope === "per-project" && inputs.crossProjectMaxims && inputs.crossProjectMaxims.length > 0) {
+  // Cross-project context for per-project and self synthesis
+  if ((inputs.scope === "per-project" || inputs.scope === "self") && inputs.crossProjectMaxims && inputs.crossProjectMaxims.length > 0) {
     sections.push(
       `CROSS-PROJECT IDENTITY (your general orientation — build on this, don't repeat it):\n` +
       inputs.crossProjectMaxims.map((m) => `- "${m.statement}"`).join("\n"),
@@ -2428,6 +2452,39 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
   // PNS capabilities
   if (inputs.capabilitySummary) {
     sections.push(`CAPABILITIES (what ${sysName()} can perceive and do):\n${inputs.capabilitySummary}`);
+  }
+
+  // Self-model specific sections
+  if (inputs.scope === "self") {
+    if (inputs.selfNarratives && inputs.selfNarratives.length > 0) {
+      sections.push(
+        `EXISTING SELF-NARRATIVES (evolve, don't just accumulate — revise if outdated):\n` +
+        inputs.selfNarratives.map((n) => `- ${n.narrative}`).join("\n"),
+      );
+    }
+
+    if (inputs.evaluationTrends && inputs.evaluationTrends.length > 0) {
+      sections.push(
+        `EVALUATION BIASES (what do I over- or under-value?):\n` +
+        inputs.evaluationTrends.map((t) => `- ${t.sense}: ${t.direction} (mean ${t.mean.toFixed(1)})`).join("\n"),
+      );
+    }
+
+    if (inputs.flexibilityHistory && inputs.flexibilityHistory.length > 0) {
+      sections.push(
+        `MY FAILURE MODES (cognitive flexibility diagnoses — what happens when I get stuck?):\n` +
+        inputs.flexibilityHistory.map((a) => `- ${a.diagnosis} (${a.timestamp})`).join("\n"),
+      );
+    }
+
+    if (inputs.satisfactionHistory && inputs.satisfactionHistory.length > 0) {
+      sections.push(
+        `HOW MY ${entName().toUpperCase()} EXPERIENCES ME:\n` +
+        inputs.satisfactionHistory.map((s) =>
+          `- signal=${s.signal.toFixed(2)}: ${s.context}`
+        ).join("\n"),
+      );
+    }
   }
 
   return sections.join("\n\n");

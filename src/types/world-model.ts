@@ -10,13 +10,18 @@
  * layers interpenetrating. Produced by LLM synthesis from all system
  * sources, not by procedural aggregation.
  *
- * Two scopes:
+ * Three scopes:
  *   cross-project — Cortex's general identity. Changes slowly across
  *     projects. Persists to disk. Portable.
  *   per-project — formed through experience in a specific project. Starts
  *     from cross-project + intent/taste, evolves at rhythm boundaries.
  *     Lives in memory, dies with the project (but may update cross-project
  *     at project completion).
+ *   self — who am I? Identity grown through experience. Persists to disk.
+ *     Seeded by worldview (like temperament), deepened by processing
+ *     history: conviction patterns, evaluation biases, prediction
+ *     reliability, cognitive flexibility diagnoses, satisfaction signals.
+ *     The self-model is not "what am I doing" but "what am I like."
  *
  * Rebuilt at rhythm boundaries: project-start, between-tasks, phase-gate,
  * rest-cycle, project-complete. The conviction loop runs against this.
@@ -71,6 +76,25 @@ export interface Maxim {
   synthesizedAt: Date;
 }
 
+// ─── Self-narrative ─────────────────────────────────────────────
+
+/**
+ * A compressed identity-shaping story — not a raw episode (those live in
+ * the Hippocampus), but the meaning of an experience for who I am.
+ *
+ * "The jazz club project taught me that tension between aesthetics and
+ * performance isn't a problem to solve — it's a polarity to manage."
+ */
+export interface SelfNarrative {
+  id: string;
+  /** The narrative itself — identity-shaping reflection. */
+  narrative: string;
+  /** Which hippocampal episodes seeded this narrative, if traceable. */
+  sourceEpisodeIds?: string[];
+  /** When this narrative was synthesized. */
+  synthesizedAt: Date;
+}
+
 // ─── Weltanschauung snapshot ────────────────────────────────────
 
 /** The full worldview at a point in time. */
@@ -79,6 +103,10 @@ export interface Weltanschauung {
   crossProject: Maxim[];
   /** What this specific project has taught Cortex. */
   perProject: Maxim[];
+  /** Who am I? Identity grown through experience, persistent across projects. */
+  self: Maxim[];
+  /** Compressed identity-shaping stories — the narrative thread of self. */
+  selfNarratives: SelfNarrative[];
   /** When this snapshot was computed. */
   synthesizedAt: Date;
   /** What triggered this rebuild. */
@@ -114,6 +142,8 @@ export interface WorldModelSourcesSummary {
   hasTaskGraph: boolean;
   hasPNS: boolean;
   capabilityCount: number;
+  selfMaximCount: number;
+  selfNarrativeCount: number;
 }
 
 // ─── Sources ────────────────────────────────────────────────────
@@ -162,6 +192,12 @@ export interface WorldModelSources {
 
   /** Current project ID — needed for tonic lookup and sense-project principles. */
   projectId?: string;
+
+  /** Cognitive flexibility — history of flexibility assessments (for self-model). */
+  cognitiveFlexibility?: CognitiveFlexibilitySource;
+
+  /** Satisfaction signals — taste evolution feedback (for self-model). */
+  satisfactionHistory?: SatisfactionSource;
 }
 
 /** What the WorldModel reads from WM. */
@@ -205,6 +241,16 @@ export interface PlasticitySource {
   getByCategory(category: ConnectionCategory): PlasticWeight[];
 }
 
+/** What the WorldModel reads from Cognitive Flexibility (for self-model). */
+export interface CognitiveFlexibilitySource {
+  getRecentAssessments(count: number): Array<{ diagnosis: string; timestamp: Date }>;
+}
+
+/** What the WorldModel reads from Satisfaction history (for self-model). */
+export interface SatisfactionSource {
+  getRecentSignals(count: number): Array<{ signal: number; context: string }>;
+}
+
 // ─── Config ─────────────────────────────────────────────────────
 
 export interface WorldModelConfig {
@@ -219,6 +265,8 @@ export interface WorldModelConfig {
   minTasksForProjectSynthesis: number;
   /** Maximum maxims per scope. */
   maxMaximsPerScope: number;
+  /** Maximum self-narratives to retain. */
+  maxSelfNarratives: number;
   /** Storage directory for cross-project persistence. */
   storageDir: string;
 }
@@ -227,6 +275,7 @@ export const DEFAULT_WORLD_MODEL_CONFIG: WorldModelConfig = {
   synthesisModel: "claude-sonnet-4-6-20250514",
   minTasksForProjectSynthesis: 2,
   maxMaximsPerScope: 7,
+  maxSelfNarratives: 5,
   storageDir: "", // Resolved at runtime to ~/.agent-cortex/world-model/
 };
 
@@ -235,6 +284,8 @@ export const DEFAULT_WORLD_MODEL_CONFIG: WorldModelConfig = {
 export interface WorldModelState {
   crossProjectMaximCount: number;
   perProjectMaximCount: number;
+  selfMaximCount: number;
+  selfNarrativeCount: number;
   crossProjectMaxims: Array<{
     id: string;
     statement: string;
@@ -244,6 +295,15 @@ export interface WorldModelState {
     id: string;
     statement: string;
     confidence: number;
+  }>;
+  selfMaxims: Array<{
+    id: string;
+    statement: string;
+    confidence: number;
+  }>;
+  selfNarratives: Array<{
+    id: string;
+    narrative: string;
   }>;
   projectId: string | null;
   lastSynthesisAt?: Date;

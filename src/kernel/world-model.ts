@@ -5,11 +5,13 @@
  * system sources and produces compressed wisdom — 3-7 maxims that carry
  * cognitive, axiological, and volitional understanding as a gestalt.
  *
- * Two scopes:
+ * Three scopes:
  *   cross-project — Cortex's general identity. Persists to disk.
  *     Changes slowly across projects. Portable.
  *   per-project — formed through experience in a specific project.
  *     Lives in memory. Evolves at rhythm boundaries.
+ *   self — who am I? Identity grown through experience. Persists to disk.
+ *     Seeded by worldview, deepened by processing history.
  *
  * Follows the Hippocampus pattern: class with explicit methods,
  * event emission, logger, load/save lifecycle, serializable getState().
@@ -18,6 +20,7 @@
 import { z } from "zod";
 import type {
   Maxim,
+  SelfNarrative,
   Weltanschauung,
   WorldModelSources,
   WorldModelSourcesSummary,
@@ -58,8 +61,11 @@ type WeltanschauungResponse = z.infer<typeof WeltanschauungResponseSchema>;
 export class WorldModel {
   private crossProjectMaxims: Maxim[] = [];
   private perProjectMaxims: Maxim[] = [];
+  private selfMaxims: Maxim[] = [];
+  private selfNarratives: SelfNarrative[] = [];
   private projectId: string | null = null;
   private lastSynthesis: Date | null = null;
+  private lastSelfSynthesis: Date | null = null;
   private lastTrigger: RebuildTrigger | null = null;
   private config: WorldModelConfig;
   private store: WorldModelStore;
@@ -73,31 +79,41 @@ export class WorldModel {
 
   // ── Lifecycle ──────────────────────────────────────────────────
 
-  /** Load cross-project maxims from disk. Call once at system startup. */
+  /** Load cross-project and self maxims from disk. Call once at system startup. */
   async load(): Promise<void> {
     this.crossProjectMaxims = await this.store.loadMaxims();
+    this.selfMaxims = await this.store.loadSelfMaxims();
+    this.selfNarratives = await this.store.loadSelfNarratives();
     const meta = await this.store.loadMeta();
     this.lastSynthesis = meta.lastSynthesisAt ?? null;
 
     emit("world-model:loaded", {
       crossProjectMaxims: this.crossProjectMaxims.length,
+      selfMaxims: this.selfMaxims.length,
+      selfNarratives: this.selfNarratives.length,
     });
 
     log.info("Loaded from disk", {
       crossProjectMaxims: this.crossProjectMaxims.length,
+      selfMaxims: this.selfMaxims.length,
+      selfNarratives: this.selfNarratives.length,
       lastSynthesis: this.lastSynthesis?.toISOString(),
     });
   }
 
-  /** Persist cross-project maxims to disk. */
+  /** Persist cross-project and self maxims to disk. */
   async save(): Promise<void> {
     await this.store.saveMaxims(this.crossProjectMaxims);
+    await this.store.saveSelfMaxims(this.selfMaxims);
+    await this.store.saveSelfNarratives(this.selfNarratives);
     await this.store.saveMeta({
       lastSynthesisAt: this.lastSynthesis ?? undefined,
     });
 
     log.debug("Saved to disk", {
       crossProjectMaxims: this.crossProjectMaxims.length,
+      selfMaxims: this.selfMaxims.length,
+      selfNarratives: this.selfNarratives.length,
     });
   }
 
@@ -161,6 +177,26 @@ export class WorldModel {
         this.crossProjectMaxims,
       );
       this.crossProjectMaxims = crossResult;
+    }
+
+    // Self-model: update at project-complete, rest-cycle, phase-gate (not between-tasks)
+    if (this.shouldUpdateSelf(trigger, sources)) {
+      log.info("Updating self-model", { trigger });
+      const selfResult = await this.synthesize(
+        "self",
+        trigger,
+        sources,
+        this.selfMaxims,
+      );
+      this.selfMaxims = selfResult;
+      this.lastSelfSynthesis = new Date();
+    }
+
+    // Persist identity scopes if either was updated
+    if (
+      (trigger === "project-complete" && this.hasSignificantLearning(sources)) ||
+      this.shouldUpdateSelf(trigger, sources)
+    ) {
       await this.save();
     }
 
@@ -173,6 +209,7 @@ export class WorldModel {
       trigger,
       perProjectMaxims: this.perProjectMaxims.length,
       crossProjectMaxims: this.crossProjectMaxims.length,
+      selfMaxims: this.selfMaxims.length,
     });
 
     return snapshot;
@@ -182,12 +219,14 @@ export class WorldModel {
 
   /** Get the full Weltanschauung snapshot, or null if never synthesized. */
   getWeltanschauung(): Weltanschauung | null {
-    if (this.perProjectMaxims.length === 0 && this.crossProjectMaxims.length === 0) {
+    if (this.perProjectMaxims.length === 0 && this.crossProjectMaxims.length === 0 && this.selfMaxims.length === 0) {
       return null;
     }
     return {
       crossProject: [...this.crossProjectMaxims],
       perProject: [...this.perProjectMaxims],
+      self: [...this.selfMaxims],
+      selfNarratives: [...this.selfNarratives],
       synthesizedAt: this.lastSynthesis ?? new Date(),
       trigger: this.lastTrigger ?? "project-start",
       sourcesSummary: this.emptySourcesSummary(),
@@ -202,8 +241,16 @@ export class WorldModel {
     return [...this.perProjectMaxims];
   }
 
+  getSelfMaxims(): Maxim[] {
+    return [...this.selfMaxims];
+  }
+
+  getSelfNarratives(): SelfNarrative[] {
+    return [...this.selfNarratives];
+  }
+
   getAllMaxims(): Maxim[] {
-    return [...this.crossProjectMaxims, ...this.perProjectMaxims];
+    return [...this.crossProjectMaxims, ...this.perProjectMaxims, ...this.selfMaxims];
   }
 
   /** Just the statement strings, for Thalamus briefing inclusion. */
@@ -217,6 +264,8 @@ export class WorldModel {
     return {
       crossProjectMaximCount: this.crossProjectMaxims.length,
       perProjectMaximCount: this.perProjectMaxims.length,
+      selfMaximCount: this.selfMaxims.length,
+      selfNarrativeCount: this.selfNarratives.length,
       crossProjectMaxims: this.crossProjectMaxims.map((m) => ({
         id: m.id,
         statement: m.statement,
@@ -227,6 +276,15 @@ export class WorldModel {
         statement: m.statement,
         confidence: m.confidence,
       })),
+      selfMaxims: this.selfMaxims.map((m) => ({
+        id: m.id,
+        statement: m.statement,
+        confidence: m.confidence,
+      })),
+      selfNarratives: this.selfNarratives.map((n) => ({
+        id: n.id,
+        narrative: n.narrative,
+      })),
       projectId: this.projectId,
       lastSynthesisAt: this.lastSynthesis ?? undefined,
       lastTrigger: this.lastTrigger ?? undefined,
@@ -236,7 +294,7 @@ export class WorldModel {
   // ── Private: LLM synthesis ─────────────────────────────────────
 
   private async synthesize(
-    scope: "cross-project" | "per-project",
+    scope: "cross-project" | "per-project" | "self",
     trigger: RebuildTrigger,
     sources: WorldModelSources,
     existingMaxims: Maxim[],
@@ -333,7 +391,7 @@ export class WorldModel {
   // ── Private: Input assembly ────────────────────────────────────
 
   private assembleInputs(
-    scope: "cross-project" | "per-project",
+    scope: "cross-project" | "per-project" | "self",
     trigger: RebuildTrigger,
     sources: WorldModelSources,
     existingMaxims: Maxim[],
@@ -344,9 +402,115 @@ export class WorldModel {
       existingMaxims,
     };
 
-    // Cross-project context for per-project synthesis
-    if (scope === "per-project" && this.crossProjectMaxims.length > 0) {
+    // Cross-project context for per-project and self synthesis
+    if ((scope === "per-project" || scope === "self") && this.crossProjectMaxims.length > 0) {
       inputs.crossProjectMaxims = this.crossProjectMaxims;
+    }
+
+    // Self-model specific inputs
+    if (scope === "self") {
+      // Existing self-narratives for evolution
+      if (this.selfNarratives.length > 0) {
+        inputs.selfNarratives = this.selfNarratives.map((n) => ({
+          narrative: n.narrative,
+        }));
+      }
+
+      // Conviction patterns from WM — sense trends reveal evaluation biases
+      const senseTrends = sources.wm.getSenseTrends();
+      if (senseTrends.length > 0) {
+        inputs.evaluationTrends = senseTrends.map((t) => ({
+          sense: t.label,
+          direction: t.direction,
+          mean: t.currentMean,
+        }));
+      }
+
+      // Cognitive flexibility history — what my failure modes are
+      if (sources.cognitiveFlexibility) {
+        const assessments = sources.cognitiveFlexibility.getRecentAssessments(10);
+        if (assessments.length > 0) {
+          inputs.flexibilityHistory = assessments.map((a) => ({
+            diagnosis: a.diagnosis,
+            timestamp: a.timestamp.toISOString(),
+          }));
+        }
+      }
+
+      // Satisfaction signals — how my Parsifal experiences me
+      if (sources.satisfactionHistory) {
+        const signals = sources.satisfactionHistory.getRecentSignals(10);
+        if (signals.length > 0) {
+          inputs.satisfactionHistory = signals.map((s) => ({
+            signal: s.signal,
+            context: s.context,
+          }));
+        }
+      }
+
+      // Cerebellum accuracy — where I'm reliable vs not
+      if (sources.cerebellum) {
+        inputs.predictionAccuracy = sources.cerebellum.getAccuracy();
+        inputs.predictionEpisodes = sources.cerebellum.getEpisodeCount();
+
+        const perSenseCeilings = sources.cerebellum.getPerSenseCeilings();
+        if (perSenseCeilings.length > 0) {
+          inputs.perSenseCeilings = perSenseCeilings.map((c) => ({
+            sense: c.senseName,
+            ceiling: c.ceiling,
+          }));
+        }
+
+        const bottleneck = sources.cerebellum.getApproachBottleneckInfo();
+        if (bottleneck) {
+          inputs.approachBottleneck = {
+            isBottleneck: bottleneck.approachIsBottleneck,
+            gap: bottleneck.bottleneckGap,
+          };
+        }
+      }
+
+      // Plasticity — which senses I trust, how my thresholds have adapted
+      if (sources.plasticity) {
+        const summaries: string[] = [];
+        const evalWeights = sources.plasticity.getByCategory("evaluation-influence");
+        if (evalWeights.length > 0) {
+          const sorted = [...evalWeights].sort((a, b) => b.value - a.value);
+          const top = sorted.slice(0, 3);
+          const topNames = top.map((w) => {
+            const name = w.connectionId.replace("evaluator.sense-weight.", "");
+            return `${name} (${w.value.toFixed(2)})`;
+          });
+          summaries.push(`Evaluation influence leans toward: ${topNames.join(", ")}`);
+        }
+        if (summaries.length > 0) {
+          inputs.weightSummaries = summaries;
+        }
+      }
+
+      // Hippocampus episodes reflected inward — what they say about ME
+      if (sources.hippocampus) {
+        const recentEpisodes = sources.hippocampus.getRecentEpisodes(10);
+        const significant = recentEpisodes
+          .filter((e) => Math.abs(e.dopamineSignal) > 0.5)
+          .sort((a, b) => b.significance - a.significance)
+          .slice(0, 5);
+        if (significant.length > 0) {
+          inputs.significantEpisodes = significant.map((e) => ({
+            taskDescription: e.narrative.taskDescription,
+            outcome: e.narrative.outcome,
+            cycles: e.narrative.cycles,
+            dopamineSignal: e.dopamineSignal,
+            topScores: e.senseParticipation
+              .sort((a, b) => Math.abs(b.finalScore - 5) - Math.abs(a.finalScore - 5))
+              .slice(0, 3)
+              .map((s) => ({ sense: s.senseName, score: s.finalScore })),
+            approachesTried: e.narrative.approachesTried,
+          }));
+        }
+      }
+
+      return inputs;
     }
 
     // Project identity
@@ -548,6 +712,32 @@ export class WorldModel {
 
   // ── Private: Helpers ───────────────────────────────────────────
 
+  /**
+   * Should the self-model update at this trigger?
+   * Self is stable — updates at project-complete (always), rest-cycle
+   * (if enough new experience), phase-gate (if flexibility shifted).
+   * NOT at between-tasks (too volatile for identity).
+   */
+  private shouldUpdateSelf(trigger: RebuildTrigger, sources: WorldModelSources): boolean {
+    if (trigger === "project-complete") return true;
+
+    if (trigger === "rest-cycle") {
+      // Only if enough experience since last self synthesis
+      const completedCount = sources.wm.getCompletedSummaries().length;
+      return completedCount >= 3;
+    }
+
+    if (trigger === "phase-gate") {
+      // Only if cognitive flexibility has produced diagnoses (signals self-relevant change)
+      if (sources.cognitiveFlexibility) {
+        const assessments = sources.cognitiveFlexibility.getRecentAssessments(3);
+        return assessments.length > 0;
+      }
+    }
+
+    return false;
+  }
+
   /** Determine if the project produced enough learning to update cross-project. */
   private hasSignificantLearning(sources: WorldModelSources): boolean {
     // Heuristic: at least 3 completed tasks and either:
@@ -579,6 +769,8 @@ export class WorldModel {
     return {
       crossProject: [...this.crossProjectMaxims],
       perProject: [...this.perProjectMaxims],
+      self: [...this.selfMaxims],
+      selfNarratives: [...this.selfNarratives],
       synthesizedAt: this.lastSynthesis ?? new Date(),
       trigger,
       sourcesSummary: this.buildSourcesSummary(sources),
@@ -607,6 +799,8 @@ export class WorldModel {
       hasTaskGraph: sources.taskGraph !== undefined,
       hasPNS: sources.pns !== undefined,
       capabilityCount: sources.pns?.getCapabilities().length ?? 0,
+      selfMaximCount: this.selfMaxims.length,
+      selfNarrativeCount: this.selfNarratives.length,
     };
   }
 
@@ -628,6 +822,8 @@ export class WorldModel {
       hasTaskGraph: false,
       hasPNS: false,
       capabilityCount: 0,
+      selfMaximCount: this.selfMaxims.length,
+      selfNarrativeCount: this.selfNarratives.length,
     };
   }
 }

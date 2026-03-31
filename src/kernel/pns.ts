@@ -167,9 +167,16 @@ export class PeripheralNervousSystem {
         );
       }
 
-      // Evaluator auto-allows: read-only always, Bash at medium+
+      // Evaluator auto-allows: must match activated set at each NE tier.
+      // Low = read-only. Medium = + Bash. High = + Bash + WebFetch.
       const readOnly = ["Read", "Glob", "Grep"];
-      allowedTools = neLevel >= 0.3 ? [...readOnly, "Bash"] : readOnly;
+      if (neLevel > 0.7) {
+        allowedTools = [...readOnly, "Bash", "WebFetch"];
+      } else if (neLevel >= 0.3) {
+        allowedTools = [...readOnly, "Bash"];
+      } else {
+        allowedTools = readOnly;
+      }
     } else if (consumer === "observer") {
       // ── Observer activation: can start processes + perceive, but NEVER modify artifacts. ──
       // The nursery's runtime exercise mode. Bash is always available (must start servers,
@@ -196,8 +203,13 @@ export class PeripheralNervousSystem {
         );
       }
 
-      // Observer auto-allows: read-only + Bash always (essential for starting/stopping processes)
-      allowedTools = ["Read", "Glob", "Grep", "Bash"];
+      // Observer auto-allows: must match activated set at each NE tier.
+      // Low = read + Bash. Medium+ = + WebFetch (hit HTTP endpoints under test).
+      if (neLevel >= 0.3) {
+        allowedTools = ["Read", "Glob", "Grep", "Bash", "WebFetch"];
+      } else {
+        allowedTools = ["Read", "Glob", "Grep", "Bash"];
+      }
     } else {
       // ── Builder activation: full read+write. ──
       // Agent only at high NE (spawning sub-agents is expensive).
@@ -220,9 +232,17 @@ export class PeripheralNervousSystem {
         activated = bound.filter((c) => c.toolBinding!.innate);
       }
 
-      // Builder auto-allows: read-only always, Write/Edit/NotebookEdit at medium+
+      // Builder auto-allows: must match activated set at each NE tier.
+      // Low NE = read + write (no shell/web/agents). Medium = + shell + web fetch. High = full set.
       const readOnly = ["Read", "Glob", "Grep"];
-      allowedTools = neLevel >= 0.3 ? [...readOnly, "Write", "Edit", "NotebookEdit"] : readOnly;
+      if (neLevel > 0.7) {
+        allowedTools = [...readOnly, "Write", "Edit", "NotebookEdit", "Bash", "WebFetch", "WebSearch", "Agent"];
+      } else if (neLevel >= 0.3) {
+        allowedTools = [...readOnly, "Write", "Edit", "NotebookEdit", "Bash", "WebFetch"];
+      } else {
+        // Low NE: read + file writes (activated set includes file_system). No shell, no web.
+        allowedTools = [...readOnly, "Write", "Edit", "NotebookEdit"];
+      }
     }
 
     // Also include any non-innate (acquired) capabilities that passed filtering

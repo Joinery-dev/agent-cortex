@@ -7,7 +7,7 @@
  *
  *   1. Worldview selection (interactive, via WebSocket chat)
  *   2. Taste setup (interactive, via WebSocket chat)
- *   3. Boot Claus (consciousness agent, greets the Parsifal)
+ *   3. Boot Cortex (communication is a cognitive function, not a separate agent)
  *   4. Create Cortex with everything wired
  *   5. Ask for project prompt via conversation cortex
  *   6. Run the project
@@ -18,7 +18,6 @@ import type { ConversationMessage } from "../types/conversation.js";
 import type { ProjectIntent } from "../types/intent.js";
 import { setupWorldview } from "../worldview/generator.js";
 import { setupTaste } from "../taste/setup.js";
-import { Claus } from "../conversation/claus.js";
 import { Cortex } from "../index.js";
 import { registerCortex } from "./state-registry.js";
 import { createLogger } from "../util/logger.js";
@@ -86,16 +85,10 @@ export async function bootFromWeb(ws: WebSocketTransport): Promise<void> {
   const taste = await setupTaste(askUser);
   log.info("Taste configured", { name: taste.name });
 
-  // ── 3. Boot Claus + Cortex ────────────────────────────────────
-  // Create Claus and Cortex together. The conversation cortex wires
-  // the WebSocket transport and activates Claus hooks.
-  // No separate greeting — Claus introduces itself through the
-  // askUser reformulation (single message, no duplicates).
-  log.info("Booting Claus + Cortex");
-  const claus = new Claus({
-    transports: [ws],
-    worldview,
-  });
+  // ── 3. Boot Cortex ───────────────────────────────────────────
+  // Communication is a cognitive function of the Cortex, not a separate agent.
+  // The askUser call below serves as both greeting and prompt.
+  log.info("Booting Cortex");
 
   const intent: ProjectIntent = {
     id: `web-${Date.now()}`,
@@ -112,7 +105,6 @@ export async function bootFromWeb(ws: WebSocketTransport): Promise<void> {
     intent,
     taste,
     worldview,
-    claus,
     logLevel: "warn",
     conversationTransports: [ws],
   });
@@ -120,8 +112,8 @@ export async function bootFromWeb(ws: WebSocketTransport): Promise<void> {
   log.info("Cortex booted and registered");
 
   // ── 4. Ask for project prompt ────────────────────────────────
-  // Claus reformulates this into its worldview voice — serves as
-  // both greeting and prompt in a single message.
+  // The communication function reformulates this in the worldview voice —
+  // serves as both greeting and prompt in a single message.
   const convoCortex = cortex.getBrainstem().getConversationCortex();
   const prompt = await convoCortex.askUser(
     "Introduce yourself briefly, then ask what they'd like to build.",

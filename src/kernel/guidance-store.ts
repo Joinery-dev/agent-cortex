@@ -62,6 +62,10 @@ const DEFAULT_CONSULTATION_GUIDANCE: Partial<Record<FailureCategory, string>> = 
     "Tasks like this historically fail because sense tensions collapse into capitulation instead of synthesis. " +
     "State your hard boundaries: the non-negotiable minimums for your dimension. " +
     "The builder needs pre-resolved constraints, not competing aspirations that will conflict during evaluation.",
+  "execution-problem":
+    "Tasks like this historically fail because the builder couldn't execute its plan — " +
+    "tool permissions, missing dependencies, or environment issues blocked execution. " +
+    "State any environment prerequisites explicitly: what must be installed, what commands must succeed.",
 };
 
 const DEFAULT_MOTOR_GUIDANCE: Record<FailureCategory, string> = {
@@ -79,6 +83,10 @@ const DEFAULT_MOTOR_GUIDANCE: Record<FailureCategory, string> = {
   "local-logic":
     "Historical pattern: similar tasks fail on specific logic issues in a small number of senses. " +
     "Pay extra attention to edge cases and boundary conditions in the areas flagged by high-stake senses.",
+  "execution-problem":
+    "Historical pattern: builder plans well but execution is blocked by tooling or environment issues. " +
+    "Verify all required tools are available and permissions are granted before building. " +
+    "If a command fails, diagnose the root cause before retrying.",
 };
 
 // ─── Store ─────────────────────────────────────────────────────

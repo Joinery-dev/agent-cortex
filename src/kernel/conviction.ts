@@ -228,23 +228,38 @@ function testBuildCycleNecessity(
   ctx: ConvictionContext,
   evidence: ConvictionEvidence[],
 ): NecessityResult {
-  // Oscillation: WM already filters at 3-point threshold.
-  // Any signal that exists is significant — cycling is counterproductive.
+  // Oscillation: only GENUINE alternating oscillation on 3+ receptors kills necessity.
+  // Non-alternating (monotonic improvement) is convergence, not thrashing.
+  // 1-2 alternating receptors weaken conviction proportionally (handled in Step 2).
   if (ctx.oscillations && ctx.oscillations.length > 0) {
-    const receptors = ctx.oscillations.map((o) => o.receptorId).join(", ");
-    evidence.push({
-      source: "oscillation",
-      description: `Score oscillation on ${ctx.oscillations.length} receptor(s): ${receptors}. Cycling is counterproductive.`,
-      magnitude: ctx.oscillations.length,
-      valence: "undermines",
-    });
+    const alternating = ctx.oscillations.filter((o) => o.alternating);
 
-    return {
-      necessary: false,
-      evidence,
-      reshapeGuidance: `Score oscillation detected on ${receptors}. Cortex is thrashing — revisions are undoing each other. Re-plan the approach from scratch.`,
-      verdict: "reshape",
-    };
+    if (alternating.length >= 3) {
+      const receptors = alternating.map((o) => o.receptorId).join(", ");
+      evidence.push({
+        source: "oscillation",
+        description: `Severe score oscillation: ${alternating.length} receptor(s) alternating (${receptors}). Cycling is counterproductive.`,
+        magnitude: alternating.length,
+        valence: "undermines",
+      });
+
+      return {
+        necessary: false,
+        evidence,
+        reshapeGuidance: `Score oscillation detected on ${receptors}. Cortex is thrashing — revisions are undoing each other. Re-plan the approach from scratch.`,
+        verdict: "reshape",
+      };
+    }
+
+    if (alternating.length > 0) {
+      const receptors = alternating.map((o) => o.receptorId).join(", ");
+      evidence.push({
+        source: "oscillation",
+        description: `Minor score oscillation: ${alternating.length} receptor(s) alternating (${receptors}). Monitoring for thrashing.`,
+        magnitude: alternating.length,
+        valence: "undermines",
+      });
+    }
   }
 
   // Approach bottleneck: the approach itself can't reach the ceiling.
@@ -461,6 +476,23 @@ function testBuildCycleConviction(ctx: ConvictionContext, t: ConvictionThreshold
     });
     // Blend: convergence reinforces or weakens the score signal by 30%
     scoreSignal = scoreSignal * 0.7 + conv * 0.3;
+  }
+
+  // Oscillation penalty: alternating oscillation on 1-2 receptors weakens the score signal.
+  // Severe oscillation (3+ alternating) is handled in necessity — never reaches here.
+  // Non-alternating swings (monotonic improvement) are ignored entirely.
+  if (ctx.oscillations) {
+    const alternating = ctx.oscillations.filter((o) => o.alternating);
+    if (alternating.length > 0 && alternating.length < 3) {
+      const penalty = alternating.length * 0.1; // 10% per alternating receptor
+      evidence.push({
+        source: "oscillation",
+        description: `${alternating.length} receptor(s) showing alternating scores — weakening score signal by ${(penalty * 100).toFixed(0)}%.`,
+        magnitude: alternating.length,
+        valence: "undermines",
+      });
+      scoreSignal *= (1 - penalty);
+    }
   }
 
   // Weighted sum

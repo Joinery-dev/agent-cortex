@@ -41,7 +41,6 @@ import { DEFAULT_WORLDVIEW } from "../src/types/worldview.js";
 import type { Worldview } from "../src/types/worldview.js";
 import { persistSession, loadSession, clearSession } from "../src/session/state.js";
 import { TerminalTransport } from "../src/conversation/terminal-transport.js";
-import { Claus } from "../src/conversation/claus.js";
 import { setupTaste } from "../src/taste/setup.js";
 import { loadTasteProfile, DEFAULT_TASTE } from "../src/taste/store.js";
 import { detectExistingWorldview } from "../src/worldview/store.js";
@@ -88,7 +87,6 @@ let taste: TasteProfile;
 let brainstem: Brainstem;
 let worldview: Worldview;
 let terminalTransport: TerminalTransport;
-let claus: Claus;
 let askUser: (question: string) => Promise<string>;
 let dashboardUrl: string;
 let shuttingDown = false;
@@ -226,7 +224,7 @@ async function boot(): Promise<void> {
 
   // askUser via chat UI — sends a system question through transports,
   // waits for the Parsifal's response via readline/WebSocket.
-  // This is the pre-Claus voice — simple, no LLM, just questions.
+  // Simple pre-boot voice — no LLM, just questions.
   const askViaChat = (question: string): Promise<string> => {
     const msg = {
       id: "setup-" + Date.now(),
@@ -262,7 +260,7 @@ async function boot(): Promise<void> {
 
   askUser = askViaChat;
 
-  // ── 2. Worldview selection (through chat, before Claus) ───────
+  // ── 2. Worldview selection (through chat, before boot) ───────
 
   if (resumeMode) {
     worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
@@ -270,7 +268,7 @@ async function boot(): Promise<void> {
     worldview = await setupWorldview(askViaChat, { model: "opus" });
   }
 
-  // ── 3. Taste / naming (through chat, before Claus) ────────────
+  // ── 3. Taste / naming (through chat, before boot) ────────────
 
   if (resumeMode) {
     taste = loadTasteProfile() ?? DEFAULT_TASTE;
@@ -278,68 +276,53 @@ async function boot(): Promise<void> {
     taste = await setupTaste(askViaChat);
   }
 
-  // ── 4. Boot Claus (with worldview + taste identity) ───────────
-
-  claus = new Claus({
-    transports: allTransports,
-    worldview,
-  });
-
-  // Claus introduces itself
-  const greeting = await claus.respondToMessage(
-    `[system] You are now online. Worldview: ${worldview.name}. ` +
-    `Working for: ${taste.name}. ` +
-    `Dashboard: ${dashboardUrl}/conversation. ` +
-    (resumeMode ? "Resuming from checkpoint." : "Ready for a new project.") +
-    (stepMode ? " Step-by-step mode is active." : "") +
-    ` Introduce yourself to the Parsifal.`,
-  );
-
-  for (const t of allTransports) {
-    t.sendMessage({
-      id: "greeting",
-      role: "cortex",
-      kind: "acknowledgment",
-      text: greeting,
-      timestamp: new Date(),
-    });
-  }
-
-  // From here, askUser goes through Claus
-  askUser = (question: string) => claus.formulateQuestion(question, "", undefined)
-    .then(async (formulated) => {
-      for (const t of allTransports) {
-        t.sendMessage({
-          id: "q-" + Date.now(),
-          role: "cortex",
-          kind: "question",
-          text: formulated,
-          timestamp: new Date(),
-        });
-      }
-      return new Promise<string>((resolve) => {
-        const rl = terminalTransport.getReadline();
-        rl.once("line", (line: string) => {
-          const trimmed = line.trim();
-          if (trimmed) resolve(trimmed);
-        });
-      });
-    });
-
-  // ── 5. Brainstem (pass Claus in) ──────────────────────────────
+  // ── 4. Boot Brainstem + greet ──────────────────────────────────
+  // Communication is a cognitive function of the Cortex, not a separate agent.
 
   brainstem = new Brainstem(
     DEFAULT_CONFIG, library, undefined, undefined, undefined,
-    undefined, undefined, undefined, undefined, worldview, claus,
+    undefined, undefined, undefined, undefined, worldview,
   );
 
   if (noCheckpoint) {
     brainstem.getRunner().setCheckpointConfig({ enabled: false });
   }
 
-  // Wire conversation transports (activates Claus hooks)
+  // Wire conversation transports
   brainstem.setConversationTransport(terminalTransport);
   brainstem.setConversationTransport(dashboard.wsTransport);
+
+  // Greet through the communication function
+  const { communicate } = await import("../src/kernel/communication.js");
+  const greetResult = await communicate({
+    trigger: "project-lifecycle",
+    lifecycleEvent: `Now online. Worldview: ${worldview.name}. Working for: ${taste.name}. ` +
+      `Dashboard: ${dashboardUrl}/conversation. ` +
+      (resumeMode ? "Resuming from checkpoint." : "Ready for a new project.") +
+      (stepMode ? " Step-by-step mode is active." : "") +
+      ` Introduce yourself.`,
+    selfMaxims: brainstem.getWorldModel()?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+    selfNarratives: brainstem.getWorldModel()?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+    worldMaxims: brainstem.getWorldModel()?.getMaximsForBriefing() ?? [],
+    recentConversation: [],
+    consciousnessFrame: worldview?.frames?.consciousness ?? "",
+  });
+
+  if (greetResult.message) {
+    for (const t of allTransports) {
+      t.sendMessage({
+        id: "greeting",
+        role: "cortex",
+        kind: "acknowledgment",
+        text: greetResult.message,
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  // From here, askUser goes through the ConversationCortex
+  const convoCortex = brainstem.getConversationCortex();
+  askUser = (question: string) => convoCortex.askUser(question);
 
   // First-project modes (step, replay)
   if (stepMode) {

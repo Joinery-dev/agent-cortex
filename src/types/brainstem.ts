@@ -139,6 +139,12 @@ export interface BuildCycleContext {
   projectBudgetUtilization?: number;
   /** How close to the attention budget ceiling (0–1). Computed by sensory-cortex. */
   budgetProximity?: number;
+  /**
+   * Communication callback — the Cortex's voice at gate decision points.
+   * Created by task-dispatch with closure over worldModel, conversationHistory, worldview.
+   * Called after gate.evaluate() with the full decision context.
+   */
+  communicateFromGate?: (gateContext: import("./communication.js").CommunicationContext) => Promise<import("./communication.js").CommunicationResult>;
 }
 
 // ─── Rhythm-level result types ──────────────────────────────────

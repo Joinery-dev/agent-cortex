@@ -47,12 +47,13 @@ function makeComposite(weightedMean: number, acceptability = 0.7): WeightedCompo
   } as WeightedComposite;
 }
 
-function makeOscillation(receptorId: string, swing: number): OscillationSignal {
+function makeOscillation(receptorId: string, swing: number, alternating = true): OscillationSignal {
   return {
     receptorId,
     activationPath: ["sense", receptorId],
-    recentScores: [8, 8 - swing],
+    recentScores: alternating ? [8, 8 - swing, 8] : [8 - swing, 8],
     swingMagnitude: swing,
+    alternating,
   };
 }
 
@@ -111,9 +112,32 @@ function makeTaskGraph(count: number): TaskGraphNode[] {
   }));
 }
 
-// ─── 1. Build-cycle: oscillation → reshape (necessity) ───────────
+// ─── 1. Build-cycle: severe oscillation (3+ alternating) → reshape ──
 
-console.log("\n1. Build-cycle: oscillation → reshape");
+console.log("\n1. Build-cycle: severe oscillation (3+ alternating) → reshape");
+{
+  const ctx: ConvictionContext = {
+    level: "build-cycle",
+    cycle: 2,
+    composite: makeComposite(7),
+    oscillations: [
+      makeOscillation("d.color", 4),
+      makeOscillation("d.layout", 3),
+      makeOscillation("d.spacing", 5),
+    ],
+    speedOfLight: makeSpeedOfLight(9),
+  };
+
+  const result = runConvictionLoop(ctx);
+  assert(result.verdict === "reshape", "Verdict is reshape");
+  assert(result.decidingStep === "necessity", "Decided at necessity step");
+  assert(result.evidence.some((e) => e.source === "oscillation"), "Oscillation evidence present");
+  assert(result.shaping.reshapeGuidance !== undefined, "Reshape guidance provided");
+}
+
+// ─── 1b. Build-cycle: minor oscillation (1 alternating) → proceeds with penalty ──
+
+console.log("1b. Build-cycle: minor oscillation (1 alternating) → proceeds with penalty");
 {
   const ctx: ConvictionContext = {
     level: "build-cycle",
@@ -124,10 +148,28 @@ console.log("\n1. Build-cycle: oscillation → reshape");
   };
 
   const result = runConvictionLoop(ctx);
-  assert(result.verdict === "reshape", "Verdict is reshape");
-  assert(result.decidingStep === "necessity", "Decided at necessity step");
+  assert(result.verdict !== "reshape" || result.decidingStep !== "necessity",
+    "1 alternating oscillation should NOT kill at necessity");
   assert(result.evidence.some((e) => e.source === "oscillation"), "Oscillation evidence present");
-  assert(result.shaping.reshapeGuidance !== undefined, "Reshape guidance provided");
+}
+
+// ─── 1c. Build-cycle: non-alternating oscillation → no impact ────
+
+console.log("1c. Build-cycle: non-alternating (monotonic improvement) → no oscillation impact");
+{
+  const ctx: ConvictionContext = {
+    level: "build-cycle",
+    cycle: 2,
+    composite: makeComposite(7),
+    oscillations: [makeOscillation("d.color", 4, false)],
+    speedOfLight: makeSpeedOfLight(9),
+  };
+
+  const result = runConvictionLoop(ctx);
+  assert(result.verdict !== "reshape" || result.decidingStep !== "necessity",
+    "Non-alternating oscillation should NOT kill at necessity");
+  assert(!result.evidence.some((e) => e.source === "oscillation"),
+    "Non-alternating oscillation should produce no oscillation evidence");
 }
 
 // ─── 2. Build-cycle: approach bottleneck → reshape (necessity) ───

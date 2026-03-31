@@ -614,6 +614,17 @@ export class Cerebellum {
       };
     }
 
+    // Execution-problem → revision IS likely to help (the approach was sound,
+    // the fix is environmental — correct tools/permissions and retry)
+    if (input.failureCategory === "execution-problem") {
+      return {
+        predictedDelta: 2.0,
+        shouldSkip: false,
+        confidence: 0.5,
+        reason: "Execution problem: revision with corrected tools/permissions likely to improve outcome.",
+      };
+    }
+
     // SoL gap < 1.0 composite points AND all objecting senses are borderline (5-6)
     if (solGap !== null && solGap < 1.0 && input.objectingScores.length > 0) {
       const allBorderline = input.objectingScores.every((s) => s >= 5 && s <= 6);

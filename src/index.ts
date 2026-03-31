@@ -15,8 +15,6 @@ import type { LogLevel } from "./util/logger.js";
 import { getUsage, resetUsage } from "./llm/client.js";
 import { Brainstem } from "./brainstem/index.js";
 import type { ConversationTransport } from "./types/conversation.js";
-import type { Claus } from "./conversation/claus.js";
-
 export interface CortexOptions {
   intent: ProjectIntent;
   taste: TasteProfile;
@@ -29,8 +27,6 @@ export interface CortexOptions {
   askUser?: (question: string) => Promise<string>;
   /** Conversation transport(s) for bidirectional Parsifal communication. */
   conversationTransports?: ConversationTransport[];
-  /** Pre-booted consciousness agent. Passed through to Brainstem/ConversationCortex. */
-  claus?: Claus;
 }
 
 export class Cortex {
@@ -50,7 +46,7 @@ export class Cortex {
     this.config = buildConfig(options.config);
     this.library = SensoryCortex.withDefaults();
     this.wm = new WorkingMemory(options.intent.id);
-    this.brainstem = new Brainstem(this.config, this.library, undefined, this.wm, undefined, undefined, undefined, undefined, undefined, options.worldview, options.claus);
+    this.brainstem = new Brainstem(this.config, this.library, undefined, this.wm, undefined, undefined, undefined, undefined, undefined, options.worldview);
 
     // Initialize cost tracking if the intent has a budget
     if (this.intent.budget) {

@@ -1299,7 +1299,7 @@
           "region": "Prefrontal Cortex",
           "status": "in-progress",
           "description": "PFC's integrated representation of reality — where we are, not where we're going. Integrates WM + Hippocampus + Cerebellum + task graph + PNS + project context + system health into a single coherent picture. Rebuilt at rhythm boundaries. The conviction loop runs against this. Wave 9 — depends on all Phase 3 learning systems being complete.",
-          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.\n[Reconciled] src/types/worldview.ts exists but isn't referenced in any subtask.\n[Reconciled] src/kernel/problem-model.ts exists but isn't referenced in any subtask.",
+          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.\n[Reconciled] src/types/worldview.ts exists but isn't referenced in any subtask.\n[Reconciled] src/kernel/problem-model.ts exists but isn't referenced in any subtask. Self-model scope added to World Model (types, store, class, prompts). Compiles clean. See docs/design-consciousness-substrate.md.",
           "subtasks": [
             {
               "name": "Types",
@@ -1335,6 +1335,11 @@
               "name": "Smoke test + diagram",
               "status": "not-started",
               "detail": "examples/weltanschauung-smoke.ts + diagrams/weltanschauung.mmd"
+            },
+            {
+              "name": "Self-model scope",
+              "status": "complete",
+              "detail": "src/types/world-model.ts, src/kernel/world-model-store.ts, src/kernel/world-model.ts, src/llm/prompts.ts"
             }
           ]
         },
@@ -1852,9 +1857,15 @@
               "description": "Smoke test",
               "status": "complete",
               "detail": "examples/project-diagnostics-smoke.ts — 123 tests: conviction ledger, trajectory, all 7 triage rules, priority ordering, graph diff prompt, original type/shape tests"
+            },
+            {
+              "id": "self-model-scope",
+              "description": "Self-model scope",
+              "status": "complete",
+              "detail": "src/types/world-model.ts, src/kernel/world-model-store.ts, src/kernel/world-model.ts, src/llm/prompts.ts — SelfNarrative type, persistence, synthesis, prompts"
             }
           ],
-          "notes": "Project-level analog of CogFlex (Feature 5). Redesigned from positional cascade (1st→2nd→3rd→human) to adaptive triage-driven dispatch. Triage reads conviction trajectory from WM, sense trends, drift level, cerebellum accuracy. Routes to replan|re-manifest|full-diagnostic|escalate. Heuristic rules are starting points — Basal Ganglia will learn to override them."
+          "notes": "Project-level analog of CogFlex (Feature 5). Redesigned from positional cascade (1st→2nd→3rd→human) to adaptive triage-driven dispatch. Triage reads conviction trajectory from WM, sense trends, drift level, cerebellum accuracy. Routes to replan|re-manifest|full-diagnostic|escalate. Heuristic rules are starting points — Basal Ganglia will learn to override them. Self-model scope added to World Model (types, store, class, prompts). Compiles clean. See docs/design-consciousness-substrate.md."
         }
       ]
     },
@@ -2405,7 +2416,9 @@
       "[Reconciled] src/types/checkpoint.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/guidance-store.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/guidance-evolver.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/types/conversation.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/types/conversation.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/communication.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/communication.ts exists but isn't referenced in any subtask."
     ]
   }
 }

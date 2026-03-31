@@ -121,8 +121,6 @@ export class Brainstem {
     stakeAdjuster?: StakeAdjuster,
     plasticityConfig?: Partial<PlasticityStoreConfig>,
     worldview?: Worldview,
-    /** Pre-existing Claus instance (booted before the system). */
-    claus?: import("../conversation/claus.js").Claus,
   ) {
     this.config = config;
     this.library = library;
@@ -214,10 +212,9 @@ export class Brainstem {
       runner: this.runner,
       escalationHandler: this.escalationHandler,
       thalamus: this.thalamus,
-      amygdala: this.amygdala,
-      costTracker: this.costTracker,
       worldview,
-      claus, // pre-existing Claus from boot, or undefined to create fresh
+      worldModel: this.worldModel,
+      costTracker: this.costTracker,
     });
 
     // Wire sense library to components that need sense verification

@@ -284,11 +284,25 @@ export class WorkingMemory {
     for (const [receptorId, record] of byReceptor) {
       if (record.scores.length < 2) continue;
 
-      // Find max swing between consecutive scores
+      // Compute consecutive deltas and check for direction alternation.
+      // True oscillation alternates direction (up→down or down→up).
+      // A monotonic improvement (even a large one) is convergence, not thrashing.
       let maxSwing = 0;
+      let hasAlternation = false;
+      let prevDirection: "up" | "down" | null = null;
+
       for (let i = 1; i < record.scores.length; i++) {
-        const swing = Math.abs(record.scores[i] - record.scores[i - 1]);
+        const delta = record.scores[i] - record.scores[i - 1];
+        const swing = Math.abs(delta);
         if (swing > maxSwing) maxSwing = swing;
+
+        if (delta > 0) {
+          if (prevDirection === "down") hasAlternation = true;
+          prevDirection = "up";
+        } else if (delta < 0) {
+          if (prevDirection === "up") hasAlternation = true;
+          prevDirection = "down";
+        }
       }
 
       if (maxSwing >= WorkingMemory.OSCILLATION_THRESHOLD) {
@@ -297,6 +311,7 @@ export class WorkingMemory {
           activationPath: record.path,
           recentScores: record.scores,
           swingMagnitude: maxSwing,
+          alternating: hasAlternation,
         });
       }
     }
@@ -309,6 +324,7 @@ export class WorkingMemory {
           path: s.activationPath.join(" > "),
           scores: s.recentScores,
           swing: s.swingMagnitude,
+          alternating: s.alternating,
         })),
       });
     }

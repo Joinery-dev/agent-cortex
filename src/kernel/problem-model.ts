@@ -129,6 +129,7 @@ export function extractConstraints(
         break;
       // local-logic: specific assessment is sufficient, no meta-constraint needed
       // specification-gap: exits early to reconsultation, shouldn't reach here
+      // execution-problem: tooling/environment issue, not a problem structure constraint
     }
   }
 

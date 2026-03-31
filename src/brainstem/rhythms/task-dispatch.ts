@@ -48,6 +48,7 @@ import type { TasteFeedbackLoop } from "../../kernel/taste-feedback.js";
 import type { ProspectiveMemory } from "../../kernel/prospective-memory.js";
 import type { IntegrationChecker } from "../../kernel/integration-check.js";
 import type { PhaseGateResult } from "../../types/integration-check.js";
+import { communicate } from "../../kernel/communication.js";
 import type { SurgeryProposal, SurgeryResult } from "../../types/graph-surgery.js";
 import { quickTriage } from "../../kernel/quick-triage.js";
 import { applySurgery, validateProposal } from "../../kernel/graph-surgery.js";
@@ -1718,6 +1719,34 @@ export function createTaskDispatchDefinition(
         evidenceCount: conviction.evidence.length,
         schedulerOverridden: schedulerEscalationSignal != null && conviction.verdict !== "escalate",
       });
+
+      // ── Communication: the Cortex's voice at dispatch gate ──
+      try {
+        const commResult = await communicate({
+          trigger: "task-dispatch-gate",
+          conviction: {
+            level: conviction.level,
+            verdict: conviction.verdict,
+            delta: conviction.delta ?? 0,
+            decidingStep: conviction.decidingStep ?? "unknown",
+          },
+          effectiveNE: acc.lastNELevel,
+          selfMaxims: worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+          selfNarratives: worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+          worldMaxims: worldModel?.getMaximsForBriefing() ?? [],
+          recentConversation: [],
+          consciousnessFrame: "",
+        });
+        if (commResult.message) {
+          emit("communication:message", {
+            trigger: "task-dispatch-gate",
+            cycle: state.completedCycles + 1,
+            message: commResult.message,
+          });
+        }
+      } catch (err) {
+        log.warn("Communication from dispatch gate failed", { error: String(err) });
+      }
 
       // Conviction escalate → bubble up (system agrees with scheduler, or conviction independently low)
       if (conviction.verdict === "escalate") {

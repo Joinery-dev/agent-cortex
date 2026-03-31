@@ -84,12 +84,14 @@ export interface PlannedIntention {
  *   integration         → senses conflict, resolution failed
  *   specification-gap   → motor thought it did fine, senses disagree on "done"
  *   approach-bottleneck → the approach itself is the ceiling
+ *   execution-problem   → builder couldn't execute its plan (tooling/permission/environment)
  */
 export type FailureCategory =
   | "local-logic"
   | "integration"
   | "specification-gap"
-  | "approach-bottleneck";
+  | "approach-bottleneck"
+  | "execution-problem";
 
 /** Result of classifying a gate rejection. */
 export interface FailureClassification {

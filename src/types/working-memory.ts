@@ -91,6 +91,12 @@ export interface ScoreTrend {
  * A receptor whose score swung significantly between build cycles
  * within a single task. Indicates possible thrashing or collateral
  * damage from revisions targeting other dimensions.
+ *
+ * `alternating` distinguishes genuine oscillation (score goes up then
+ * down, or vice versa) from monotonic improvement. A score going from
+ * 3→8 is convergence, not thrashing — only alternating direction is
+ * true oscillation. With only 2 data points (1 delta), `alternating`
+ * is always false since there's no second delta to reverse against.
  */
 export interface OscillationSignal {
   receptorId: string;
@@ -99,6 +105,8 @@ export interface OscillationSignal {
   recentScores: number[];
   /** Max absolute difference between consecutive scores. */
   swingMagnitude: number;
+  /** True when direction alternates (up→down or down→up). False when monotonic. */
+  alternating: boolean;
 }
 
 // ─── Conviction ledger ──────────────────────────────────────────

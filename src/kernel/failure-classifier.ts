@@ -40,6 +40,10 @@ export interface FailureClassifierInput {
   convictionVerdict?: "proceed" | "reshape" | "escalate";
   /** Plan confidence from the premotor (0–1). */
   planConfidence?: number;
+  /** Proprioception confidence from the builder's self-assessment (0–1). */
+  proprioceptionConfidence?: number;
+  /** Plan adherence from the builder's self-assessment (0–1). */
+  planAdherence?: number;
 }
 
 // ─── Classification ────────────────────────────────────────────
@@ -68,6 +72,18 @@ export function classifyFailure(input: FailureClassifierInput): FailureClassific
       objectingSenseIds,
       signals,
       rationale: bottleneck.rationale,
+    };
+  }
+
+  // ── 1.5. Execution problem ──────────────────────────────────
+  const execution = checkExecutionProblem(input, signals);
+  if (execution) {
+    return {
+      category: "execution-problem",
+      confidence: execution.confidence,
+      objectingSenseIds,
+      signals,
+      rationale: execution.rationale,
     };
   }
 
@@ -130,11 +146,13 @@ function checkApproachBottleneck(
     reasons.push("approach class consistently underperforms overall ceiling");
   }
 
-  // Oscillation on 2+ receptors — the system is going in circles
-  if (input.oscillations.length >= 2) {
+  // Oscillation on 2+ receptors with alternating direction — the system is going in circles.
+  // Non-alternating swings (monotonic improvement) are convergence, not thrashing.
+  const alternating = input.oscillations.filter((o) => o.alternating);
+  if (alternating.length >= 2) {
     score += 0.3;
-    signals.push(`${input.oscillations.length} oscillating receptors`);
-    reasons.push(`${input.oscillations.length} receptors oscillating`);
+    signals.push(`${alternating.length} receptors with alternating oscillation`);
+    reasons.push(`${alternating.length} receptors genuinely oscillating`);
   }
 
   // Conviction verdict was "reshape" — PFC already thinks the approach is wrong
@@ -212,6 +230,52 @@ function checkSpecificationGap(
     confidence: 0.65,
     rationale: `Specification gap: ${significantPotential.length} senses see significant improvement potential but plan confidence was ${planConfidence.toFixed(2)} — needs reconsultation, not rebuilding.`,
   };
+}
+
+function checkExecutionProblem(
+  input: FailureClassifierInput,
+  signals: string[],
+): { confidence: number; rationale: string } | null {
+  let score = 0;
+  const reasons: string[] = [];
+
+  // Very low proprioception confidence (builder knows it failed)
+  if (input.proprioceptionConfidence !== undefined && input.proprioceptionConfidence < 0.3) {
+    score += 0.4;
+    signals.push(`Proprioception confidence = ${input.proprioceptionConfidence.toFixed(2)} (< 0.3)`);
+    reasons.push(`builder self-confidence critically low (${(input.proprioceptionConfidence * 100).toFixed(0)}%)`);
+  }
+
+  // Significant plan divergence (plan wasn't followed)
+  if (input.planAdherence !== undefined && input.planAdherence < 0.5) {
+    score += 0.3;
+    signals.push(`Plan adherence = ${input.planAdherence.toFixed(2)} (< 0.5)`);
+    reasons.push(`plan adherence low (${(input.planAdherence * 100).toFixed(0)}%)`);
+  }
+
+  // No approach-bottleneck signals (the approach was sound)
+  const noApproachSignal = !input.speedOfLight?.approachSpecific?.approachIsBottleneck
+    && (input.speedOfLight?.compositeGap == null || input.speedOfLight.compositeGap <= 0.5);
+  if (noApproachSignal) {
+    score += 0.1;
+    reasons.push("no approach bottleneck signals present");
+  }
+
+  // Plan confidence was decent but execution failed (motor planned well, couldn't execute)
+  if (input.planConfidence !== undefined && input.planConfidence > 0.6
+      && input.proprioceptionConfidence !== undefined && input.proprioceptionConfidence < 0.3) {
+    score += 0.2;
+    signals.push(`Plan confident (${input.planConfidence.toFixed(2)}) but execution failed (${input.proprioceptionConfidence.toFixed(2)})`);
+    reasons.push("confident plan with failed execution suggests tooling/permission barrier");
+  }
+
+  if (score >= 0.5) {
+    return {
+      confidence: Math.min(1, score),
+      rationale: `Execution problem: ${reasons.join("; ")}.`,
+    };
+  }
+  return null;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────

@@ -2,13 +2,13 @@
  * Conversation Cortex — the layer between Cortex and the Parsifal.
  *
  * Three responsibilities:
- *   1. Inbound:  Parsifal messages → consciousness agent → WM observations
+ *   1. Inbound:  Parsifal messages → communication function → WM observations
  *   2. Outbound: Event bus → phase-level narration → transport
- *   3. Proactive: Notable events → consciousness agent → conversation
+ *   3. Proactive: Communication events from rhythm gates → conversation
  *
- * The consciousness agent (LLM-backed) generates all conversational
- * responses. Its identity comes from the worldview. Infrastructure
- * (narration rules, transports, observation integration) supports it.
+ * Communication is a cognitive function of the Cortex — not a separate
+ * agent. The Cortex IS Claus. When it speaks, it speaks from genuine
+ * understanding because it was there when the decision was made.
  *
  * Not a brain region — an extension of the Thalamus's external-facing
  * role: routing context between Cortex and the Parsifal in real-time.
@@ -31,9 +31,9 @@ import type { WorkingMemory } from "./working-memory.js";
 import type { RhythmRunnerImpl } from "../brainstem/runner.js";
 import type { EscalationHandler } from "../brainstem/escalation-handler.js";
 import type { Thalamus } from "./thalamus.js";
-import type { Amygdala } from "../subcortical/amygdala.js";
 import type { Worldview } from "../types/worldview.js";
-import { Claus, type ClausConfig } from "../conversation/claus.js";
+import type { WorldModel } from "./world-model.js";
+import { communicate } from "./communication.js";
 import { bus, emit } from "../events.js";
 import { narrateEvent } from "../conversation/narration-rules.js";
 import { newId } from "../util/ids.js";
@@ -48,12 +48,9 @@ export interface ConversationCortexDeps {
   runner: RhythmRunnerImpl;
   escalationHandler: EscalationHandler;
   thalamus: Thalamus;
-  amygdala: Amygdala;
   worldview?: Worldview;
+  worldModel?: WorldModel;
   costTracker?: import("../brainstem/cost-tracker.js").CostTracker | null;
-  consciousnessConfig?: Partial<ClausConfig>;
-  /** Pre-existing Claus instance (booted before the system). */
-  claus?: Claus;
 }
 
 export class ConversationCortex {
@@ -61,7 +58,6 @@ export class ConversationCortex {
   private transports: ConversationTransport[] = [];
   private history: ConversationMessage[] = [];
   private active = false;
-  private claus: Claus;
 
   /** Pending question awaiting a Parsifal response (askUser replacement). */
   private pendingQuestion: {
@@ -85,42 +81,6 @@ export class ConversationCortex {
 
   constructor(deps: ConversationCortexDeps) {
     this.deps = deps;
-
-    if (deps.claus) {
-      // Claus was booted before the system — wire system deps now
-      this.claus = deps.claus;
-      this.claus.wireSystem({
-        wm: deps.wm,
-        runner: deps.runner,
-        thalamus: deps.thalamus,
-        amygdala: deps.amygdala,
-        costTracker: deps.costTracker,
-      });
-    } else {
-      // Create Claus with full deps
-      this.claus = new Claus({
-        wm: deps.wm,
-        runner: deps.runner,
-        thalamus: deps.thalamus,
-        amygdala: deps.amygdala,
-        transports: [],
-        costTracker: deps.costTracker,
-        worldview: deps.worldview,
-        config: deps.consciousnessConfig,
-      });
-    }
-
-    // Wire Thalamus/WM as context sources for hooks
-    this.claus.getHooks().setSources({
-      thalamus: deps.thalamus,
-      wm: deps.wm,
-    });
-
-    // Subscribe to hook-originated messages from Claus
-    this.claus.onMessage((text, _hookModel) => {
-      const msg = this.cortexMessage("proactive", text);
-      this.recordAndBroadcast(msg);
-    });
   }
 
   // ─── Transport management ──────────────────────────────────
@@ -129,9 +89,6 @@ export class ConversationCortex {
   addTransport(transport: ConversationTransport): void {
     this.transports.push(transport);
     transport.onReceive((text) => this.receive(text));
-
-    // Keep consciousness aware of all transports
-    this.claus.updateTransports(this.transports);
 
     // Send current status to the new transport
     transport.sendStatus(this.currentStatus);
@@ -163,27 +120,22 @@ export class ConversationCortex {
   /** Remove a transport. */
   removeTransport(transport: ConversationTransport): void {
     this.transports = this.transports.filter((t) => t !== transport);
-    this.claus.updateTransports(this.transports);
   }
 
   // ─── Lifecycle ─────────────────────────────────────────────
 
-  /** Start listening to the event bus. Activate consciousness. */
+  /** Start listening to the event bus. */
   activate(): void {
     if (this.active) return;
     this.active = true;
     bus.onCortex((event) => this.handleEvent(event));
 
-    // Activate Claus hooks (replaces heartbeat + amygdala subscription)
-    this.claus.activate();
-
-    log.info("Conversation cortex activated (Claus hooks listening)");
+    log.info("Conversation cortex activated");
   }
 
-  /** Stop listening, stop Claus, close all transports. */
+  /** Stop listening, close all transports. */
   deactivate(): void {
     this.active = false;
-    this.claus.deactivate();
     for (const t of this.transports) {
       t.close();
     }
@@ -228,7 +180,7 @@ export class ConversationCortex {
       const pq = this.pendingQuestion;
       this.pendingQuestion = null;
 
-      // Consciousness acknowledges, then resolve
+      // Respond, then resolve
       this.consciousnessRespond(trimmed, msgId).then(() => {
         pq.resolve(trimmed);
       });
@@ -248,23 +200,33 @@ export class ConversationCortex {
       return;
     }
 
-    // 3. Consciousness responds + store as WM observation + soft interrupt
+    // 3. Communication function responds + store as WM observation + soft interrupt
     this.storeAsObservation(trimmed, msgId);
     this.consciousnessRespond(trimmed, msgId);
   }
 
   /**
-   * Ask consciousness to respond to a Parsifal message.
-   * Fire-and-forget — the response broadcasts when the LLM returns.
+   * The Cortex responds to a Parsifal message — speaking from genuine understanding.
+   * Uses the communication cognitive function with full context.
    */
   private async consciousnessRespond(text: string, inReplyTo: string): Promise<void> {
     try {
-      const response = await this.claus.respondToMessage(text);
-      const msg = this.cortexMessage("acknowledgment", response, { inReplyTo });
+      const result = await communicate({
+        trigger: "parsifal-inbound",
+        parsifalMessage: text,
+        selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+        selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+        worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        recentConversation: this.history.slice(-20).map((m) => ({
+          role: m.role,
+          text: m.text,
+        })),
+        consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+      });
+      const msg = this.cortexMessage("acknowledgment", result.message ?? "Got it.", { inReplyTo });
       this.recordAndBroadcast(msg);
     } catch (err) {
-      // Fallback to template if consciousness fails
-      log.warn("Consciousness response failed, using fallback", { error: String(err) });
+      log.warn("Communication response failed, using fallback", { error: String(err) });
       const msg = this.cortexMessage("acknowledgment", "Got it.", { inReplyTo });
       this.recordAndBroadcast(msg);
     }
@@ -278,10 +240,22 @@ export class ConversationCortex {
    * message resolves the promise.
    */
   async askUser(question: string): Promise<string> {
-    // Route through consciousness so the question comes in its voice
+    // Route through communication so the question comes in the Cortex's voice
     let formulated: string;
     try {
-      formulated = await this.claus.formulateQuestion(question, "", undefined);
+      const result = await communicate({
+        trigger: "escalation",
+        escalation: { summary: question, detail: "" },
+        selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+        selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+        worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        recentConversation: this.history.slice(-10).map((m) => ({
+          role: m.role,
+          text: m.text,
+        })),
+        consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+      });
+      formulated = result.message ?? question;
     } catch {
       formulated = question; // fallback to raw question
     }
@@ -303,8 +277,6 @@ export class ConversationCortex {
     const narration = narrateEvent(event);
     if (narration) {
       this.broadcastNarration(narration);
-      // Feed narration headlines to consciousness as digest
-      this.claus.addToDigest(narration.headline);
     }
 
     // Status bar updates
@@ -313,10 +285,14 @@ export class ConversationCortex {
     // Plan + artifact tracking for the right-pane tabs
     this.handlePlanEvent(event);
 
-    // Proactive surfacing is now handled by Claus hooks (system hooks
-    // for conviction, tension, task completion fire automatically).
+    // Communication events from rhythm gates → conversation
+    if (event.type === "communication:message") {
+      const text = event.data.message as string;
+      const msg = this.cortexMessage("proactive", text);
+      this.recordAndBroadcast(msg);
+    }
 
-    // Escalation → consciousness formulates the question
+    // Escalation → communication function formulates the question
     if (event.type === "escalation:created") {
       const escalationId = event.data.id as string;
 
@@ -332,7 +308,7 @@ export class ConversationCortex {
     }
   }
 
-  /** Ask consciousness to formulate an escalation question. */
+  /** Formulate an escalation question through the communication function. */
   private async consciousnessEscalation(
     summary: string,
     detail: string,
@@ -340,15 +316,24 @@ export class ConversationCortex {
     escalationId: string,
   ): Promise<void> {
     try {
-      const question = await this.claus.formulateQuestion(
-        summary, detail, proposedActions,
-      );
-      const msg = this.cortexMessage("question", question, {
+      const result = await communicate({
+        trigger: "escalation",
+        escalation: { summary, detail, proposedActions },
+        selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+        selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+        worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        recentConversation: this.history.slice(-10).map((m) => ({
+          role: m.role,
+          text: m.text,
+        })),
+        consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+      });
+      const msg = this.cortexMessage("question", result.message ?? summary, {
         pendingId: escalationId,
       });
       this.recordAndBroadcast(msg);
     } catch (err) {
-      log.warn("Consciousness escalation failed, using raw summary", { error: String(err) });
+      log.warn("Communication escalation failed, using raw summary", { error: String(err) });
       const msg = this.cortexMessage("question", summary, {
         pendingId: escalationId,
       });
@@ -403,8 +388,6 @@ export class ConversationCortex {
       for (const t of this.transports) {
         t.sendStatus(this.currentStatus);
       }
-      // Keep consciousness aware of status changes
-      this.claus.updateStatus(this.currentStatus);
     }
   }
 
@@ -598,7 +581,7 @@ export class ConversationCortex {
     return this.pendingQuestion != null;
   }
 
-  /** Reset between projects — clears conversation and consciousness state. */
+  /** Reset between projects — clears conversation state. */
   reset(): void {
     this.history = [];
     this.currentStatus = {};
@@ -608,6 +591,5 @@ export class ConversationCortex {
     this.planVision = null;
     this.planPhases = [];
     this.artifacts = [];
-    this.claus.reset();
   }
 }

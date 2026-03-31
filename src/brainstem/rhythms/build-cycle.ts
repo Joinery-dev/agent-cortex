@@ -1029,6 +1029,58 @@ export function createBuildCycleDefinition(
         flexibilityAssessment: acc.flexibilityAssessment?.diagnosis ?? null,
       });
 
+      // ── Communication: the Cortex's voice at the gate ──────
+      if (ctx.communicateFromGate) {
+        try {
+          const commResult = await ctx.communicateFromGate({
+            trigger: "build-cycle-gate",
+            gateDecision: {
+              accept: gateOutput.accept,
+              strategy: gateOutput.strategy,
+              reason: gateOutput.reason,
+            },
+            conviction: {
+              level: conviction.level,
+              verdict: conviction.verdict,
+              delta: conviction.delta ?? 0,
+              decidingStep: conviction.decidingStep ?? "unknown",
+            },
+            composite: {
+              weightedMean: integrated.composite.weightedMean,
+              weightedAcceptability: integrated.composite.weightedAcceptability,
+              confidence: integrated.composite.confidence,
+            },
+            tensions: integrated.tensions.map((t) => ({
+              senseA: t.senseA.id,
+              senseB: t.senseB.id,
+              severity: t.severity,
+            })),
+            effectiveNE: effectiveNEResult.ne,
+            cycle,
+            taskDescription: ctx.task.description,
+            failureClassification: acc.lastFailureClassification?.category ?? undefined,
+            oscillationCount: integrated.oscillations.length,
+            flexibilityDiagnosis: acc.flexibilityAssessment?.diagnosis ?? undefined,
+            // Self/world/conversation are injected by the callback closure
+            selfMaxims: [],
+            selfNarratives: [],
+            worldMaxims: [],
+            recentConversation: [],
+            consciousnessFrame: "",
+          });
+          if (commResult.message) {
+            emit("communication:message", {
+              trigger: "build-cycle-gate",
+              taskId: ctx.task.id,
+              cycle,
+              message: commResult.message,
+            });
+          }
+        } catch (err) {
+          log.warn("Communication from gate failed", { error: String(err) });
+        }
+      }
+
       if (gateOutput.accept) {
         // ── Cleanup: merge sandbox, stop any lingering runtimes ──
         if (acc.runtimeInstances) {
@@ -1107,6 +1159,8 @@ export function createBuildCycleDefinition(
         collapseSignal,
         convictionVerdict: conviction.verdict,
         planConfidence: acc.lastPlan?.confidence,
+        proprioceptionConfidence: acc.lastProprioceptionConfidence,
+        planAdherence: integrated.selfAssessment?.planAdherence,
       });
 
       acc.lastFailureClassification = failureClassification;

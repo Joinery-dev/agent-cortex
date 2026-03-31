@@ -1,13 +1,15 @@
 /**
- * World Model Store — file-based JSON persistence for cross-project maxims.
+ * World Model Store — file-based JSON persistence for cross-project and self maxims.
  *
- * Only cross-project maxims persist (they're Cortex's identity).
+ * Cross-project and self maxims persist (they're Cortex's identity).
  * Per-project maxims live in memory and die with the project.
  *
  * Storage layout:
  *   {storageDir}/
- *     cross-project.json   — cross-project Maxim[]
- *     meta.json             — last synthesis timestamp
+ *     cross-project.json     — cross-project Maxim[]
+ *     self.json               — self-model Maxim[]
+ *     self-narratives.json    — SelfNarrative[]
+ *     meta.json               — last synthesis timestamp
  *
  * Follows the HippocampusStore pattern: atomic writes (tmp + rename),
  * Date serialization helpers, graceful handling of missing files.
@@ -16,7 +18,7 @@
 import { mkdir, readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
-import type { Maxim } from "../types/world-model.js";
+import type { Maxim, SelfNarrative } from "../types/world-model.js";
 import { createLogger } from "../util/logger.js";
 
 const log = createLogger("world-model-store");
@@ -26,6 +28,10 @@ const DEFAULT_STORAGE_DIR = join(homedir(), ".agent-cortex", "world-model");
 // ─── Serialization types ────────────────────────────────────────
 
 type SerializedMaxim = Omit<Maxim, "synthesizedAt"> & {
+  synthesizedAt: string;
+};
+
+type SerializedSelfNarrative = Omit<SelfNarrative, "synthesizedAt"> & {
   synthesizedAt: string;
 };
 
@@ -68,6 +74,42 @@ export class WorldModelStore {
     await this.writeJsonFile(path, serialized);
 
     log.debug("Saved cross-project maxims", { count: maxims.length });
+  }
+
+  // ── Self maxims ─────────────────────────────────────────────
+
+  async loadSelfMaxims(): Promise<Maxim[]> {
+    const path = join(this.dir, "self.json");
+    const raw = await this.readJsonFile<SerializedMaxim[]>(path);
+    if (!raw) return [];
+
+    return raw.map(deserializeMaxim);
+  }
+
+  async saveSelfMaxims(maxims: Maxim[]): Promise<void> {
+    const path = join(this.dir, "self.json");
+    const serialized = maxims.map(serializeMaxim);
+    await this.writeJsonFile(path, serialized);
+
+    log.debug("Saved self maxims", { count: maxims.length });
+  }
+
+  // ── Self narratives ────────────────────────────────────────
+
+  async loadSelfNarratives(): Promise<SelfNarrative[]> {
+    const path = join(this.dir, "self-narratives.json");
+    const raw = await this.readJsonFile<SerializedSelfNarrative[]>(path);
+    if (!raw) return [];
+
+    return raw.map(deserializeSelfNarrative);
+  }
+
+  async saveSelfNarratives(narratives: SelfNarrative[]): Promise<void> {
+    const path = join(this.dir, "self-narratives.json");
+    const serialized = narratives.map(serializeSelfNarrative);
+    await this.writeJsonFile(path, serialized);
+
+    log.debug("Saved self narratives", { count: narratives.length });
   }
 
   // ── Meta ────────────────────────────────────────────────────
@@ -145,6 +187,20 @@ function serializeMaxim(maxim: Maxim): SerializedMaxim {
 }
 
 function deserializeMaxim(raw: SerializedMaxim): Maxim {
+  return {
+    ...raw,
+    synthesizedAt: new Date(raw.synthesizedAt),
+  };
+}
+
+function serializeSelfNarrative(n: SelfNarrative): SerializedSelfNarrative {
+  return {
+    ...n,
+    synthesizedAt: n.synthesizedAt.toISOString(),
+  };
+}
+
+function deserializeSelfNarrative(raw: SerializedSelfNarrative): SelfNarrative {
   return {
     ...raw,
     synthesizedAt: new Date(raw.synthesizedAt),
