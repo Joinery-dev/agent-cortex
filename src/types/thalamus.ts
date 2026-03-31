@@ -425,6 +425,10 @@ export interface WorldModelSource {
   getAllMaxims(): Maxim[];
   /** Full Weltanschauung snapshot — needed by gestalt assembly for metadata. */
   getWeltanschauung(): Weltanschauung | null;
+  /** Self-model maxims — who I am. */
+  getSelfMaxims(): import("./world-model.js").Maxim[];
+  /** Self-model narratives — identity-shaping stories. */
+  getSelfNarratives(): import("./world-model.js").SelfNarrative[];
 }
 
 /**

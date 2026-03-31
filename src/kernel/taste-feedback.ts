@@ -126,6 +126,9 @@ export class TasteFeedbackLoop {
     proposalsGenerated: number;
   }> = [];
 
+  /** Satisfaction signals from Parsifal responses — for self-model synthesis. */
+  private satisfactionSignals: Array<{ signal: number; context: string }> = [];
+
   constructor(config?: Partial<TasteFeedbackConfig>) {
     this.config = { ...DEFAULT_TASTE_FEEDBACK_CONFIG, ...config };
   }
@@ -351,10 +354,28 @@ export class TasteFeedbackLoop {
       responseType: response.type,
     });
 
+    // Record as satisfaction signal for self-model synthesis.
+    // Signal mapping: update=+1 (Parsifal agrees taste should change),
+    // keep=-0.5 (Cortex misjudged divergence), nuanced=+0.5 (partial alignment),
+    // deferred=0 (no signal yet).
+    const signalMap: Record<string, number> = { update: 1, keep: -0.5, nuanced: 0.5, deferred: 0 };
+    const signal = signalMap[response.type] ?? 0;
+    if (signal !== 0) {
+      this.satisfactionSignals.push({
+        signal,
+        context: `${response.type}: ${proposal.dimensions.join(", ")} — ${response.detail ?? proposal.interpretation.slice(0, 100)}`,
+      });
+    }
+
     return proposal;
   }
 
   // ── Accessors ─────────────────────────────────────────────────
+
+  /** Recent satisfaction signals for self-model synthesis (SatisfactionSource). */
+  getRecentSignals(count: number): Array<{ signal: number; context: string }> {
+    return this.satisfactionSignals.slice(-count);
+  }
 
   getPendingProposals(): TasteProposal[] {
     return [...this.pendingProposals.values()];

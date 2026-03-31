@@ -670,9 +670,10 @@ export function createProjectDefinition(
   costTracker?: CostTracker,
   qualityPredictor?: import("../../kernel/model-selector.js").ModelQualityPredictor,
   askUser?: (question: string) => Promise<string>,
+  getRecentConversation?: () => Array<{ role: string; text: string }>,
 ): RhythmDefinition<ProjectContext, ProjectResult, PreparedProject, TaskDispatchResult, ProjectResult> {
   const integrationChecker = new IntegrationChecker(undefined, library, wm, thalamus, config);
-  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker, qualityPredictor);
+  const taskDispatchDef = createTaskDispatchDefinition(config, library, hooks, homeostasis, wm, thalamus, scheduler, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, worldModel, pns, driftMonitor, tasteFeedbackLoop, prospectiveMemory, integrationChecker, costTracker, qualityPredictor, getRecentConversation);
 
   // Sensory cortex definition for planning tasks — same machinery used for
   // regular tasks, now plugged into the project rhythm for Phase A manifestation.
@@ -738,6 +739,8 @@ export function createProjectDefinition(
           taskGraph: context.tasks,
           pns,
           projectProfile,
+          cognitiveFlexibility,
+          satisfactionHistory: tasteFeedbackLoop,
         });
       }
 
@@ -1329,6 +1332,8 @@ export function createProjectDefinition(
                 completedTaskIds: completedIds,
                 escalatedTaskIds: escalatedIds,
                 pns,
+                cognitiveFlexibility,
+                satisfactionHistory: tasteFeedbackLoop,
               });
             }
           }
@@ -1364,6 +1369,8 @@ export function createProjectDefinition(
           completedTaskIds: new Set(executed.completedTasks),
           escalatedTaskIds: new Set(executed.escalatedTasks),
           pns,
+          cognitiveFlexibility,
+          satisfactionHistory: tasteFeedbackLoop,
         });
       }
 

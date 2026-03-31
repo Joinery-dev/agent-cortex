@@ -115,6 +115,8 @@ export interface SensoryCortexContext {
   projectBudgetUtilization?: number;
   /** Attention budget for this task. From Attention Scheduler at dispatch. */
   attentionBudget?: import("./attention-budget.js").AttentionBudget;
+  /** Communication callback — flows through to build-cycle gate. */
+  communicateFromGate?: (gateContext: import("./communication.js").CommunicationContext) => Promise<import("./communication.js").CommunicationResult>;
 }
 
 /** What the build-cycle rhythm needs to start. */

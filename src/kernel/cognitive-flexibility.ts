@@ -50,9 +50,15 @@ const AssessmentResult = z.object({
 
 export class CognitiveFlexibility {
   private config: CortexConfig;
+  private assessmentHistory: Array<{ diagnosis: string; timestamp: Date }> = [];
 
   constructor(config: CortexConfig) {
     this.config = config;
+  }
+
+  /** Recent assessments for self-model synthesis (CognitiveFlexibilitySource). */
+  getRecentAssessments(count: number): Array<{ diagnosis: string; timestamp: Date }> {
+    return this.assessmentHistory.slice(-count);
   }
 
   /**
@@ -111,6 +117,8 @@ export class CognitiveFlexibility {
         shouldEscalate: assessment.shouldEscalate,
       });
 
+      this.assessmentHistory.push({ diagnosis: assessment.diagnosis, timestamp: new Date() });
+
       return assessment;
     } catch (err) {
       log.warn("Flexibility assessment failed — falling through to normal gate", {
@@ -142,6 +150,12 @@ export class CognitiveFlexibility {
    *   irreconcilable     → needs Parsifal information to proceed
    */
   assessDispatch(context: DispatchFlexibilityContext, neLevel?: number): FlexibilityAssessment {
+    const result = this.assessDispatchInner(context, neLevel);
+    this.assessmentHistory.push({ diagnosis: result.diagnosis, timestamp: new Date() });
+    return result;
+  }
+
+  private assessDispatchInner(context: DispatchFlexibilityContext, neLevel?: number): FlexibilityAssessment {
     const {
       taskGraph, completedTaskIds, escalatedTaskIds,
       senseTrends, schedulerEscalation,

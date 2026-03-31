@@ -49,6 +49,7 @@ import type { ProspectiveMemory } from "../../kernel/prospective-memory.js";
 import type { IntegrationChecker } from "../../kernel/integration-check.js";
 import type { PhaseGateResult } from "../../types/integration-check.js";
 import { communicate } from "../../kernel/communication.js";
+import { getActiveWorldview } from "../../util/worldview-context.js";
 import type { SurgeryProposal, SurgeryResult } from "../../types/graph-surgery.js";
 import { quickTriage } from "../../kernel/quick-triage.js";
 import { applySurgery, validateProposal } from "../../kernel/graph-surgery.js";
@@ -355,6 +356,7 @@ export function createTaskDispatchDefinition(
   integrationChecker?: IntegrationChecker,
   costTracker?: CostTracker,
   qualityPredictor?: ModelQualityPredictor,
+  getRecentConversation?: () => Array<{ role: string; text: string }>,
 ): RhythmDefinition<TaskDispatchContext, TaskDispatchResult, PreparedDispatch, ExecutedDispatch, IntegratedDispatch> {
   const sensoryCortexDef = createSensoryCortexDefinition(config, library, hooks, wm, thalamus, motorCortex, basalGanglia, gate, cognitiveFlexibility, stakeAdjuster, pns);
   const restDef = createRestCycleDefinition(
@@ -856,6 +858,20 @@ export function createTaskDispatchDefinition(
         importance: taskImportance,
       });
 
+      // Build the communicateFromGate closure — the Cortex's voice at gate decision points.
+      // Closes over worldModel, conversation history, and worldview so the gate
+      // call site doesn't need to know where self-knowledge lives.
+      const communicateFromGate: SensoryCortexContext["communicateFromGate"] = worldModel
+        ? async (gateCtx) => {
+            gateCtx.selfMaxims = worldModel.getSelfMaxims().map((m) => m.statement);
+            gateCtx.selfNarratives = worldModel.getSelfNarratives().map((n) => n.narrative);
+            gateCtx.worldMaxims = worldModel.getMaximsForBriefing();
+            gateCtx.recentConversation = getRecentConversation?.() ?? [];
+            gateCtx.consciousnessFrame = getActiveWorldview()?.frames?.consciousness ?? "";
+            return communicate(gateCtx);
+          }
+        : undefined;
+
       const ctx: SensoryCortexContext = {
         task: taskNode.task,
         intent: state.initialContext.intent,
@@ -866,6 +882,7 @@ export function createTaskDispatchDefinition(
         taskBudget: prepared.taskBudget,
         projectBudgetUtilization: prepared.projectBudgetUtilization,
         attentionBudget,
+        communicateFromGate,
       };
 
       try {
@@ -1202,6 +1219,8 @@ export function createTaskDispatchDefinition(
             escalatedTaskIds: acc.escalatedTasks,
             vitals: homeostasis.getVitals(),
             pns,
+            cognitiveFlexibility,
+            satisfactionHistory: tasteFeedbackLoop,
           });
         }
 

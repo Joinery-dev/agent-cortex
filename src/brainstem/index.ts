@@ -405,6 +405,7 @@ export class Brainstem {
       this.costTracker ?? undefined,
       this.cerebellum,
       this.askUser,
+      () => this.conversationCortex.getHistory().slice(-20).map((m) => ({ role: m.role, text: m.text })),
     );
 
     return this.runner.run(definition, context);
@@ -521,6 +522,7 @@ export class Brainstem {
       this.costTracker ?? undefined,
       this.cerebellum,
       this.askUser,
+      () => this.conversationCortex.getHistory().slice(-20).map((m) => ({ role: m.role, text: m.text })),
     );
 
     // Seed accumulator with resume markers — the project rhythm detects these

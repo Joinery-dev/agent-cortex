@@ -52,6 +52,11 @@ const WeltanschauungResponseSchema = z.object({
   })).min(1).max(7),
   reasoning: z.string(),
   droppedMaximIds: z.array(z.string()),
+  /** Self-narratives: identity-shaping reflections synthesized during self scope. */
+  selfNarratives: z.array(z.object({
+    narrative: z.string(),
+    sourceEpisodeIds: z.array(z.string()).optional(),
+  })).optional().default([]),
 });
 
 type WeltanschauungResponse = z.infer<typeof WeltanschauungResponseSchema>;
@@ -383,6 +388,32 @@ export class WorldModel {
           newStatement: m.statement,
         });
       }
+    }
+
+    // Self-narratives: merge new narratives from synthesis (self scope only)
+    if (scope === "self" && response.selfNarratives.length > 0) {
+      const now2 = new Date();
+      const newNarratives: SelfNarrative[] = response.selfNarratives.map((n) => ({
+        id: newId(),
+        narrative: n.narrative,
+        sourceEpisodeIds: n.sourceEpisodeIds,
+        synthesizedAt: now2,
+      }));
+
+      // Merge: new narratives first (most recent), then existing, clamped
+      const merged = [...newNarratives, ...this.selfNarratives]
+        .slice(0, this.config.maxSelfNarratives);
+      this.selfNarratives = merged;
+
+      emit("world-model:narratives-updated", {
+        newCount: newNarratives.length,
+        totalCount: merged.length,
+      });
+
+      log.info("Self-narratives updated", {
+        new: newNarratives.length,
+        total: merged.length,
+      });
     }
 
     return clamped;
@@ -720,6 +751,11 @@ export class WorldModel {
    */
   private shouldUpdateSelf(trigger: RebuildTrigger, sources: WorldModelSources): boolean {
     if (trigger === "project-complete") return true;
+
+    // Seed: first project-start with no self-knowledge → synthesize from worldview context.
+    // The LLM prompt includes the worldview's reflection frame, so it can produce
+    // initial self-maxims even without task experience.
+    if (trigger === "project-start" && this.selfMaxims.length === 0) return true;
 
     if (trigger === "rest-cycle") {
       // Only if enough experience since last self synthesis

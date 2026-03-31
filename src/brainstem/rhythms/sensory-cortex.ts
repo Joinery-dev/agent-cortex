@@ -425,6 +425,7 @@ export function createSensoryCortexDefinition(
           riskSnapshot: context.riskSnapshot,
           taskBudgetRemaining: context.taskBudget,
           projectBudgetUtilization: context.projectBudgetUtilization,
+          communicateFromGate: context.communicateFromGate,
         };
 
         return { consultation, buildCycleContext };
@@ -501,6 +502,7 @@ export function createSensoryCortexDefinition(
           taskBudgetRemaining: context.taskBudget,
           projectBudgetUtilization: context.projectBudgetUtilization,
           budgetProximity,
+          communicateFromGate: context.communicateFromGate,
         };
 
         return { consultation: updatedConsultation, buildCycleContext };

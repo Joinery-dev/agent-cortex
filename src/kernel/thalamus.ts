@@ -1038,11 +1038,11 @@ export class Thalamus {
   }
 
   /**
-   * Assemble context for Claus (the consciousness agent).
+   * Assemble context for the Cortex's communication function.
    *
    * Returns a human-readable snapshot of the current state, optimized
-   * for understanding rather than action. Claus needs to understand
-   * what's happening and why, not execute a task.
+   * for understanding rather than action — what's happening, why,
+   * and who I am.
    *
    * Uses the gestalt when available (mid-task), falls back to WM
    * directly when no gestalt exists (between tasks, boot).
@@ -1124,6 +1124,21 @@ export class Thalamus {
         parts.push(`\n## World understanding`);
         for (const m of gestalt.weltanschauung.maxims.slice(0, 5)) {
           parts.push(`- ${m}`);
+        }
+      }
+
+      // Self-knowledge
+      if (this.worldModel) {
+        const selfMaxims = this.worldModel.getSelfMaxims();
+        const selfNarratives = this.worldModel.getSelfNarratives();
+        if (selfMaxims.length > 0 || selfNarratives.length > 0) {
+          parts.push(`\n## Self-knowledge`);
+          for (const m of selfMaxims.slice(0, 5)) {
+            parts.push(`- ${m.statement}`);
+          }
+          for (const n of selfNarratives.slice(0, 3)) {
+            parts.push(`- _${n.narrative}_`);
+          }
         }
       }
     } else {
