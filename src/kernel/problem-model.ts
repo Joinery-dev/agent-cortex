@@ -154,3 +154,154 @@ export function mergeConstraints(
 
   return [...kept, ...incoming];
 }
+
+// ─── Evaluator Model Synthesis (Dialectic Convergence) ─────────
+
+import { z } from "zod";
+import { callStructured } from "../llm/structured.js";
+import type { SpeedOfLight } from "../types/cerebellum.js";
+import { createLogger } from "../util/logger.js";
+import { emit } from "../events.js";
+
+const log = createLogger("problem-model");
+
+const EvaluatorSynthesisSchema = z.object({
+  model: z.string(),
+  convergence: z.number().min(0).max(1),
+  divergenceNote: z.string(),
+});
+
+export interface EvaluatorSynthesisInput {
+  evaluations: import("../types/sense.js").SenseEvaluation[];
+  rejectionDrivers: WeightedEvaluation[];
+  failureClassification: FailureClassification | null;
+  speedOfLight: SpeedOfLight | null;
+  previousEvaluatorModel: string | null;
+  builderModel: string | null;
+  constraints: ProblemConstraint[];
+}
+
+export interface EvaluatorSynthesisResult {
+  model: string;
+  convergence: number;
+  divergenceNote: string;
+}
+
+const EVALUATOR_SYNTHESIS_SYSTEM = `You maintain the evaluators' model of what a task's solution must satisfy.
+
+You synthesize evaluation feedback, formal measurements, and failure analysis into a concise problem model — what the solution MUST do to be accepted.
+
+You also assess convergence with the builder's model: how aligned are the builder's understanding and the evaluators' understanding? Score 0-1 (0 = completely different, 1 = saying the same thing).
+
+The speed-of-light ceiling is the anchor: your model should describe what's needed to REACH the ceiling, not just what's needed to be acceptable. Push toward what's achievable, not what's comfortable.
+
+Return JSON:
+{
+  "model": "2-3 sentences synthesizing what the evaluators have established the solution must satisfy",
+  "convergence": 0.0-1.0,
+  "divergenceNote": "what specifically differs between builder and evaluator understanding (empty string if convergence >= 0.8)"
+}`;
+
+/**
+ * Synthesize the evaluators' problem model from evaluation feedback.
+ *
+ * One cheap LLM call per gate evaluation. Reads evaluations + SoL ceiling +
+ * builder's model → produces a synthesized evaluator model + convergence score.
+ *
+ * This is the verification side of the dialectic. The evaluator model is
+ * authored by the senses (via this synthesis), not by the builder.
+ */
+export async function synthesizeEvaluatorModel(
+  input: EvaluatorSynthesisInput,
+  model: string,
+): Promise<EvaluatorSynthesisResult> {
+  // Assemble the user prompt from available data
+  const parts: string[] = [];
+
+  if (input.previousEvaluatorModel) {
+    parts.push(`PREVIOUS EVALUATOR MODEL:\n${input.previousEvaluatorModel}`);
+  }
+
+  if (input.builderModel) {
+    parts.push(`BUILDER'S CURRENT MODEL:\n${input.builderModel}`);
+  } else {
+    parts.push("BUILDER'S CURRENT MODEL: (no model yet — first cycle)");
+  }
+
+  // Evaluation assessments
+  const evalSummary = input.rejectionDrivers
+    .map((d) => `- ${d.activationPath.join(" > ")} (${d.score}/10, stake ${d.adjustedStake.toFixed(2)}): ${d.assessment}`)
+    .join("\n");
+  if (evalSummary) {
+    parts.push(`EVALUATION RESULTS (sorted by impact):\n${evalSummary}`);
+  }
+
+  // Formal observations
+  const formal = input.evaluations
+    .flatMap((e) => (e.observations ?? [])
+      .filter((o) => FORMAL_OBSERVATION_KINDS.has(o.kind))
+      .map((o) => `- [${o.kind}] ${o.target}: ${o.finding.slice(0, 150)}`))
+    .join("\n");
+  if (formal) {
+    parts.push(`FORMAL MEASUREMENTS:\n${formal}`);
+  }
+
+  // Speed of light
+  if (input.speedOfLight) {
+    const sol = input.speedOfLight;
+    const ceilings = sol.perSense
+      .map((s) => `${s.senseName}: ceiling ${s.ceiling}/10${s.bestAchieved != null ? `, best achieved ${s.bestAchieved.toFixed(1)}` : ""}`)
+      .join(", ");
+    parts.push(`SPEED OF LIGHT (what's achievable): composite ceiling ${sol.compositeCeiling.toFixed(1)}/10. Per-sense: ${ceilings}`);
+  }
+
+  // Failure classification
+  if (input.failureClassification) {
+    parts.push(`FAILURE TYPE: ${input.failureClassification.category} — ${input.failureClassification.rationale}`);
+  }
+
+  // Structured constraints (as supplementary input)
+  if (input.constraints.length > 0) {
+    const constraintSummary = input.constraints
+      .slice(-5) // most recent 5
+      .map((c) => `- [cycle ${c.cycle}, ${c.category}] ${c.constraint.slice(0, 150)}`)
+      .join("\n");
+    parts.push(`ESTABLISHED CONSTRAINTS:\n${constraintSummary}`);
+  }
+
+  parts.push("Synthesize the evaluators' model. Assess convergence with the builder's model.");
+
+  const userMessage = parts.join("\n\n");
+
+  try {
+    const result = await callStructured<EvaluatorSynthesisResult>(
+      "evaluator-synthesis",
+      model,
+      EVALUATOR_SYNTHESIS_SYSTEM,
+      userMessage,
+      EvaluatorSynthesisSchema,
+      1024,
+    );
+
+    log.info("Evaluator model synthesized", {
+      convergence: result.convergence.toFixed(2),
+      modelLength: result.model.length,
+      hasDivergence: result.divergenceNote.length > 0,
+    });
+
+    emit("dialectic:synthesis", {
+      convergence: result.convergence,
+      modelLength: result.model.length,
+      divergenceNote: result.divergenceNote || undefined,
+    });
+
+    return result;
+  } catch (err) {
+    log.warn("Evaluator model synthesis failed — returning neutral", { error: String(err) });
+    return {
+      model: input.previousEvaluatorModel ?? "(synthesis failed)",
+      convergence: 0.5,
+      divergenceNote: "Synthesis call failed — using previous model.",
+    };
+  }
+}

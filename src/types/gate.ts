@@ -32,6 +32,8 @@ export interface SignalLandscape {
   wmLoad?: number;
   /** Conviction level from PFC conviction loop. 0–1. Phase 3. */
   conviction?: number;
+  /** Dialectic convergence between builder and evaluator models. 0–1. */
+  convergence?: number;
 
   // ── Cost budget signals ─────────────────────────────────────
   /** Remaining task budget in dollars. Absent when no budget set. */

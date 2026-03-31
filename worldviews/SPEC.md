@@ -10,7 +10,7 @@ A worldview is a portable `.md` file that shapes how Agent Cortex thinks. Drop i
 
 ## File Format
 
-A worldview file is Markdown with YAML frontmatter, structured sections, and prose frames.
+A worldview file uses the extension `.worldview.md` — e.g. `sculptor.worldview.md`. It is Markdown with YAML frontmatter, structured sections, and prose frames.
 
 ```
 ---
@@ -172,7 +172,7 @@ console.log('Frames:', Object.keys(w.frames).length, '/ 25');
 ## Installation
 
 ### Method 1: File drop
-Copy the `.md` file to `~/.agent-cortex/worldviews/`. Cortex will detect it at startup.
+Copy the `.worldview.md` file to `~/.agent-cortex/worldviews/`. The system detects `*.worldview.md` files at startup.
 
 ### Method 2: Path reference
 When Cortex offers worldview setup, choose "Upload" and provide the file path. The worldview is loaded from wherever it lives.

@@ -56,6 +56,8 @@ export interface ConvictionContext {
   proprioceptionConfidence?: number;
   /** How close to the attention budget ceiling (0–1). 1.0 = at ceiling. */
   budgetProximity?: number;
+  /** Dialectic convergence between builder and evaluator models (0–1). */
+  dialecticConvergence?: number;
 
   // ── Task-dispatch signals ────────────────────────────────────
 
@@ -141,7 +143,8 @@ export interface ConvictionEvidence {
     | "proprioception-uncertain"
     | "budget-exhausted"
     | "approach-classification-missing"
-    | "scheduler-escalation";
+    | "scheduler-escalation"
+    | "dialectic-convergence";
   /** Human-readable explanation. */
   description: string;
   /** Numeric magnitude (meaning depends on source). */

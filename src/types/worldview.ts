@@ -168,16 +168,16 @@ export function ensureDefaultFrames(): void {
   const root = resolve(dirname(here), "../..");
 
   const presets: Array<{ worldview: Worldview; file: string }> = [
-    { worldview: SHAELA_WORLDVIEW, file: "shaela.md" },
-    { worldview: PROJECT_WORLDVIEW, file: "project.md" },
-    { worldview: HYBRID_WORLDVIEW, file: "hybrid.md" },
-    { worldview: COVENANT_WORLDVIEW, file: "covenant.md" },
-    { worldview: GROOVE_WORLDVIEW, file: "groove.md" },
-    { worldview: ECOSYSTEM_WORLDVIEW, file: "ecosystem.md" },
-    { worldview: DIALECTIC_WORLDVIEW, file: "dialectic.md" },
-    { worldview: CARTOGRAPH_WORLDVIEW, file: "cartograph.md" },
-    { worldview: SCULPTOR_WORLDVIEW, file: "sculptor.md" },
-    { worldview: NARRATIVE_WORLDVIEW, file: "narrative.md" },
+    { worldview: SHAELA_WORLDVIEW, file: "shaela.worldview.md" },
+    { worldview: PROJECT_WORLDVIEW, file: "project.worldview.md" },
+    { worldview: HYBRID_WORLDVIEW, file: "hybrid.worldview.md" },
+    { worldview: COVENANT_WORLDVIEW, file: "covenant.worldview.md" },
+    { worldview: GROOVE_WORLDVIEW, file: "groove.worldview.md" },
+    { worldview: ECOSYSTEM_WORLDVIEW, file: "ecosystem.worldview.md" },
+    { worldview: DIALECTIC_WORLDVIEW, file: "dialectic.worldview.md" },
+    { worldview: CARTOGRAPH_WORLDVIEW, file: "cartograph.worldview.md" },
+    { worldview: SCULPTOR_WORLDVIEW, file: "sculptor.worldview.md" },
+    { worldview: NARRATIVE_WORLDVIEW, file: "narrative.worldview.md" },
   ];
 
   for (const { worldview, file } of presets) {

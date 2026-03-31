@@ -76,18 +76,16 @@ function readSelection(): WorldviewSelection | null {
 // ─── Detect ─────────────────────────────────────────────────────
 
 /**
- * Find the first generated (non-builtin) worldview in the user's
- * worldview directory. Returns the file path or null.
+ * Find worldview.md files in the user's worldview directory.
+ * Looks for *.worldview.md files (the portable worldview format).
+ * Returns the first match's file path, or null.
  */
 export function detectExistingWorldview(): string | null {
   ensureDir();
   try {
-    const files = readdirSync(WORLDVIEW_DIR).filter((f) => f.endsWith(".md"));
-    for (const file of files) {
-      const name = file.replace(/\.md$/, "");
-      if (!BUILTIN_NAMES.has(name)) {
-        return join(WORLDVIEW_DIR, file);
-      }
+    const files = readdirSync(WORLDVIEW_DIR).filter((f) => f.endsWith(".worldview.md"));
+    if (files.length > 0) {
+      return join(WORLDVIEW_DIR, files[0]);
     }
   } catch {
     // Directory doesn't exist or isn't readable
@@ -128,7 +126,7 @@ export function loadExistingWorldview(): Worldview | null {
     }
 
     // Generated worldview — look for the file
-    const genPath = join(WORLDVIEW_DIR, `${selection.name}.md`);
+    const genPath = join(WORLDVIEW_DIR, `${selection.name}.worldview.md`);
     if (existsSync(genPath)) {
       try { return loadWorldview(genPath); } catch { /* fall through */ }
     }
@@ -230,7 +228,7 @@ export function serializeWorldview(
 // ─── Persist ────────────────────────────────────────────────────
 
 /**
- * Write a worldview to ~/.agent-cortex/worldviews/{name}.md.
+ * Write a worldview to ~/.agent-cortex/worldviews/{name}.worldview.md.
  * Uses atomic write (tmp + rename) to prevent partial files.
  * Returns the file path.
  */
@@ -241,7 +239,7 @@ export function persistWorldview(
 ): string {
   ensureDir();
   const content = serializeWorldview(name, seed, generated);
-  const targetPath = join(WORLDVIEW_DIR, `${name}.md`);
+  const targetPath = join(WORLDVIEW_DIR, `${name}.worldview.md`);
 
   // Atomic write: write to tmp file, then rename
   const tmpPath = join(WORLDVIEW_DIR, `.${name}.${randomBytes(4).toString("hex")}.tmp`);

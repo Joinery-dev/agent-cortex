@@ -1588,6 +1588,7 @@ Your plan should address:
    - Set \`requiresAgentic: true\` when: multi-file changes, testing needed, runtime verification, new feature implementation, integration work, anything where you need to read existing code to proceed
    - Set \`requiresAgentic: false\` when: single-file changes with clear instructions, config/schema/documentation updates, simple refactoring with a clear pattern, generating a standalone text artifact
    - When in doubt, set true — it's safer to over-provision than to under-deliver
+7. **Problem model** — your understanding of what this problem actually requires. What constraints must the solution satisfy? What are the key tensions? 2-3 sentences. This will be compared against the evaluators' understanding to measure alignment.
 
 Be concrete. "Make it accessible" is not a step. "Use semantic HTML with ARIA labels for the navigation component" is a step.`, worldview)}
 
@@ -1599,7 +1600,8 @@ Return JSON matching this schema:
   "risks": [{ "area": "what could go wrong", "likelihood": "low|medium|high", "mitigation": "how to prevent" }],
   "confidence": 0.0-1.0,
   "plannedIntentions": [{ "description": "what operation", "category": "build|observe|communicate|control", "confidence": 0.0-1.0, "novelty": 0.0-1.0 }],
-  "requiresAgentic": true
+  "requiresAgentic": true,
+  "problemModel": "what this problem requires — constraints, key tensions, what the solution must satisfy (2-3 sentences)"
 }`;
 }
 
@@ -1672,45 +1674,26 @@ ${acceptingSummary || "(none)"}`;
 ${revision.evaluations.map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`).join("\n")}`;
   }
 
-  // Problem model: accumulated structural understanding from prior failures.
-  // Capped at 8 constraints to prevent attention dilution on late cycles.
-  // Hard constraints always included (non-negotiable); others by recency.
-  let constraintSection = "";
-  if (revision.problemConstraints && revision.problemConstraints.length > 0) {
-    const MAX_CONSTRAINTS = 8;
-    const MAX_TEXT = 200;
+  // Dialectic convergence: show both models so the premotor can close the gap.
+  // Replaces the constraint list — two compact paragraphs instead of a growing list.
+  let dialecticSection = "";
+  if (revision.builderModel || revision.evaluatorModel) {
+    const builderText = revision.builderModel ?? "(first attempt — no model yet)";
+    const evaluatorText = revision.evaluatorModel ?? "(no evaluations yet)";
+    const convergenceText = revision.convergence != null
+      ? `\nCONVERGENCE: ${(revision.convergence * 100).toFixed(0)}%${revision.convergence < 0.8 ? " — models still diverge, close the gap." : " — models aligned."}`
+      : "";
 
-    // Hard constraints always survive the cap
-    const hard = revision.problemConstraints.filter((c) => c.category === "hard");
-    const rest = revision.problemConstraints
-      .filter((c) => c.category !== "hard")
-      .sort((a, b) => b.cycle - a.cycle) // most recent first
-      .slice(0, MAX_CONSTRAINTS - hard.length);
+    dialecticSection = `
 
-    const capped = [...hard, ...rest];
+YOUR PREVIOUS UNDERSTANDING OF THE PROBLEM:
+${builderText}
 
-    const structural = capped.filter((c) => c.category === "structural");
-    const tradeoffs = capped.filter((c) => c.category === "tradeoff");
-    const boundaries = capped.filter((c) => c.category === "boundary");
+EVALUATORS' CURRENT UNDERSTANDING (anchored to the speed-of-light ceiling):
+${evaluatorText}
+${convergenceText}
 
-    const fmt = (c: typeof capped[number]) =>
-      `- [cycle ${c.cycle}] ${c.constraint.slice(0, MAX_TEXT)} [${c.source}${c.verification === "formal" ? ", formal" : ""}]`;
-
-    const sections: string[] = [];
-    if (hard.length > 0) {
-      sections.push("HARD CONSTRAINTS (formally verified — non-negotiable):\n" + hard.map(fmt).join("\n"));
-    }
-    if (structural.length > 0) {
-      sections.push("STRUCTURAL INSIGHTS (what prior attempts revealed):\n" + structural.map(fmt).join("\n"));
-    }
-    if (tradeoffs.length > 0) {
-      sections.push("TRADEOFFS (must be synthesized, not traded):\n" + tradeoffs.map(fmt).join("\n"));
-    }
-    if (boundaries.length > 0) {
-      sections.push("BOUNDARIES (limits on the solution space):\n" + boundaries.map(fmt).join("\n"));
-    }
-
-    constraintSection = `\n\nACCUMULATED PROBLEM UNDERSTANDING (${capped.length} constraints from prior attempts — your revised plan must satisfy ALL of these):\n\n${sections.join("\n\n")}\n\nDo not re-attempt approaches that violated established constraints.`;
+Update your problem model to reflect what you've learned. Your revised plan should close the gap between these two understandings.`;
   }
 
   return `${body}
@@ -1718,7 +1701,7 @@ ${revision.evaluations.map((e) => `- ${e.activationPath.join(" > ")} (${e.score}
 PREVIOUS PLAN:
 ${prevPlanSummary}
 ${failureHint}
-${constraintSection}
+${dialecticSection}
 
 ${evalSection}
 

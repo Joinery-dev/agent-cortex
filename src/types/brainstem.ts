@@ -192,6 +192,13 @@ export interface BuildCycleResult {
   failureClassification?: import("./motor-cortex.js").FailureClassification;
   /** Accumulated structural understanding from build cycle failures. For Hippocampus crystallization. */
   problemConstraints?: import("./motor-cortex.js").ProblemConstraint[];
+  // ── Dialectic convergence ──
+  /** Evaluators' synthesized problem model. */
+  evaluatorModel?: string;
+  /** Builder's problem model (from premotor output). */
+  builderModel?: string;
+  /** Convergence between builder and evaluator models (0–1). */
+  convergence?: number;
 }
 
 // ─── Between-tasks processing ───────────────────────────────────

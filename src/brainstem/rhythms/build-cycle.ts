@@ -48,7 +48,7 @@ import type { CollapseContext } from "../../types/basal-ganglia.js";
 import type { CollapseSignal } from "../../types/collapse.js";
 import { computeResolutionOutcomes } from "../../kernel/resolution-quality.js";
 import { classifyFailure } from "../../kernel/failure-classifier.js";
-import { extractConstraints, mergeConstraints } from "../../kernel/problem-model.js";
+import { extractConstraints, mergeConstraints, synthesizeEvaluatorModel } from "../../kernel/problem-model.js";
 import type { ConvictionResult, ConvictionShaping } from "../../types/conviction.js";
 import { runConvictionLoop, modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../../kernel/conviction.js";
 import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
@@ -161,6 +161,13 @@ interface BuildCycleAccumulator {
   // ── Problem Model ──
   /** Accumulated structural constraints from all failed cycles. */
   problemConstraints: import("../../types/motor-cortex.js").ProblemConstraint[];
+  // ── Dialectic Convergence ──
+  /** Evaluators' synthesized problem model. */
+  evaluatorModel: string | null;
+  /** Builder's problem model (from premotor output). */
+  builderModel: string | null;
+  /** Latest convergence score between models (0–1). */
+  convergence: number | null;
 }
 
 function getAcc(
@@ -189,6 +196,9 @@ function getAcc(
     lastFailureClassification: null,
     lastRejectionDrivers: null,
     problemConstraints: [],
+    evaluatorModel: null,
+    builderModel: null,
+    convergence: null,
   };
 }
 
@@ -321,6 +331,9 @@ export function createBuildCycleDefinition(
           rejectionDrivers: acc.lastRejectionDrivers ?? undefined,
           failureClassification: acc.lastFailureClassification ?? undefined,
           problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
+          builderModel: acc.builderModel ?? undefined,
+          evaluatorModel: acc.evaluatorModel ?? undefined,
+          convergence: acc.convergence ?? undefined,
         },
       };
     },
@@ -377,6 +390,7 @@ export function createBuildCycleDefinition(
 
       acc.lastWork = result.work;
       acc.lastPlan = result.plan;
+      acc.builderModel = result.plan.problemModel ?? acc.builderModel;
       acc.lastProprioceptionConfidence = result.selfAssessment?.confidence;
 
       // Track approach for Cognitive Flexibility history
@@ -787,7 +801,33 @@ export function createBuildCycleDefinition(
         evaluationIntegrity: acc.lastEvaluationIntegrity,
         proprioceptionConfidence: acc.lastProprioceptionConfidence,
         budgetProximity: ctx.budgetProximity,
+        dialecticConvergence: undefined as number | undefined, // set below after synthesis
       };
+
+      // ── Dialectic convergence: synthesize evaluator model ────
+      // Runs BEFORE conviction so convergence feeds into the conviction decision.
+      // Skipped on cycle 1 when no builder model exists yet (nothing to compare).
+      if (acc.builderModel) {
+        try {
+          const synthesis = await synthesizeEvaluatorModel({
+            evaluations: integrated.evaluations,
+            rejectionDrivers: integrated.composite.evaluations.filter((w) => !w.acceptable),
+            failureClassification: acc.lastFailureClassification,
+            speedOfLight: acc.motorBriefing?.enrichment.speedOfLight ?? null,
+            previousEvaluatorModel: acc.evaluatorModel,
+            builderModel: acc.builderModel,
+            constraints: acc.problemConstraints,
+          }, config.models.consultation);
+
+          acc.evaluatorModel = synthesis.model;
+          acc.convergence = synthesis.convergence;
+          convictionCtx.dialecticConvergence = synthesis.convergence;
+        } catch (err) {
+          log.warn("Evaluator model synthesis failed — proceeding without convergence", {
+            error: String(err),
+          });
+        }
+      }
 
       const conviction = runConvictionLoop(
         convictionCtx,
@@ -944,6 +984,7 @@ export function createBuildCycleDefinition(
       const signals: SignalLandscape = {
         ne: effectiveNEResult.ne,
         conviction: conviction.level,
+        convergence: acc.convergence ?? undefined,
         // Basal ganglia routine confidence — if a routine fired for this task,
         // the gate can use this to adjust acceptance thresholds.
         routineConfidence: undefined, // Populated by selectAction when available
@@ -1019,6 +1060,9 @@ export function createBuildCycleDefinition(
             accepted: true,
             confidence: integrated.composite.confidence,
             problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
+            evaluatorModel: acc.evaluatorModel ?? undefined,
+            builderModel: acc.builderModel ?? undefined,
+            convergence: acc.convergence ?? undefined,
           },
         };
       }
@@ -1108,6 +1152,9 @@ export function createBuildCycleDefinition(
             specificationGap: true,
             failureClassification,
             problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
+            evaluatorModel: acc.evaluatorModel ?? undefined,
+            builderModel: acc.builderModel ?? undefined,
+            convergence: acc.convergence ?? undefined,
           },
         };
       }
@@ -1160,6 +1207,9 @@ export function createBuildCycleDefinition(
             confidence: integrated.composite.confidence,
             failureClassification,
             problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
+            evaluatorModel: acc.evaluatorModel ?? undefined,
+            builderModel: acc.builderModel ?? undefined,
+            convergence: acc.convergence ?? undefined,
           },
         };
       }

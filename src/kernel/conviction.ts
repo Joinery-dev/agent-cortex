@@ -450,6 +450,19 @@ function testBuildCycleConviction(ctx: ConvictionContext, t: ConvictionThreshold
     });
   }
 
+  // Dialectic convergence: builder-evaluator alignment modulates score signal
+  if (ctx.dialecticConvergence !== undefined) {
+    const conv = ctx.dialecticConvergence;
+    evidence.push({
+      source: "dialectic-convergence",
+      description: `Builder-evaluator convergence: ${(conv * 100).toFixed(0)}%${conv >= 0.8 ? " (aligned)" : conv < 0.4 ? " (divergent)" : ""}`,
+      magnitude: conv,
+      valence: conv > 0.6 ? "supports" : conv < 0.3 ? "undermines" : "supports",
+    });
+    // Blend: convergence reinforces or weakens the score signal by 30%
+    scoreSignal = scoreSignal * 0.7 + conv * 0.3;
+  }
+
   // Weighted sum
   const level = clamp(
     0.4 * scoreSignal + 0.3 * maximSignal + 0.3 * momentumSignal,

@@ -86,6 +86,7 @@ const MotorPlanSchema: z.ZodType<MotorPlan> = z.object({
   confidence: z.number().min(0).max(1),
   plannedIntentions: z.array(PlannedIntentionSchema),
   requiresAgentic: z.boolean().default(true),
+  problemModel: z.string().optional(),
 });
 
 const RevisionStrategySchema = z.union([
@@ -101,6 +102,7 @@ const RevisionPlanSchema: z.ZodType<RevisionPlan> = z.object({
   confidence: z.number().min(0).max(1),
   plannedIntentions: z.array(PlannedIntentionSchema),
   requiresAgentic: z.boolean().default(true),
+  problemModel: z.string().optional(),
   revisionStrategy: RevisionStrategySchema,
   delta: z.string(),
 });

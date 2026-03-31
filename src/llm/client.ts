@@ -63,7 +63,8 @@ export type Purpose =
   | "worldview-seed"
   | "worldview-frames"
   | "guidance-evolution"
-  | "consciousness";
+  | "consciousness"
+  | "evaluator-synthesis";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -168,6 +169,7 @@ const totalUsage: Record<Purpose, TokenUsage> = {
   "worldview-frames": { inputTokens: 0, outputTokens: 0 },
   "guidance-evolution": { inputTokens: 0, outputTokens: 0 },
   consciousness: { inputTokens: 0, outputTokens: 0 },
+  "evaluator-synthesis": { inputTokens: 0, outputTokens: 0 },
   "manifestation-sense": { inputTokens: 0, outputTokens: 0 },
   "manifestation-synthesis": { inputTokens: 0, outputTokens: 0 },
   "manifestation-eval": { inputTokens: 0, outputTokens: 0 },

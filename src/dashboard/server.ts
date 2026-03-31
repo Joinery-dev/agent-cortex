@@ -154,6 +154,8 @@ export function startDashboard(port = 3000, cortex?: Cortex, opts?: { returnHand
 
       if (req.url === "/build") {
         filename = "build.html";
+      } else if (req.url === "/conversation") {
+        filename = "conversation.html";
       } else if (req.url === "/planning") {
         filename = "planning.html";
       } else if (req.url === "/build-status") {
