@@ -579,6 +579,7 @@ export function createSensoryCortexDefinition(
         decisionLog,
         approach: executed.plan?.approach,
         failureClassification: executed.failureClassification,
+        convergence: executed.convergence,
       };
 
       return { result, weighted, composite, consultation, buildResult: executed };
