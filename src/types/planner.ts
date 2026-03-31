@@ -234,7 +234,7 @@ export interface AffinityGroup {
   /** Human-readable group name. */
   name: string;
   /** Node IDs in this group. */
-  shaelIds: string[];
+  nodeIds: string[];
   /** What boundary they share. */
   sharedBoundary: string;
   /** Concrete co-design risk: what breaks if built without mutual awareness. */
@@ -300,16 +300,16 @@ export interface DependencyWiringResult {
  * The same fields as ProposedTask (necessity gates apply identically)
  * but with hierarchy: level, parentId, gateCondition.
  */
-export interface ShaelNode {
+export interface DecompositionNode {
   /** Temporary ID for references within the plan. */
   id: string;
-  /** The question to be lived. */
+  /** What this node represents — question, milestone, commitment, etc. */
   description: string;
-  /** Whether this is a high-level question or a leaf task. */
-  level: "shael" | "shana";
+  /** Whether this is a high-level or leaf-level node. Value comes from the worldview vocabulary (e.g. "shael"/"shana", "block"/"cut", "set"/"riff"). */
+  level: string;
   /** Phase group for integration checks. */
   phaseGroup: string;
-  /** Parent node ID, or null for root-level shaels. */
+  /** Parent node ID, or null for root-level nodes. */
   parentId: string | null;
   /** What must be true when this node completes. */
   gateCondition: string;
@@ -320,6 +320,9 @@ export interface ShaelNode {
   /** Why this scope, not smaller — necessity gate 3. */
   scopeJustification: string;
 }
+
+/** @deprecated Use DecompositionNode. */
+export type ShaelNode = DecompositionNode;
 
 /**
  * Result of assessing whether the hierarchy depth is appropriate.

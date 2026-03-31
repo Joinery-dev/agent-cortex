@@ -2,6 +2,8 @@
 name: ecosystem
 description: Cultivate living systems — ecological epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -189,6 +191,24 @@ Envision the healthy ecosystem. Not a parts list. Not a feature set. The actual 
 For each dimension, describe what the healthy ecosystem achieves. What does the community look like? What feedback loops stabilize it? What's the carrying capacity? What does resilience look like when something fails? Be specific enough that "healthy" and "degraded" are observable.
 
 This vision becomes the climax community everything builds toward. Every future niche is a step in the succession.
+
+# sense-manifest
+
+Each sense describes the healthy organism it sees when the niche is fully filled. The reliability sense sees a component whose failure triggers graceful degradation across its neighbors — not because a retry mechanism was bolted on, but because the feedback loops between organisms carry health signals that the community uses to reroute flow. The performance sense sees a metabolic pathway where resources are consumed at the rate they are produced — no accumulation, no starvation, a steady-state throughput that emerges from the mutualistic relationship between producer and consumer, not from rate-limiting imposed from outside. The usability sense sees a membrane that lets the right signals through and keeps toxins out — the interface is the organism's skin, not its skeleton, and it adapts its permeability to the context of what's requesting passage.
+
+Each sense's manifest is concrete enough to observe in the living system. Not "the system should be resilient" — what does resilience look like when you watch the organisms interact? What specific signals travel through what specific pathways? What does the community do when one organism is removed — what fills the gap, how fast, with what cost to the surrounding ecology?
+
+# vision-synthesis
+
+The unified vision is an ecosystem where no single organism's health is the point. The reliability sense's graceful degradation, the performance sense's metabolic equilibrium, and the usability sense's adaptive membrane are not three features of three separate organisms — they are three descriptions of the same healthy community observed from different ecological elevations. The graceful degradation IS the metabolic equilibrium, because an organism that fails without poisoning its neighbors is one whose resource consumption ceases cleanly. The adaptive membrane IS the graceful degradation, because the interface that senses context and adjusts permeability is the same mechanism that detects upstream failure and reroutes.
+
+The synthesis is a community whose health properties are emergent, not engineered. No single organism contains "resilience" or "efficiency" or "usability" — these are properties of the relationships between organisms. The vision is not a collection of healthy individuals but a community whose inter-organism relationships produce properties that no organism possesses alone. The ecosystem's carrying capacity, its recovery speed, its adaptability to new pressures — all emerge from the density and quality of the symbiotic connections, not from the strength of any single participant.
+
+# sense-evaluation
+
+Each sense checks whether the unified vision preserved what it saw or dissolved it into generality. The reliability sense asks: does the vision still describe specific failure-recovery pathways, or has "emergent resilience" become a hand-wave that could mean anything? If the vision can't tell you what happens when the event bus goes down — which organisms detect it, which reroute, which degrade — it lost the reliability manifest's specificity. The performance sense asks: does the vision still describe observable metabolic flows, or has "equilibrium" become a synonym for "it works"? If you can't point to the producer-consumer pair and describe their steady-state exchange rate, the metabolic manifest was absorbed without being preserved. The usability sense asks: does the vision still describe an adaptive membrane with context-sensitive permeability, or has "the interface adapts" become a platitude?
+
+The test is observability. If a sense's contribution survived the synthesis, you can still observe its specific phenomenon in the unified vision — not as a separate feature, but as one perspective on the same living community. If a sense reads the vision and can't find its organism's behavior, the synthesis averaged instead of integrating.
 
 # prospective
 

@@ -190,6 +190,8 @@ export interface BuildCycleResult {
   specificationGap?: boolean;
   /** How the rejection was classified (present on non-accepted results). */
   failureClassification?: import("./motor-cortex.js").FailureClassification;
+  /** Accumulated structural understanding from build cycle failures. For Hippocampus crystallization. */
+  problemConstraints?: import("./motor-cortex.js").ProblemConstraint[];
 }
 
 // ─── Between-tasks processing ───────────────────────────────────

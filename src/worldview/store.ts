@@ -12,6 +12,18 @@ import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { loadWorldview } from "../util/worldview-loader.js";
 import type { Worldview } from "../types/worldview.js";
+import {
+  SHAELA_WORLDVIEW,
+  PROJECT_WORLDVIEW,
+  HYBRID_WORLDVIEW,
+  COVENANT_WORLDVIEW,
+  GROOVE_WORLDVIEW,
+  ECOSYSTEM_WORLDVIEW,
+  DIALECTIC_WORLDVIEW,
+  CARTOGRAPH_WORLDVIEW,
+  SCULPTOR_WORLDVIEW,
+  NARRATIVE_WORLDVIEW,
+} from "../types/worldview.js";
 import type { WorldviewSeed, FrameGenerationResult } from "./types.js";
 
 // ─── Paths ──────────────────────────────────────────────────────
@@ -83,11 +95,46 @@ export function detectExistingWorldview(): string | null {
   return null;
 }
 
+const PRESET_WORLDVIEWS: Record<string, Worldview> = {
+  shaela: SHAELA_WORLDVIEW,
+  project: PROJECT_WORLDVIEW,
+  hybrid: HYBRID_WORLDVIEW,
+  covenant: COVENANT_WORLDVIEW,
+  groove: GROOVE_WORLDVIEW,
+  ecosystem: ECOSYSTEM_WORLDVIEW,
+  dialectic: DIALECTIC_WORLDVIEW,
+  cartograph: CARTOGRAPH_WORLDVIEW,
+  sculptor: SCULPTOR_WORLDVIEW,
+  narrative: NARRATIVE_WORLDVIEW,
+};
+
 /**
- * Load a generated worldview from ~/.agent-cortex/worldviews/.
- * Returns null if no generated worldview exists.
+ * Load a previously selected or generated worldview.
+ * Checks the selection file first (covers presets + uploads),
+ * then falls back to detecting generated worldview files.
+ * Returns null if nothing is persisted.
  */
 export function loadExistingWorldview(): Worldview | null {
+  // Check persisted selection first
+  const selection = readSelection();
+  if (selection) {
+    // Preset worldview
+    const preset = PRESET_WORLDVIEWS[selection.name];
+    if (preset) return preset;
+
+    // Uploaded file — try the recorded path
+    if (selection.path) {
+      try { return loadWorldview(selection.path); } catch { /* fall through */ }
+    }
+
+    // Generated worldview — look for the file
+    const genPath = join(WORLDVIEW_DIR, `${selection.name}.md`);
+    if (existsSync(genPath)) {
+      try { return loadWorldview(genPath); } catch { /* fall through */ }
+    }
+  }
+
+  // Fallback: detect any generated (non-builtin) worldview file
   const path = detectExistingWorldview();
   if (!path) return null;
   return loadWorldview(path);
@@ -111,6 +158,8 @@ export function serializeWorldview(
   lines.push(`name: ${name}`);
   lines.push(`description: Generated worldview — ${seed.ontology.slice(0, 60)}`);
   lines.push("version: 1");
+  lines.push(`systemName: ${seed.systemName}`);
+  lines.push(`entityName: ${seed.entityName}`);
   lines.push("generated: true");
   lines.push("---");
   lines.push("");
@@ -158,6 +207,9 @@ export function serializeWorldview(
     ["manifestation", "manifestation"],
     ["inquiry", "inquiry"],
     ["inquiry-synthesis", "inquirySynthesis"],
+    ["sense-manifest", "senseManifest"],
+    ["vision-synthesis", "visionSynthesis"],
+    ["sense-evaluation", "senseEvaluation"],
     ["prospective", "prospective"],
     ["emergence", "emergence"],
   ];

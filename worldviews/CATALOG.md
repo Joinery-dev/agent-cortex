@@ -941,6 +941,120 @@ Then: 1-3 sentence assessment with specific patterns observed
 
 ---
 
+## senseManifest
+
+**What it does:** Each sense independently describes what the finished product looks like from its perspective. Not how to build it — what it IS when it's done.
+
+**When it runs:** During Phase A manifestation synthesis. Each active sense manifests independently before vision synthesis combines them.
+
+**Functions:** senseManifestSystem
+
+**Inputs the LLM sees:**
+- Sense identity: name, sensitivity, pathway/receptor tree
+- Project intent: summary, audience, vision, success criteria, constraints
+- Taste profile
+- Inquiry context (if inquiry phase ran first)
+
+**Output:**
+```json
+{
+  "perspective": "string (concrete description of the finished product from this dimension)",
+  "tensions": ["string (anticipated tension with another dimension)"],
+  "confidence": 0.0-1.0
+}
+```
+
+**Structural constraints:**
+- Be concrete, not aspirational ("first contentful paint under 1.5s" not "good performance")
+- Name tensions explicitly — they'll be resolved in synthesis
+- Confidence reflects how clear the intent is from this dimension's perspective
+
+**What the frame must convey:**
+- How this dimension sees the finished product — what "done" looks like from this angle
+- What concreteness means under this worldview — the level of specificity needed
+- How to anticipate tensions with other dimensions — what conflicts are worth naming
+
+---
+
+## visionSynthesis
+
+**What it does:** Combines multiple sense perspectives into a single unified vision. The synthesis layer that weaves independent manifestations into a coherent destination.
+
+**When it runs:** After all senses have manifested independently. Also re-runs with feedback if senses reject the synthesis.
+
+**Functions:** visionSynthesisSystem
+
+**Inputs the LLM sees:**
+- Per-sense perspectives (from senseManifest output)
+- Per-sense anticipated tensions
+- Project intent and taste
+- Inquiry context (if available)
+- Feedback from previous round (if re-synthesizing)
+
+**Output:**
+```json
+{
+  "vision": "string (unified natural-language description of the finished product)",
+  "senseContributions": { "SenseName": "what this sense contributed and what it will look for" },
+  "tensionResolutions": [
+    { "tension": "string", "resolution": "string (how and why)" }
+  ],
+  "confidence": 0.0-1.0
+}
+```
+
+**Structural constraints:**
+- Every sense's core contribution must be recognizable in the vision
+- Tensions must be named and resolved, not smoothed over
+- Synthesize, don't average — find the resolution that satisfies the deeper need of both sides
+- The vision must be concrete enough to evaluate a real artifact against
+
+**What the frame must convey:**
+- What synthesis means under this worldview — not averaging, not picking winners
+- How to produce a vision that is both constraint surface and invitation
+- How to resolve tensions in a way that's honest about trade-offs
+- The relationship between multiple perspectives and unified understanding
+
+---
+
+## senseEvaluation
+
+**What it does:** Each sense evaluates whether the synthesized vision adequately captures its contribution and resolves tensions acceptably.
+
+**When it runs:** After vision synthesis. Each active sense evaluates independently. If any sense is unsatisfied, vision synthesis re-runs with feedback.
+
+**Functions:** senseEvaluationSystem
+
+**Inputs the LLM sees:**
+- Sense identity: name, sensitivity, pathway/receptor tree
+- The synthesized vision
+- Per-sense contributions (what each sense contributed)
+- Tension resolutions (how tensions were resolved)
+
+**Output:**
+```json
+{
+  "satisfied": true/false,
+  "assessment": "string (what the synthesis got right and wrong from this perspective)",
+  "feedback": "string (specific, actionable — what needs to change. Empty if satisfied.)",
+  "confidence": 0.0-1.0
+}
+```
+
+**Structural constraints:**
+- Honest evaluation — if the synthesis lost something important, say so
+- Be reasonable — synthesis requires trade-offs, 80% satisfaction may be the right call
+- Feedback must be specific and actionable, not vague pushback
+- The goal is a vision every sense can build toward, not perfection from one dimension
+
+**What the frame must convey:**
+- How to evaluate whether a synthesis captured this dimension's contribution
+- When to push back vs when to accept a trade-off
+- What "recognizing your contribution" means under this worldview
+- The relationship between individual perspective and collective vision
+
+---
+
 ## prospective
 
 **What it does:** Matches memorized trigger conditions against the current task. Fires when future context matches a remembered intention.

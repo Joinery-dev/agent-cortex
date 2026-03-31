@@ -2,6 +2,8 @@
 name: cartograph
 description: Map unknown territory — explorer epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -185,6 +187,24 @@ Envision the fully-charted territory. Not a settlement plan. Not a feature list.
 For each dimension, describe what the atlas shows. What does the terrain look like? Where are the passes and the hazards? What are the navigational landmarks? What does the fully-settled territory feel like to traverse? Be specific enough that "well-charted" and "here be dragons" are distinguishable.
 
 This atlas becomes the destination — the fully-mapped territory. Every future survey is a step toward this complete chart.
+
+# sense-manifest
+
+Each sense describes the atlas page it sees when the survey is complete. The reliability sense sees a chart of failure terrain — every fault line mapped, every unstable slope graded, every safe crossing marked with the load it can bear. Not a general note that says "here be risks" but a topographic rendering: this path handles 10k concurrent requests before the ground gives way, this bridge has a single point of failure at the connection pool, this alternate route adds 50ms but crosses solid bedrock. The performance sense sees a velocity map — contour lines showing where data flows fast (the flat plains of in-memory access) and where it slows to a crawl (the mountain passes of cross-service serialization). Every bottleneck is a named geographic feature with measured elevation. The usability sense sees a traveler's map — the paths a user actually walks, the landmarks they navigate by, the dead ends where they turn back. Not the system's topology but the territory as experienced by someone moving through it on foot.
+
+Each sense's atlas is a survey, not a brochure. It charts what was found, including the hazards and the ugly terrain. A sense that produces a map showing only the pleasant paths has surveyed selectively — and selective surveys get expeditions killed.
+
+# vision-synthesis
+
+The unified atlas overlays every sense's survey onto one chart, and the overlay reveals terrain features no single survey could have seen. The reliability sense's fault lines often run directly under the performance sense's fastest paths — the ground is fast because it's thin. The usability sense's traveler routes cluster along ridgelines that both the reliability and performance surveys flagged as exposed. These are not three maps stitched at the edges. They are three elevation readings of the same landscape, and triangulating them reveals the true topology.
+
+The synthesized atlas shows a territory where the safest paths, the fastest paths, and the paths people actually walk are three different routes — and the cartographic work is making that visible so the expedition can choose consciously rather than discovering the divergence when a fast path collapses under load while a user is standing on it. Where the three routes converge, the atlas marks high-confidence terrain. Where they diverge, the atlas shows the trade-space explicitly: here is where speed costs safety, here is where the intuitive path is the slow one, here is where the reliable crossing is the one nobody would find without the map. The unified chart doesn't pretend the terrain is simpler than it is. It makes the complexity navigable.
+
+# sense-evaluation
+
+Each sense checks whether the unified atlas preserved its survey's fidelity or smoothed the terrain into a more comfortable shape. The reliability sense asks: are the fault lines still on the chart with their measured severity, or has "triangulation" softened them into abstract risk zones? If the unified atlas says "this region has moderate risk" where the reliability survey found a specific single-point-of-failure at a specific component, the synthesis replaced observation with summary. The performance sense asks: are the contour lines still drawn at measured intervals, or has "the fastest path is also the thinnest ground" become a general principle disconnected from the specific bottlenecks that were surveyed? If you can't find the named geographic features — the specific serialization pass, the specific memory plateau — the velocity map was generalized away. The usability sense asks: are the traveler's paths still drawn from actual observation of how users move through the territory, or has the synthesis assumed that showing the topology is the same as showing the experience?
+
+The test is navigability. If a surveyor's findings survived the synthesis, someone holding the unified atlas could still navigate the specific terrain that surveyor charted — find the specific fault line, avoid the specific bottleneck, follow the specific user path. If the atlas only shows the landscape "in general," the individual surveys were dissolved, not integrated.
 
 # prospective
 

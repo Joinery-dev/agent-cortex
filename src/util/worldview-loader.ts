@@ -56,6 +56,10 @@ const FRAME_KEYS = new Set<keyof WorldviewFrames>([
   "emergence",
   "inquiry",
   "inquirySynthesis",
+  "senseManifest",
+  "visionSynthesis",
+  "senseEvaluation",
+  "consciousness",
 ]);
 
 /**
@@ -87,6 +91,13 @@ const HEADING_TO_KEY: Record<string, keyof WorldviewFrames> = {
   "inquiry": "inquiry",
   "inquiry-synthesis": "inquirySynthesis",
   "inquirySynthesis": "inquirySynthesis",
+  "sense-manifest": "senseManifest",
+  "senseManifest": "senseManifest",
+  "vision-synthesis": "visionSynthesis",
+  "visionSynthesis": "visionSynthesis",
+  "sense-evaluation": "senseEvaluation",
+  "senseEvaluation": "senseEvaluation",
+  "consciousness": "consciousness",
 };
 
 // ─── Parser ──────────────────────────────────────────────────────
@@ -228,6 +239,8 @@ export function loadWorldview(filePath: string): Worldview {
     name: meta["name"] ?? "unnamed",
     description: meta["description"],
     version: meta["version"] ? parseInt(meta["version"], 10) : undefined,
+    systemName: meta["systemName"] ?? "Cortex",
+    entityName: meta["entityName"] ?? "the Parsifal",
     preamble: preambleSection?.body ?? "",
     vocabulary,
     semanticNodeDescription: snd ?? `${vocabulary.topUnit.plural} and ${vocabulary.leafUnit.plural}`,

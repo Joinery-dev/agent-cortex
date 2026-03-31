@@ -68,6 +68,7 @@ import { emit } from "../events.js";
 import { computeCallCost } from "../types/cost.js";
 import type { ProjectCostEstimate } from "../types/cost.js";
 import type { CortexConfig } from "../types/orchestrator.js";
+import { DEFAULT_WORLDVIEW } from "../types/worldview.js";
 import type { Worldview } from "../types/worldview.js";
 // getFrame import removed — no longer needed after Phase A moved to synthesis loop
 
@@ -99,23 +100,36 @@ const PathReasoningSchema = z.object({
 
 // ─── Zod schemas for hierarchical Phase B.1 ─────────────────────
 
-const ShaelNodeSchema = z.object({
-  id: z.string(),
-  description: z.string(),
-  level: z.enum(["shael", "shana"]),
-  phaseGroup: z.string(),
-  parentId: z.string().nullable(),
-  gateCondition: z.string(),
-  necessity: z.string(),
-  formJustification: z.string(),
-  scopeJustification: z.string(),
-});
+/**
+ * Build the decomposition node schema with level values from the worldview vocabulary.
+ * The level enum uses the worldview's actual terms (e.g. "block"/"cut" for sculptor,
+ * "set"/"riff" for groove) so the LLM thinks and outputs in the worldview's language.
+ */
+function buildDecompositionSchema(worldview?: Worldview) {
+  const wv = worldview ?? DEFAULT_WORLDVIEW;
+  const topLevel = wv.vocabulary.topUnit.singular;
+  const leafLevel = wv.vocabulary.leafUnit.singular;
 
-const ShaelDecompositionSchema = z.object({
-  reasoning: z.string(),
-  phases: z.array(ProposedPhaseSchema),
-  nodes: z.array(ShaelNodeSchema),
-});
+  const nodeSchema = z.object({
+    id: z.string(),
+    description: z.string(),
+    level: z.enum([topLevel, leafLevel] as [string, string]),
+    phaseGroup: z.string(),
+    parentId: z.string().nullable(),
+    gateCondition: z.string(),
+    necessity: z.string(),
+    formJustification: z.string(),
+    scopeJustification: z.string(),
+  });
+
+  const decompositionSchema = z.object({
+    reasoning: z.string(),
+    phases: z.array(ProposedPhaseSchema),
+    nodes: z.array(nodeSchema),
+  });
+
+  return { nodeSchema, decompositionSchema };
+}
 
 // ─── Planner ────────────────────────────────────────────────────
 
@@ -306,6 +320,7 @@ export class Planner {
     const system = shaelDecompositionSystem(this.worldview);
     const user = shaelDecompositionUser(inputs, this.worldview);
 
+    const { decompositionSchema } = buildDecompositionSchema(this.worldview);
     let raw: { reasoning: string; phases: ProposedPhase[]; nodes: ShaelNode[] };
     try {
       raw = await callStructured(
@@ -313,19 +328,23 @@ export class Planner {
         this.model,
         system,
         user,
-        ShaelDecompositionSchema,
+        decompositionSchema,
         this.config.maxTokens,
       );
     } catch (err) {
-      log.error("Shael decomposition failed", { error: String(err) });
-      throw new Error(`Planner shael decomposition failed: ${String(err)}`);
+      log.error("Decomposition failed", { error: String(err) });
+      throw new Error(`Planner decomposition failed: ${String(err)}`);
     }
 
-    log.info("Shael decomposition complete", {
+    const wv = this.worldview ?? DEFAULT_WORLDVIEW;
+    const topLevel = wv.vocabulary.topUnit.singular;
+    const leafLevel = wv.vocabulary.leafUnit.singular;
+
+    log.info("Decomposition complete", {
       phases: raw.phases.length,
       nodes: raw.nodes.length,
-      shaels: raw.nodes.filter((n) => n.level === "shael").length,
-      shana: raw.nodes.filter((n) => n.level === "shana").length,
+      topNodes: raw.nodes.filter((n) => n.level === topLevel).length,
+      leafNodes: raw.nodes.filter((n) => n.level === leafLevel).length,
     });
 
     // ── Necessity Gates ──────────────────────────────────────
@@ -409,30 +428,30 @@ export class Planner {
     shaels: ShaelNode[],
     coherenceCeiling?: number,
   ): HierarchyAssessment {
-    const shanaThreshold = this.config.jitWiringThreshold ?? 5;
-    // Double the JIT threshold signals a shael that's too large to be a leaf question
-    const overloadThreshold = shanaThreshold * 3;
+    const leafThreshold = this.config.jitWiringThreshold ?? 5;
+    const overloadThreshold = leafThreshold * 3;
+    const wv = this.worldview ?? DEFAULT_WORLDVIEW;
+    const leafLevel = wv.vocabulary.leafUnit.singular;
 
-    // Group shana by parent shael
-    const shanaPerShael = new Map<string, number>();
+    // Group leaf nodes by parent
+    const leafPerParent = new Map<string, number>();
     for (const node of shaels) {
-      if (node.level === "shana" && node.parentId) {
-        shanaPerShael.set(node.parentId, (shanaPerShael.get(node.parentId) ?? 0) + 1);
+      if (node.level === leafLevel && node.parentId) {
+        leafPerParent.set(node.parentId, (leafPerParent.get(node.parentId) ?? 0) + 1);
       }
     }
 
-    // Find overloaded shaels
+    // Find overloaded parent nodes
     const overloadedShaels: HierarchyAssessment["overloadedShaels"] = [];
-    for (const [shaelId, count] of shanaPerShael) {
+    for (const [parentId, count] of leafPerParent) {
       if (count >= overloadThreshold) {
-        // Recommend splitting into sub-shaels of ~shanaThreshold size
-        const recommendedSubShaels = Math.ceil(count / shanaThreshold);
+        const recommendedSubShaels = Math.ceil(count / leafThreshold);
         overloadedShaels.push({
-          shaelId,
+          shaelId: parentId,
           shanaCount: count,
           recommendedSubShaels,
-          reason: `${count} shana exceeds coherence threshold (${overloadThreshold}). ` +
-            `Decompose into ${recommendedSubShaels} sub-shaels first.`,
+          reason: `${count} leaf nodes exceeds coherence threshold (${overloadThreshold}). ` +
+            `Decompose into ${recommendedSubShaels} sub-nodes first.`,
         });
       }
     }
@@ -519,6 +538,8 @@ export class Planner {
     const system = shaelDecompositionSystem(this.worldview);
     const user = shaelDecompositionUser(inputs, this.worldview);
 
+    const { decompositionSchema } = buildDecompositionSchema(this.worldview);
+    const wv = this.worldview ?? DEFAULT_WORLDVIEW;
     let raw: { reasoning: string; phases: ProposedPhase[]; nodes: ShaelNode[] };
     try {
       raw = await callStructured(
@@ -526,7 +547,7 @@ export class Planner {
         this.model,
         system,
         user,
-        ShaelDecompositionSchema,
+        decompositionSchema,
         this.config.maxTokens,
       );
     } catch (err) {
@@ -537,8 +558,9 @@ export class Planner {
       throw new Error(`planPhase decomposition failed for ${phase.shael.id}: ${String(err)}`);
     }
 
-    // Filter to shana only (JIT planning produces leaf tasks, not sub-shaels)
-    const shana = raw.nodes.filter((n) => n.level === "shana");
+    // Filter to leaf nodes only (JIT planning produces leaf tasks, not sub-nodes)
+    const leafLevel = wv.vocabulary.leafUnit.singular;
+    const shana = raw.nodes.filter((n) => n.level === leafLevel);
 
     // ── Necessity Gates ──────────────────────────────────────
     const asProposed: ProposedTask[] = shana.map((n) => ({
@@ -616,7 +638,7 @@ export class Planner {
     // Build affinity lookup: node ID → affinity group name
     const affinityLookup = new Map<string, string>();
     for (const group of wiring.affinityGroups) {
-      for (const shaelId of group.shaelIds) {
+      for (const shaelId of group.nodeIds) {
         affinityLookup.set(shaelId, group.name);
       }
     }

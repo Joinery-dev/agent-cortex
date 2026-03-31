@@ -68,12 +68,15 @@ import {
 import type { SatisfactionResponse, SatisfactionSignal } from "../types/satisfaction-signal.js";
 import { EscalationHandler } from "./escalation-handler.js";
 import { AgentSdkDeliveryAdapter } from "./delivery-adapters.js";
+import { ConversationCortex } from "../kernel/conversation-cortex.js";
+import type { ConversationTransport } from "../types/conversation.js";
 import { CostTracker } from "./cost-tracker.js";
 import { registerCostCallback, setCostTaskId, setLlmConcurrency } from "../llm/client.js";
 import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
 import { DEFAULT_COST_BUDGET } from "../types/cost.js";
 import { bus } from "../events.js";
 import type { Worldview } from "../types/worldview.js";
+import { persistTasteProfile } from "../taste/store.js";
 
 export class Brainstem {
   private runner: RhythmRunnerImpl;
@@ -103,6 +106,7 @@ export class Brainstem {
   private amygdala: Amygdala;
   private exteroception: ExteroceptionSystem;
   private escalationHandler: EscalationHandler;
+  private conversationCortex: ConversationCortex;
   private costTracker: CostTracker | null = null;
   private askUser?: (question: string) => Promise<string>;
 
@@ -200,6 +204,17 @@ export class Brainstem {
 
     // Escalation handler — wires Thalamus briefings to runner pause/resume
     this.escalationHandler = new EscalationHandler(this.thalamus, this.wm, this.runner);
+
+    // Conversation cortex — bidirectional channel between Cortex and Parsifal.
+    // Consciousness agent identity comes from the worldview.
+    this.conversationCortex = new ConversationCortex({
+      wm: this.wm,
+      runner: this.runner,
+      escalationHandler: this.escalationHandler,
+      thalamus: this.thalamus,
+      amygdala: this.amygdala,
+      worldview,
+    });
 
     // Wire sense library to components that need sense verification
     this.hippocampus.setLibrary(library);
@@ -342,6 +357,17 @@ export class Brainstem {
   }
 
   /**
+   * Reset per-project state for a new project cycle.
+   * Clears working memory and gestalts while preserving cross-project
+   * learning (hippocampus, basal ganglia, plasticity, world model, cerebellum).
+   */
+  prepareForNewProject(projectId: string): void {
+    this.wm.reset(projectId);
+    this.thalamus.clearAllGestalts();
+    this.conversationCortex.reset();
+  }
+
+  /**
    * Run a full project — multiple tasks with dependencies.
    * Spawns the project rhythm → task-dispatch → sensory-cortex → build-cycle.
    */
@@ -384,20 +410,21 @@ export class Brainstem {
   }
 
   /**
-   * Resume a build-cycle from a checkpoint — run integrate + gate with current code.
+   * Resume from a checkpoint — dispatches by checkpoint kind.
    *
-   * Restores ambient state (WM, plasticity, gestalt) from the checkpoint,
-   * constructs a fresh build-cycle definition (picking up code changes),
-   * and runs integrate → gate in isolation.
+   * - pre-integrate: run integrate + gate for a single build cycle (original behavior)
+   * - post-inquiry / post-manifestation / post-plan / post-shael: resume the full
+   *   project rhythm, skipping phases that are already complete.
    */
-  async runFromCheckpoint(checkpoint: import("../types/checkpoint.js").Checkpoint): Promise<{
-    integrated: unknown;
-    gateDecision: import("../types/rhythm.js").GateDecision<import("../types/brainstem.js").BuildCycleResult>;
-  }> {
+  async runFromCheckpoint(checkpoint: import("../types/checkpoint.js").Checkpoint): Promise<
+    | { integrated: unknown; gateDecision: import("../types/rhythm.js").GateDecision<import("../types/brainstem.js").BuildCycleResult> }
+    | import("../types/brainstem.js").ProjectResult
+  > {
     // Load persistent stores
     await this.hippocampus.load();
     await this.worldModel.load();
     await this.basalGanglia.load();
+    await this.plasticityStore.loadFromDisk();
 
     // Restore transient state from checkpoint
     if (checkpoint.workingMemory) {
@@ -422,23 +449,87 @@ export class Brainstem {
       );
     }
 
-    // Build the build-cycle definition with current code
-    const definition = createBuildCycleDefinition(
+    // ── Dispatch by checkpoint kind ──
+    if (checkpoint.kind === "pre-integrate") {
+      // Original behavior: run integrate + gate for one build cycle
+      const definition = createBuildCycleDefinition(
+        this.config,
+        this.library,
+        this.hooks,
+        this.wm,
+        this.thalamus,
+        this.motorCortex,
+        this.basalGanglia,
+        this.gate,
+        this.cognitiveFlexibility,
+        this.stakeAdjuster,
+        this.pns,
+        this.amygdala,
+      );
+
+      return this.runner.runFromCheckpoint(checkpoint, definition);
+    }
+
+    // Project-level resume — run the full project rhythm with resume markers
+    return this.resumeProject(checkpoint);
+  }
+
+  /**
+   * Resume the project rhythm from a project-level checkpoint.
+   * Seeds the accumulator with resume markers so the project rhythm's
+   * execute phase skips to the right point.
+   */
+  private async resumeProject(
+    checkpoint: import("../types/checkpoint.js").Checkpoint,
+  ): Promise<import("../types/brainstem.js").ProjectResult> {
+    const ctx = checkpoint.initialContext as Record<string, unknown>;
+    const intent = ctx.intent as import("../types/intent.js").ProjectIntent;
+    const taste = ctx.taste as import("../types/intent.js").TasteProfile;
+
+    if (this.hooks instanceof CompositeSubcorticalHooks) {
+      this.hooks.setProjectId(intent.id);
+    }
+    this.thalamus.updateProject(intent, taste);
+
+    const context: import("../types/brainstem.js").ProjectContext = {
+      intent,
+      taste,
+      tasks: [], // empty = planner path, resume markers handle the skip
+    };
+
+    const definition = createProjectDefinition(
       this.config,
       this.library,
       this.hooks,
+      this.homeostasis,
       this.wm,
       this.thalamus,
+      this.scheduler,
       this.motorCortex,
       this.basalGanglia,
       this.gate,
       this.cognitiveFlexibility,
       this.stakeAdjuster,
+      this.worldModel,
       this.pns,
-      this.amygdala,
+      this.driftMonitor,
+      this.tasteFeedbackLoop,
+      this.planner,
+      this.projectDiagnostics,
+      this.prospectiveMemory,
+      this.costTracker ?? undefined,
+      this.cerebellum,
+      this.askUser,
     );
 
-    return this.runner.runFromCheckpoint(checkpoint, definition);
+    // Seed accumulator with resume markers — the project rhythm detects these
+    // and skips to the appropriate phase
+    const initialAccumulator: Record<string, unknown> = {
+      __resumeKind: checkpoint.kind,
+      __resumeData: checkpoint.accumulator,
+    };
+
+    return this.runner.run(definition, context, undefined, initialAccumulator);
   }
 
   /** Get the working memory instance. */
@@ -550,6 +641,33 @@ export class Brainstem {
     this.escalationHandler.setDeliveryAdapter(new AgentSdkDeliveryAdapter(askUser));
   }
 
+  /**
+   * Wire a conversation transport and activate the conversation cortex.
+   *
+   * This replaces setAskUser for the conversational experience:
+   * inquiry, approval, and escalation all flow through the conversation.
+   * Multiple transports can be active simultaneously (terminal + web).
+   */
+  setConversationTransport(transport: ConversationTransport): void {
+    this.conversationCortex.addTransport(transport);
+
+    // Wire askUser through the conversation cortex so inquiry,
+    // approval, and escalation questions appear as conversation messages.
+    if (!this.askUser) {
+      this.askUser = (question: string) => this.conversationCortex.askUser(question);
+      // No AgentSdkDeliveryAdapter needed — escalations route through
+      // the conversation cortex via event bus subscription.
+    }
+
+    // Activate if not already listening
+    this.conversationCortex.activate();
+  }
+
+  /** Get the conversation cortex (bidirectional Parsifal channel). */
+  getConversationCortex(): ConversationCortex {
+    return this.conversationCortex;
+  }
+
   /** Get the taste feedback loop (taste divergence proposals). */
   getTasteFeedbackLoop(): TasteFeedbackLoop {
     return this.tasteFeedbackLoop;
@@ -585,6 +703,7 @@ export class Brainstem {
       if (currentTaste) {
         const updatedTaste = applyTasteUpdate(currentTaste, mapping.tasteUpdate);
         this.thalamus.updateTaste(updatedTaste);
+        persistTasteProfile(updatedTaste);
       }
     }
 

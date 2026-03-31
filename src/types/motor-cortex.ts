@@ -33,6 +33,9 @@ export interface MotorPlan {
    *  When false, the text-only single-turn path is sufficient.
    *  Decided by the premotor based on task complexity and tool requirements. */
   requiresAgentic: boolean;
+  /** The builder's understanding of what this problem requires — 2-3 sentences.
+   *  Compared against the evaluators' model to measure convergence. */
+  problemModel?: string;
 }
 
 export interface PlanStep {
@@ -101,6 +104,39 @@ export interface FailureClassification {
   rationale: string;
 }
 
+// ── Problem Model ────────────────────────────────────────────
+
+/**
+ * A structural constraint established by a failed build cycle.
+ *
+ * Failures are evidence about problem structure. Each rejected cycle
+ * reveals what the solution must satisfy. The accumulated set of
+ * constraints IS the problem model — a growing map of the solution space.
+ *
+ * Inspired by Aletheia (arXiv:2602.10177): each failed proof attempt
+ * reveals constraints that no single successful attempt could surface.
+ */
+export interface ProblemConstraint {
+  id: string;
+  /** Which build cycle established this constraint. */
+  cycle: number;
+  /**
+   * structural  — what the problem actually requires (not what was assumed)
+   * boundary    — limits on the solution space
+   * tradeoff    — tensions that must be synthesized, not traded
+   * hard        — formally verified facts with numeric thresholds
+   */
+  category: "structural" | "boundary" | "tradeoff" | "hard";
+  /** What the failure revealed about the problem. */
+  constraint: string;
+  /** Which sense(s) informed this constraint. */
+  source: string;
+  /** Whether formally verified (test, audit, measurement) or subjective assessment. */
+  verification: "formal" | "subjective";
+  /** ID of a prior constraint this refines or replaces. */
+  supersedes?: string;
+}
+
 // ── Revision Premotor ────────────────────────────────────────
 
 /** Context passed to premotor on revision cycles. */
@@ -114,6 +150,15 @@ export interface RevisionContext {
   rejectionDrivers?: import("../kernel/evaluation-weighter.js").WeightedEvaluation[];
   /** How the failure was classified — guides revision strategy. */
   failureClassification?: FailureClassification;
+  /** Accumulated structural understanding from all prior failed cycles. */
+  problemConstraints?: ProblemConstraint[];
+  // ── Dialectic convergence ──
+  /** Builder's previous problem model (from prior cycle's premotor output). */
+  builderModel?: string;
+  /** Evaluators' current problem model (synthesized from evaluation feedback + SoL). */
+  evaluatorModel?: string;
+  /** Convergence score between builder and evaluator models (0–1). */
+  convergence?: number;
 }
 
 /** Premotor's judgment on what went wrong. */

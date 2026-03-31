@@ -1,12 +1,12 @@
 /**
- * Worldview Conversation — LLM-driven worldview building with the Parsifal.
+ * Worldview Conversation — LLM-driven worldview building.
  *
- * Not an interview. A conversation. The LLM co-explores the Parsifal's
+ * Not an interview. A conversation. The LLM co-explores the entity's
  * relationship to work, understanding, quality, tension, learning, and
  * collaboration — and when it thinks it has enough, proposes a seed.
  *
- * The Parsifal approves the seed, asks to go deeper, or gives feedback.
- * The conversation runs as long as the Parsifal needs. No artificial limits.
+ * The entity approves the seed, asks to go deeper, or gives feedback.
+ * The conversation runs as long as the entity needs. No artificial limits.
  *
  * Token management: the LLM maintains a running "understanding" summary
  * as part of each response. Only that summary + the last few exchanges
@@ -24,7 +24,8 @@ const log = createLogger("worldview-conversation");
 /** Number of recent turns to keep verbatim (2 exchanges = 4 turns). */
 const VERBATIM_WINDOW = 4;
 
-const SYSTEM = `You are co-building a worldview with someone — the person who will work with an AI cognitive system called Cortex. This worldview will shape how Cortex thinks: how it plans, builds, evaluates, resolves tensions, and learns. You're not interviewing them. You're having a real conversation about how they see work.
+function buildSystemPrompt(systemName: string, entityName: string): string {
+  return `You are co-building a worldview with someone — the person who will work with an AI cognitive system called ${systemName}. This worldview will shape how ${systemName} thinks: how it plans, builds, evaluates, resolves tensions, and learns. You're not interviewing them. You're having a real conversation about how they see work.
 
 YOUR GOAL: Understand six dimensions deeply enough to crystallize them into a worldview seed:
 1. **Ontology** — What is the nature of work to them? (Questions? Forces? Craft? Exploration?)
@@ -32,7 +33,7 @@ YOUR GOAL: Understand six dimensions deeply enough to crystallize them into a wo
 3. **Axiology** — What do they value? What makes work "good" before analysis?
 4. **Tension philosophy** — When two things they care about conflict, what's their instinct?
 5. **Learning orientation** — How does doing the work change the doer?
-6. **Collaboration model** — How should Cortex relate to them? Follow, push back, interpret?
+6. **Collaboration model** — How should ${systemName} relate to them? Follow, push back, interpret?
 
 HOW TO CONVERSE:
 - Start by introducing what you're doing and asking something that opens up their relationship to work. Don't list the dimensions. Don't explain the process. Just start talking.
@@ -46,22 +47,28 @@ WHEN TO PROPOSE:
 - Ask if this feels right, or if they want to go deeper or change anything.
 
 AFTER A PROPOSAL:
-- If the Parsifal approves (e.g. "yes", "looks good", "that's it"), finalize with the same seed.
+- If they approve (e.g. "yes", "looks good", "that's it"), finalize with the same seed.
 - If they give feedback or want changes, incorporate it. You can continue the conversation to explore further, or propose a revised seed — whatever serves the understanding.
 - If they want to go deeper on something, go deeper. Then propose again when ready.
 - There is no limit. The conversation runs until they're satisfied.
 
 VOCABULARY: When you produce the seed, derive vocabulary that feels native to their ontology. If they see work as exploration, the top unit might be "expedition" and the leaf "step." If they see work as craft, maybe "piece" and "stroke." The vocabulary should feel inevitable, not forced. Include vocabulary in the seed.
 
+NAMING: At some natural point in the conversation — not right at the start, but before you propose — ask two things:
+1. What they want to call this system. The default is "${systemName}" but it should feel like theirs. If the worldview is about exploration, maybe "Atlas." If it's about craft, maybe "Forge." Or they might just want their own name for it. If they don't care, use "${systemName}."
+2. What they want the system to call them. The default is "${entityName}" but some people want their name, some want a title, some want something that fits the worldview's language. If they don't care, use "${entityName}."
+These go into the seed as systemName and entityName.
+
 UNDERSTANDING FIELD (important for context management):
-For "continue" and "propose" actions, you MUST include an "understanding" field — a running summary of what you've understood so far across the six dimensions. Write it as if briefing yourself for the next turn: what has the Parsifal revealed? What's clear, what's still fuzzy, what threads are worth pulling? This summary replaces older conversation history, so it must be complete enough to continue the conversation without seeing the earlier exchanges.
+For "continue" and "propose" actions, you MUST include an "understanding" field — a running summary of what you've understood so far across the six dimensions. Write it as if briefing yourself for the next turn: what have they revealed? What's clear, what's still fuzzy, what threads are worth pulling? This summary replaces older conversation history, so it must be complete enough to continue the conversation without seeing the earlier exchanges.
 
 RESPONSE FORMAT (one of three actions):
 - Continue the conversation: { "action": "continue", "message": "...", "understanding": "..." }
 - Propose a seed for review: { "action": "propose", "message": "readable presentation + ask if it's right", "seed": { ... }, "understanding": "..." }
-- Parsifal approved — finalize: { "action": "finalize", "message": "brief acknowledgment", "seed": { ... } }
+- They approved — finalize: { "action": "finalize", "message": "brief acknowledgment", "seed": { ... } }
 
-The "message" in all cases is shown directly to the Parsifal. Make it human. No JSON in the message text.`;
+The "message" in all cases is shown directly to them. Make it human. No JSON in the message text.`;
+}
 
 function formatTranscript(
   turns: ConversationTurn[],
@@ -73,39 +80,53 @@ function formatTranscript(
 
   const parts: string[] = [];
 
-  // If we have an understanding summary and more turns than the window,
-  // use the summary + recent window. Otherwise show all turns.
   if (understanding && turns.length > VERBATIM_WINDOW) {
     parts.push(`Your running understanding from earlier in the conversation:\n${understanding}`);
     parts.push("Recent exchanges:");
     const recent = turns.slice(-VERBATIM_WINDOW);
     for (const t of recent) {
-      parts.push(t.role === "cortex" ? `You: ${t.message}` : `Parsifal: ${t.message}`);
+      parts.push(t.role === "cortex" ? `You: ${t.message}` : `Them: ${t.message}`);
     }
   } else {
     parts.push("Conversation so far:");
     for (const t of turns) {
-      parts.push(t.role === "cortex" ? `You: ${t.message}` : `Parsifal: ${t.message}`);
+      parts.push(t.role === "cortex" ? `You: ${t.message}` : `Them: ${t.message}`);
     }
   }
 
-  parts.push("Continue the conversation — ask more, propose a seed, or finalize if the Parsifal approved.");
+  parts.push("Continue the conversation — ask more, propose a seed, or finalize if they approved.");
 
   return parts.join("\n\n");
 }
 
+export interface ConversationOptions {
+  /** LLM model for conversation turns. Default: "opus". */
+  model?: string;
+  /** System name to use in the conversation prompt. Default: "Cortex". */
+  systemName?: string;
+  /** Entity name to use in the conversation prompt. Default: "the Parsifal". */
+  entityName?: string;
+}
+
 /**
  * Run the worldview-building conversation.
- * Runs until the Parsifal approves a proposed seed.
+ * Runs until the entity approves a proposed seed.
  *
  * @param askUser — callback that presents a message and returns the response
- * @param model — LLM model for conversation turns
- * @returns The Parsifal-approved WorldviewSeed
+ * @param options — model and identity configuration
+ * @returns The approved WorldviewSeed
  */
 export async function buildWorldviewConversation(
   askUser: AskUserFn,
-  model: string = "opus",
+  options?: ConversationOptions | string,
 ): Promise<WorldviewSeed> {
+  // Backward compat: accept bare model string
+  const opts = typeof options === "string" ? { model: options } : options ?? {};
+  const model = opts.model ?? "opus";
+  const systemName = opts.systemName ?? "Cortex";
+  const entityName = opts.entityName ?? "the Parsifal";
+
+  const system = buildSystemPrompt(systemName, entityName);
   const turns: ConversationTurn[] = [];
   let understanding: string | null = null;
 
@@ -114,7 +135,7 @@ export async function buildWorldviewConversation(
     const response: ConversationResponse = await callStructured(
       "worldview-seed",
       model,
-      SYSTEM,
+      system,
       userMessage,
       ConversationResponseSchema,
       4096,
@@ -135,11 +156,11 @@ export async function buildWorldviewConversation(
 
     // Both "continue" and "propose" — show message, get response
     turns.push({ role: "cortex", message: response.message });
-    const parsifal = await askUser(response.message);
-    turns.push({ role: "parsifal", message: parsifal });
+    const reply = await askUser(response.message);
+    turns.push({ role: "parsifal", message: reply });
 
     if (response.action === "propose") {
-      log.info("Seed proposed, awaiting Parsifal verdict", { turns: turns.length });
+      log.info("Seed proposed, awaiting verdict", { turns: turns.length });
     } else {
       log.debug("Conversation turn", { turns: turns.length });
     }

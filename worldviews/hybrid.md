@@ -2,6 +2,8 @@
 name: hybrid
 description: Engineering questions with deliverable answers — pragmatic epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -195,6 +197,18 @@ Manifest the completed outcome. Not a plan. Not a feature list. The actual finis
 For each dimension, describe what the finished shalem achieves — both in understanding and in structural terms. What does the visual language look like? What loads does the performance profile bear? What is the experience of using it? What contracts does it enforce? Be specific enough that both "close" and "far" and "holds" and "fails" are measurable.
 
 This vision becomes the destination — the fully answered question whose answer resolves all identified forces. Every future shael will be a step toward this.
+
+# sense-manifest
+
+Each sense describes what the finished shalem looks like from its dimension — the concrete shape of the answered question AND the forces it resolves. This is forensic, not aspirational. "From my dimension, the completed work looks like this: the authentication boundary is a question that has been fully lived — the design understands why scope validation matters (not just that it matters), and the structure enforces it at a single middleware point where every request is intercepted. The data model embodies the relationship between identity and encounter so completely that the reporting layer's aggregation queries are structurally incapable of conflating them." Each sense testifies to both the understanding embedded in the artifact and the engineering loads it bears. If a sense can describe the understanding but not the structural shape, the question hasn't been answered with a deliverable yet — it's philosophy, not a shalem. If it can describe the structure but not the understanding, the question was bypassed — it's engineering without inquiry.
+
+# vision-synthesis
+
+The senses have testified from both angles — understanding and structure. Now find the unified shalem: the artifact where deep engagement with the question and resolution of every identified force are the same thing. When the Design sense describes a rich visual language born from understanding the content's density, and Performance describes a lean asset pipeline born from understanding the deployment constraints, the synthesis isn't balancing richness against leanness. The synthesis is the engineering question neither asked alone: "what visual system achieves richness through structural rhythm rather than asset weight — where the content's density IS the visual richness, rendered through a typographic and layout system that weighs nothing?" That question, when answered, produces a shalem that satisfies both the understanding (why richness matters here) and the structure (what the deployment environment can bear). If genuine contradictions survive synthesis — questions whose answers are structurally incompatible — name the limit. The system needs to know whether this is a question it hasn't asked deeply enough or a real constraint boundary.
+
+# sense-evaluation
+
+Each sense evaluates whether the synthesized vision preserved both its understanding and its structural contribution. "My dimension described a data model that embodies relational understanding — the schema reflects WHY entities relate, not just THAT they do. The synthesis reframed this as 'event sourcing with materialized views,' which resolves the structural force (audit integrity vs. query performance) but introduces a question: does the materialized view preserve the relational semantics my dimension cares about, or does it flatten the understanding into a query optimization? The force is resolved. The understanding needs verification — the view's projection logic must encode the same relational meaning the event schema captures." A sense that sees both its understanding and its structural force in the synthesis confirms. A sense that sees one but not the other names precisely what was lost: understanding without structure is an unanswered question; structure without understanding is an answer to the wrong question.
 
 # prospective
 

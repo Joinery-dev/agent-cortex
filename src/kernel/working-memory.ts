@@ -905,6 +905,25 @@ export class WorkingMemory {
     });
   }
 
+  /** Reset to blank state for a new project (preserves nothing). */
+  reset(projectId: string): void {
+    this.state = {
+      projectId,
+      tasks: [],
+      currentTaskId: null,
+      scoreHistory: [],
+      decisions: [],
+      patterns: [],
+      inhibitedSenses: [],
+      openQuestions: [],
+      convictionLedger: [],
+      observations: [],
+      lastUpdated: new Date(),
+    };
+    this.activeWriter = null;
+    log.info("Reset for new project", { projectId });
+  }
+
   // ── Private Helpers ─────────────────────────────────────────────
 
   /**

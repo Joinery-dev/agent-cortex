@@ -9,6 +9,7 @@ import { handleTraceRequest } from "../trace/server.js";
 import { handleStateRequest } from "./state-routes.js";
 import { registerCortex } from "./state-registry.js";
 import { getTraceCollector } from "../trace/collector.js";
+import { WebSocketTransport } from "../conversation/websocket-transport.js";
 import type { Cortex } from "../index.js";
 
 const log = createLogger("dashboard");
@@ -33,7 +34,17 @@ function sendEvent(event: CortexEvent): void {
 // Subscribe to all cortex events
 bus.onCortex(sendEvent);
 
-export function startDashboard(port: number = 3000, cortex?: Cortex): Promise<string> {
+/** Result from starting the dashboard — includes server handle for WebSocket wiring. */
+export interface DashboardHandle {
+  url: string;
+  server: http.Server;
+  /** WebSocket transport wired to /conversation. Add to ConversationCortex. */
+  wsTransport: WebSocketTransport;
+}
+
+export function startDashboard(port?: number, cortex?: Cortex): Promise<string>;
+export function startDashboard(port: number, cortex: Cortex | undefined, opts: { returnHandle: true }): Promise<DashboardHandle>;
+export function startDashboard(port = 3000, cortex?: Cortex, opts?: { returnHandle: boolean }): Promise<string | DashboardHandle> {
   // Ensure trace collector is running
   getTraceCollector();
 
@@ -194,10 +205,17 @@ export function startDashboard(port: number = 3000, cortex?: Cortex): Promise<st
       });
     });
 
+    // Wire WebSocket transport for conversation
+    const wsTransport = new WebSocketTransport(server);
+
     server.listen(port, () => {
       const url = `http://localhost:${port}`;
       log.info(`Dashboard running at ${url}`);
-      resolve(url);
+      if (opts?.returnHandle) {
+        resolve({ url, server, wsTransport } as DashboardHandle & string);
+      } else {
+        resolve(url as string & DashboardHandle);
+      }
     });
   });
 }

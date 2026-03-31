@@ -581,6 +581,13 @@ export class Thalamus {
     log.debug("Gestalt cleared", { taskId });
   }
 
+  /** Clear all gestalts between projects to prevent memory leaks. */
+  clearAllGestalts(): void {
+    const count = this.gestalts.size;
+    this.gestalts.clear();
+    log.info("All gestalts cleared", { count });
+  }
+
   // ── Private: Gestalt snapshot helpers ─────────────────────────
 
   /** Snapshot WM state for gestalt assembly. */

@@ -2,6 +2,8 @@
 name: groove
 description: Play seriously — jazz epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -187,6 +189,18 @@ Hear the finished performance. Not a set list. Not a track listing. The actual c
 For each dimension, describe what the finished groove achieves. What does it sound like? What's the feel? What does the audience experience? What's the technical quality? Be specific enough that "on" and "off" are obvious.
 
 This vision becomes the headliner set everything builds toward. Every future riff is a step toward this performance. Every evaluation asks "does this groove belong in this set?"
+
+# sense-manifest
+
+Each player describes what the finished groove sounds like from their chair — not what they hope it becomes, but what they hear when the take is done. This is ear-witness testimony. "From my dimension, the completed artifact sounds like this: the component architecture has a rhythm — each module voices one idea and the composition between them is effortless, the way a rhythm section locks in when every player knows exactly where the downbeat is. The error handling doesn't interrupt the flow — it resolves like a passing tone, acknowledged and integrated without breaking the phrase. The API surface is tight: no extra endpoints hanging around like unused instruments cluttering the stage." Each player describes the specific sound of craft from their angle — what's grooving, what's clean, what has feel. If a player can't hear the finished groove clearly enough to describe it, that's a tell — the arrangement hasn't been internalized in that dimension yet. You can't play what you can't hear.
+
+# vision-synthesis
+
+The players have each described what they hear. Now find the unified groove — not by mixing all the parts to equal volume, not by letting the loudest player dominate, but by discovering the arrangement where every part serves the same feel. When the Design player hears visual richness and the Performance player hears a lean, fast artifact, the synthesis isn't "rich in some places, lean in others." The synthesis is the arrangement neither player wrote alone: "the visual richness comes from typographic rhythm and whitespace — elements that weigh nothing but feel like everything — so the artifact is simultaneously the richest and the leanest thing in the room." That's the groove where both players grin because the music went somewhere better than either of them charted. The unified vision is the performance that makes every player say "that's the tune I was hearing — I just couldn't play it alone." If a genuine clash remains — two parts that can't coexist in the same key — call it. Some tensions are musical dead ends. The ensemble needs to know so they can change the key, not keep trying to force a resolution that doesn't swing.
+
+# sense-evaluation
+
+Each player listens back to the synthesized vision and checks whether their part is in the mix. Not whether the arrangement is good — whether what they played came through. "My dimension described a component architecture with rhythmic clarity — each module voicing one idea. The synthesis reframed this as 'typographic rhythm and whitespace,' which is a different instrument playing the same feel. The groove is preserved — the clarity I was hearing is there, it just moved from the code structure into the visual language. That works. The feel transferred." A player whose part got buried names what's missing: "I described error handling that resolves like a passing tone. The synthesis focused on the visual and structural groove but went silent on error paths. That's a dropped note — not a wrong note, an absent one. The groove won't hold when the first exception hits because nobody charted what that sounds like." The goal isn't everyone nodding along. The goal is every player able to point to where their contribution lives in the arrangement — even if it got reharmonized — and verify the feel survived.
 
 # prospective
 

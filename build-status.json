@@ -691,7 +691,7 @@
           "region": "Sensory Cortex",
           "status": "complete",
           "description": "Replace builder — premotor plans, primary produces, proprioception self-corrects. Consumes Thalamus builder briefings + PNS Intentions. Efference copy: feedforward feasibility signal before senses deliberate.",
-          "notes": "MotorCortex class with three-phase execute(): premotor (callStructured → MotorPlan), primary motor (call → string with plan injected), proprioception (callStructured → SelfAssessment, modulated by checkpoint policy). Produces Intention[] from plan for Phase 3 learning systems. Backward-compat build() function preserved for deprecated orchestrator. Proprioception penalty applied in gate: low plan adherence penalizes effective min score by up to 2 points. RevisionPlan distinguishes execution-error (amend plan) from plan-error (re-plan from scratch). Efference copy: MotorCortex.predictFeasibility() runs before consultation via sensory-cortex.prepare(). Preliminary episode matching (Cerebellum.findPreliminaryMatches) uses uniform-stake fingerprints. EfferenceCopy attached to gestalt, dissolved into ConsultationEnrichment by Thalamus.",
+          "notes": "MotorCortex class with three-phase execute(): premotor (callStructured → MotorPlan), primary motor (call → string with plan injected), proprioception (callStructured → SelfAssessment, modulated by checkpoint policy). Produces Intention[] from plan for Phase 3 learning systems. Backward-compat build() function preserved for deprecated orchestrator. Proprioception penalty applied in gate: low plan adherence penalizes effective min score by up to 2 points. RevisionPlan distinguishes execution-error (amend plan) from plan-error (re-plan from scratch). Efference copy: MotorCortex.predictFeasibility() runs before consultation via sensory-cortex.prepare(). Preliminary episode matching (Cerebellum.findPreliminaryMatches) uses uniform-stake fingerprints. EfferenceCopy attached to gestalt, dissolved into ConsultationEnrichment by Thalamus.\n[Reconciled] src/kernel/conversation-cortex.ts exists but isn't referenced in any subtask.",
           "subtasks": [
             {
               "name": "Define Motor Cortex types",
@@ -1299,7 +1299,7 @@
           "region": "Prefrontal Cortex",
           "status": "in-progress",
           "description": "PFC's integrated representation of reality — where we are, not where we're going. Integrates WM + Hippocampus + Cerebellum + task graph + PNS + project context + system health into a single coherent picture. Rebuilt at rhythm boundaries. The conviction loop runs against this. Wave 9 — depends on all Phase 3 learning systems being complete.",
-          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.\n[Reconciled] src/types/worldview.ts exists but isn't referenced in any subtask.",
+          "notes": "Weltanschauung — not a data aggregation dashboard but the system's integrated UNDERSTANDING of its situation. LLM synthesis produces 3-7 maxims (compressed wisdom) across cognitive/axiological/volitional layers. Two scopes: cross-project (identity, persists) and per-project (evolves at rhythm boundaries).\n[Reconciled] 'WorldModel class' references src/kernel/world-model.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/types/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Thalamus integration' references src/kernel/thalamus.ts which exists on disk but is marked not-started.\n[Reconciled] 'Brainstem wiring + rhythm integration' references src/brainstem/index.ts which exists on disk but is marked not-started.\n[Reconciled] src/kernel/model-selector.ts exists but isn't referenced in any subtask.\n[Reconciled] src/types/worldview.ts exists but isn't referenced in any subtask.\n[Reconciled] src/kernel/problem-model.ts exists but isn't referenced in any subtask.",
           "subtasks": [
             {
               "name": "Types",
@@ -2404,7 +2404,8 @@
       "[Reconciled] src/kernel/failure-classifier.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/checkpoint.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/guidance-store.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/guidance-evolver.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/guidance-evolver.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/conversation.ts exists but isn't referenced in any subtask."
     ]
   }
 }

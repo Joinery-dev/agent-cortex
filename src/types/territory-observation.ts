@@ -48,7 +48,8 @@ export type ObservationComponent =
   | "thalamus"              // Capability gaps, context routing failures
   | "world-model"           // Maxim supersedure, confidence shifts
   | "working-memory"        // Oscillation, stale open questions
-  | "efference-copy";       // Achievable ceiling surprises, plan feasibility
+  | "efference-copy"        // Achievable ceiling surprises, plan feasibility
+  | "parsifal";             // Direct Parsifal input via conversation channel
 
 export interface TerritoryObservation {
   id: string;

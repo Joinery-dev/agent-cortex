@@ -48,6 +48,7 @@ import type { CollapseContext } from "../../types/basal-ganglia.js";
 import type { CollapseSignal } from "../../types/collapse.js";
 import { computeResolutionOutcomes } from "../../kernel/resolution-quality.js";
 import { classifyFailure } from "../../kernel/failure-classifier.js";
+import { extractConstraints, mergeConstraints } from "../../kernel/problem-model.js";
 import type { ConvictionResult, ConvictionShaping } from "../../types/conviction.js";
 import { runConvictionLoop, modulateThresholds, DEFAULT_CONVICTION_THRESHOLDS } from "../../kernel/conviction.js";
 import { computeNE, mapUrgencyToNE } from "../../kernel/norepinephrine.js";
@@ -157,6 +158,9 @@ interface BuildCycleAccumulator {
   lastFailureClassification: import("../../types/motor-cortex.js").FailureClassification | null;
   /** Rejection drivers from the latest rejected gate phase (for scoped revision context). */
   lastRejectionDrivers: WeightedEvaluation[] | null;
+  // ── Problem Model ──
+  /** Accumulated structural constraints from all failed cycles. */
+  problemConstraints: import("../../types/motor-cortex.js").ProblemConstraint[];
 }
 
 function getAcc(
@@ -184,6 +188,7 @@ function getAcc(
     resolutionOutcomes: [],
     lastFailureClassification: null,
     lastRejectionDrivers: null,
+    problemConstraints: [],
   };
 }
 
@@ -315,6 +320,7 @@ export function createBuildCycleDefinition(
           objectingSenseIds: acc.lastFailureClassification?.objectingSenseIds,
           rejectionDrivers: acc.lastRejectionDrivers ?? undefined,
           failureClassification: acc.lastFailureClassification ?? undefined,
+          problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
         },
       };
     },
@@ -1012,6 +1018,7 @@ export function createBuildCycleDefinition(
             cycles: cycle,
             accepted: true,
             confidence: integrated.composite.confidence,
+            problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
           },
         };
       }
@@ -1061,6 +1068,18 @@ export function createBuildCycleDefinition(
       acc.lastFailureClassification = failureClassification;
       acc.lastRejectionDrivers = gateOutput.rejectionDrivers;
 
+      // ── Problem model: extract structural constraints from this failure ──
+      const newConstraints = extractConstraints(
+        cycle,
+        integrated.evaluations,
+        gateOutput.rejectionDrivers,
+        failureClassification,
+        integrated.tensions,
+        resolutions,
+        acc.problemConstraints,
+      );
+      acc.problemConstraints = mergeConstraints(acc.problemConstraints, newConstraints);
+
       emit("gate:failure-classified", {
         taskId: ctx.task.id,
         cycle,
@@ -1088,6 +1107,7 @@ export function createBuildCycleDefinition(
             confidence: integrated.composite.confidence,
             specificationGap: true,
             failureClassification,
+            problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
           },
         };
       }
@@ -1139,6 +1159,7 @@ export function createBuildCycleDefinition(
             accepted: true,
             confidence: integrated.composite.confidence,
             failureClassification,
+            problemConstraints: acc.problemConstraints.length > 0 ? acc.problemConstraints : undefined,
           },
         };
       }

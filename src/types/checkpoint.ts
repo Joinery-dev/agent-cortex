@@ -21,7 +21,8 @@ export type CheckpointKind =
   | "post-task"           // After sensory-cortex completes a task
   | "post-inquiry"        // After inquiry convergence (Phase 1a complete)
   | "post-manifestation"  // After vision approved (Phase 1c complete)
-  | "post-plan";          // After hierarchical plan built (Phase B complete)
+  | "post-plan"           // After hierarchical plan built (Phase B complete)
+  | "post-shael";         // After a shael completes in the dispatch loop
 
 // ─── Core checkpoint type ──────────────────────────────────────
 
@@ -102,7 +103,7 @@ export interface CheckpointConfig {
 
 export const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
   enabled: true,
-  kinds: ["pre-integrate", "post-inquiry", "post-manifestation", "post-plan"],
+  kinds: ["pre-integrate", "post-inquiry", "post-manifestation", "post-plan", "post-shael"],
   rhythmTypes: ["build-cycle", "project"],
   maxCheckpoints: 10,
 };

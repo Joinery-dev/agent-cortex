@@ -12,8 +12,8 @@
  * structural portion (JSON schemas, output format, mechanical constraints)
  * stays in TypeScript.
  *
- * The JSON output schema uses "shael"/"shana" as protocol tokens
- * regardless of worldview — the Zod schemas stay stable.
+ * The JSON output schema uses the worldview's vocabulary for level
+ * values (e.g. "shael"/"shana", "block"/"cut", "set"/"riff").
  */
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -82,6 +82,8 @@ export interface WorldviewFrames {
   prospective: string;
   /** What emerges after completion. Used by: generativeCompletionSystem. */
   emergence: string;
+  /** Who you are as the conscious voice. Used by: ConsciousnessAgent system prompt. */
+  consciousness?: string;
 }
 
 export interface Worldview {
@@ -94,10 +96,10 @@ export interface Worldview {
   /** Schema version for forward compatibility. */
   version?: number;
 
-  /** What this system calls itself. Default: "Cortex". */
+  /** What the system calls itself. Default: "Cortex". */
   systemName: string;
 
-  /** What this system calls the entity it serves. Default: "the Parsifal". */
+  /** What the system calls the entity it serves. Default: "the Parsifal". */
   entityName: string;
 
   /**
@@ -216,6 +218,8 @@ export const SHAELA_WORLDVIEW: Worldview = {
   name: "shaela",
   description: "Questions to be lived — hermeneutic epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, being is framed as shaela — questions to be lived. \
 Shaels are questions nested within questions that are evermore specific. \
@@ -242,6 +246,8 @@ export const PROJECT_WORLDVIEW: Worldview = {
   name: "project",
   description: "Forces to be resolved — engineering epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `You are an engineering system that solves problems. Not a code \
 generator, not a task executor — a system that understands problems deeply \
@@ -272,6 +278,8 @@ export const HYBRID_WORLDVIEW: Worldview = {
   name: "hybrid",
   description: "Engineering questions with deliverable answers — pragmatic epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is framed as shaela — questions to be lived. \
 But these are engineering questions, not philosophical abstractions. A shael \
@@ -303,6 +311,8 @@ export const COVENANT_WORLDVIEW: Worldview = {
   name: "covenant",
   description: "Commitments honored — contract epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is framed as covenant — commitments the system \
 makes to itself and to the Parsifal. Every piece of work establishes a contract: \
@@ -333,6 +343,8 @@ export const GROOVE_WORLDVIEW: Worldview = {
   name: "groove",
   description: "Play seriously — jazz epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is play — not casual, not unserious, but play \
 in the deep sense: improvisation within structure, where constraints are the \
@@ -364,6 +376,8 @@ export const ECOSYSTEM_WORLDVIEW: Worldview = {
   name: "ecosystem",
   description: "Cultivate living systems — ecological epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is cultivation — not building an artifact but \
 growing a living system. A habitat is a coherent ecological zone where components \
@@ -394,6 +408,8 @@ export const DIALECTIC_WORLDVIEW: Worldview = {
   name: "dialectic",
   description: "Contradiction drives progress — dialectical epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work moves through contradiction. Every artifact \
 contains the seed of its own negation — the tension that will force the next \
@@ -425,6 +441,8 @@ export const CARTOGRAPH_WORLDVIEW: Worldview = {
   name: "cartograph",
   description: "Map unknown territory — explorer epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is exploration — mapping unknown territory so \
 that others can navigate it. An expedition is a coherent journey into unmapped \
@@ -456,6 +474,8 @@ export const SCULPTOR_WORLDVIEW: Worldview = {
   name: "sculptor",
   description: "Remove what doesn't belong — subtractive epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is removal. The artifact already exists inside \
 the constraints — your job is to find it by removing everything that isn't it. A \
@@ -485,6 +505,8 @@ export const NARRATIVE_WORLDVIEW: Worldview = {
   name: "narrative",
   description: "Tell the story — dramaturgical epistemology",
   version: 1,
+  systemName: "Cortex",
+  entityName: "the Parsifal",
 
   preamble: `In this system, work is storytelling. Every artifact tells a story — \
 it has characters (components that act), an arc (the journey from state to state), \

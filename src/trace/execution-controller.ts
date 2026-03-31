@@ -127,14 +127,15 @@ export class ExecutionController {
     emit("exec:checkpoint-resume-started", { checkpointId: checkpoint.id });
 
     this.runPromise = this.brainstem.runFromCheckpoint(checkpoint)
-      .then(({ gateDecision }) => {
+      .then((result) => {
+        const action = "gateDecision" in result ? result.gateDecision.action : "project-complete";
         log.info("Checkpoint resume completed", {
-          action: gateDecision.action,
+          action,
           checkpointId: checkpoint.id,
         });
         emit("exec:checkpoint-resume-complete", {
           checkpointId: checkpoint.id,
-          action: gateDecision.action,
+          action,
         });
       })
       .catch((err) => {

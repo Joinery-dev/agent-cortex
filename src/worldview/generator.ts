@@ -17,8 +17,8 @@ import type { AskUserFn } from "./discovery.js";
 import type { FrameGenerationResult } from "./types.js";
 import { buildWorldviewConversation } from "./conversation.js";
 import { generateFrames } from "./synthesis.js";
-import { persistAndVerify, detectExistingWorldview } from "./store.js";
-import { loadWorldview } from "../util/worldview-loader.js";
+import { persistAndVerify, persistSelection, loadExistingWorldview } from "./store.js";
+import { loadWorldview } from "../util/worldview-loader.js";  // used by uploadWorldview
 import { isApproval } from "../util/approval.js";
 import { createLogger } from "../util/logger.js";
 import {
@@ -134,22 +134,16 @@ async function selectPreset(askUser: AskUserFn): Promise<Worldview> {
   );
 
   const normalized = response.trim().toLowerCase();
-  if (normalized === "1" || normalized === "shaela") return PRESETS.shaela;
-  if (normalized === "2" || normalized === "project") return PRESETS.project;
-  if (normalized === "3" || normalized === "hybrid") return PRESETS.hybrid;
-  if (normalized === "4" || normalized === "covenant") return PRESETS.covenant;
-  if (normalized === "5" || normalized === "groove") return PRESETS.groove;
-  if (normalized === "6" || normalized === "ecosystem") return PRESETS.ecosystem;
-  if (normalized === "7" || normalized === "dialectic") return PRESETS.dialectic;
-  if (normalized === "8" || normalized === "cartograph") return PRESETS.cartograph;
-  if (normalized === "9" || normalized === "sculptor") return PRESETS.sculptor;
-  if (normalized === "10" || normalized === "narrative") return PRESETS.narrative;
 
-  // Try name lookup as fallback
-  if (PRESETS[normalized]) return PRESETS[normalized];
+  const NUMBER_TO_NAME: Record<string, string> = {
+    "1": "shaela", "2": "project", "3": "hybrid", "4": "covenant",
+    "5": "groove", "6": "ecosystem", "7": "dialectic", "8": "cartograph",
+    "9": "sculptor", "10": "narrative",
+  };
 
-  // Default to shaela if unclear
-  return PRESETS.shaela;
+  const name = NUMBER_TO_NAME[normalized] ?? (PRESETS[normalized] ? normalized : "shaela");
+  persistSelection(name);
+  return PRESETS[name];
 }
 
 // ─── File upload ────────────────────────────────────────────────
@@ -167,7 +161,9 @@ async function uploadWorldview(askUser: AskUserFn): Promise<Worldview> {
   }
 
   try {
-    return loadWorldview(filePath);
+    const wv = loadWorldview(filePath);
+    persistSelection(wv.name, filePath);
+    return wv;
   } catch (err) {
     await askUser(`Failed to parse worldview file: ${String(err)}\n\nFalling back to default worldview.`);
     return DEFAULT_WORLDVIEW;
@@ -195,8 +191,8 @@ export async function generateWorldview(
   // ── Phase 1: Conversation → Approved Seed ───────────────────
   // The conversation proposes seeds, incorporates feedback, and
   // continues until the Parsifal approves. No separate gate needed.
-  const seed = await buildWorldviewConversation(askUser, model);
-  log.info("Seed approved by Parsifal");
+  const seed = await buildWorldviewConversation(askUser, { model });
+  log.info("Seed approved");
 
   // ── Phase 2: Frame Generation + Review ──────────────────────
   let generated: FrameGenerationResult;
@@ -236,6 +232,7 @@ export async function generateWorldview(
   // ── Phase 3: Persist + Verify ───────────────────────────────
   log.info("Persisting worldview", { name });
   const worldview = persistAndVerify(name, seed, generated);
+  persistSelection(name);
   log.info("Worldview generation complete", {
     name: worldview.name,
     frameCount: Object.keys(worldview.frames).length,
@@ -258,12 +255,11 @@ export async function setupWorldview(
   askUser: AskUserFn,
   options?: GenerateWorldviewOptions,
 ): Promise<Worldview> {
-  // Check for existing custom worldview
-  const existingPath = detectExistingWorldview();
-  if (existingPath) {
-    const loaded = loadWorldview(existingPath);
-    log.info("Found existing worldview", { name: loaded.name, path: existingPath });
-    return loaded;
+  // Check for previously selected or generated worldview
+  const existing = loadExistingWorldview();
+  if (existing) {
+    log.info("Found existing worldview", { name: existing.name });
+    return existing;
   }
 
   // No custom worldview — offer options

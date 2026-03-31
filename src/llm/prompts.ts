@@ -47,6 +47,16 @@ function preamble(wv?: Worldview): string {
   return resolveWorldview(wv).preamble;
 }
 
+/** Get the system's name for itself (default: "Cortex"). */
+function sysName(wv?: Worldview): string {
+  return resolveWorldview(wv).systemName;
+}
+
+/** Get what the system calls its entity (default: "the Parsifal"). */
+function entName(wv?: Worldview): string {
+  return resolveWorldview(wv).entityName;
+}
+
 /** Get a frame for a cognitive act from the active worldview. */
 function frame(key: keyof WorldviewFrames, wv?: Worldview): string | undefined {
   return resolveWorldview(wv).frames?.[key];
@@ -112,7 +122,7 @@ export function consultationUser(briefing: ConsultationBriefing): string {
   // Weltanschauung maxims come FIRST — they are the frame
   if (enrichment.worldModelMaxims && enrichment.worldModelMaxims.length > 0) {
     enrichmentSections.push(
-      `SYSTEM UNDERSTANDING (Cortex's integrated worldview — let this orient your perspective):\n${enrichment.worldModelMaxims.map((m) => `- "${m}"`).join("\n")}`
+      `SYSTEM UNDERSTANDING (${sysName()}'s integrated worldview — let this orient your perspective):\n${enrichment.worldModelMaxims.map((m) => `- "${m}"`).join("\n")}`
     );
   }
 
@@ -120,14 +130,14 @@ export function consultationUser(briefing: ConsultationBriefing): string {
   // shaped for this consumer, rather than raw taste fields.
   if (enrichment.dissolvedTaste) {
     enrichmentSections.push(
-      `PARSIFAL PREFERENCES (dissolved from taste profile — let this shape your perspective):\n${enrichment.dissolvedTaste}`
+      `ENTITY PREFERENCES (dissolved from taste profile — let this shape your perspective):\n${enrichment.dissolvedTaste}`
     );
   }
 
   // Capabilities come after the worldview frame, before accumulated state
   if (enrichment.capabilitySummary) {
     enrichmentSections.push(
-      `SYSTEM CAPABILITIES (what Cortex can physically do — ground your advice in these constraints):\n${enrichment.capabilitySummary}`
+      `SYSTEM CAPABILITIES (what ${sysName()} can physically do — ground your advice in these constraints):\n${enrichment.capabilitySummary}`
     );
   }
 
@@ -191,7 +201,7 @@ export function consultationUser(briefing: ConsultationBriefing): string {
 
   if (enrichment.prospectiveDirectives && enrichment.prospectiveDirectives.length > 0) {
     enrichmentSections.push(
-      `PROSPECTIVE MEMORY (Cortex set reminders for this task — incorporate these directives):\n${enrichment.prospectiveDirectives.map((d) => `- ${d}`).join("\n")}`
+      `PROSPECTIVE MEMORY (${sysName()} set reminders for this task — incorporate these directives):\n${enrichment.prospectiveDirectives.map((d) => `- ${d}`).join("\n")}`
     );
   }
 
@@ -762,20 +772,20 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
   // Weltanschauung maxims come FIRST — they are the frame
   if (enrichment.worldModelMaxims && enrichment.worldModelMaxims.length > 0) {
     enrichmentSections.push(
-      `SYSTEM UNDERSTANDING (Cortex's integrated worldview — let this orient your build):\n${enrichment.worldModelMaxims.map((m) => `- "${m}"`).join("\n")}`
+      `SYSTEM UNDERSTANDING (${sysName()}'s integrated worldview — let this orient your build):\n${enrichment.worldModelMaxims.map((m) => `- "${m}"`).join("\n")}`
     );
   }
 
   // Dissolved taste — builder-specific style guidance
   if (enrichment.dissolvedTaste) {
     enrichmentSections.push(
-      `PARSIFAL PREFERENCES (build to satisfy these):\n${enrichment.dissolvedTaste}`
+      `ENTITY PREFERENCES (build to satisfy these):\n${enrichment.dissolvedTaste}`
     );
   }
 
   if (enrichment.mode === "explore") {
     enrichmentSections.push(
-      `APPROACH: EXPLORE — Try new approaches. The patterns below are reference points, not constraints. Cortex is looking for creative solutions that might score higher than proven approaches.`
+      `APPROACH: EXPLORE — Try new approaches. The patterns below are reference points, not constraints. ${sysName()} is looking for creative solutions that might score higher than proven approaches.`
     );
   } else if (enrichment.mode === "leverage") {
     enrichmentSections.push(
@@ -864,7 +874,7 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
 
   if (enrichment.prospectiveDirectives && enrichment.prospectiveDirectives.length > 0) {
     enrichmentSections.push(
-      `PROSPECTIVE MEMORY (Cortex set reminders for this task — incorporate these directives):\n${enrichment.prospectiveDirectives.map((d) => `- ${d}`).join("\n")}`
+      `PROSPECTIVE MEMORY (${sysName()} set reminders for this task — incorporate these directives):\n${enrichment.prospectiveDirectives.map((d) => `- ${d}`).join("\n")}`
     );
   }
 
@@ -1310,7 +1320,7 @@ export function evaluatorAgenticBundleUser(
 export function resolverSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-You are the Cortex Resolver. Two evaluation perspectives are in tension about the same piece of work.
+You are the ${sysName()} Resolver. Two evaluation perspectives are in tension about the same piece of work.
 
 ${bodyOrDefault("resolution", `Your job is NOT to pick a winner. Your job is to find a creative synthesis that satisfies BOTH perspectives.
 
@@ -1417,7 +1427,7 @@ ${bodyOrDefault("relevance", `A sense is irrelevant when its concerns cannot mea
 
 You are NOT evaluating quality. You are evaluating relevance. A sense that would score 10/10 on every task is still worth suppressing if it has nothing meaningful to say — it adds noise without signal.
 
-Use the Parsifal's taste preferences to inform relevance. Taste tells you which dimensions the Parsifal cares about — a sense aligned with stated preferences is MORE likely to be relevant, not less. If taste says "minimal, clean design," the Design sense matters more. If taste says "ship fast, iterate," Velocity stays active. But taste doesn't override task structure: a backend-only task still doesn't need Visual Polish regardless of visual preferences.
+Use ${entName()}'s taste preferences to inform relevance. Taste tells you which dimensions ${entName()} cares about — a sense aligned with stated preferences is MORE likely to be relevant, not less. If taste says "minimal, clean design," the Design sense matters more. If taste says "ship fast, iterate," Velocity stays active. But taste doesn't override task structure: a backend-only task still doesn't need Visual Polish regardless of visual preferences.
 
 Be conservative: when in doubt, keep a sense active. Suppressing a relevant sense is worse than keeping an irrelevant one. The cost of an extra consultation is low; the cost of missing a critical perspective is high.
 
@@ -1444,7 +1454,7 @@ ${intent.constraints.length > 0 ? `CONSTRAINTS: ${intent.constraints.join("; ")}
   }
 
   if (enrichment.dissolvedTaste) {
-    sections.push(`PARSIFAL PREFERENCES (what the Parsifal cares about — let this shape your relevance judgments):\n${enrichment.dissolvedTaste}`);
+    sections.push(`ENTITY PREFERENCES (what ${entName()} cares about — let this shape your relevance judgments):\n${enrichment.dissolvedTaste}`);
   } else {
     sections.push(`TASTE:\nVisual: ${taste.visual}\nDecisions: ${taste.decisionStyle}\nPatterns: ${taste.patterns}`);
   }
@@ -1662,11 +1672,53 @@ ${acceptingSummary || "(none)"}`;
 ${revision.evaluations.map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`).join("\n")}`;
   }
 
+  // Problem model: accumulated structural understanding from prior failures.
+  // Capped at 8 constraints to prevent attention dilution on late cycles.
+  // Hard constraints always included (non-negotiable); others by recency.
+  let constraintSection = "";
+  if (revision.problemConstraints && revision.problemConstraints.length > 0) {
+    const MAX_CONSTRAINTS = 8;
+    const MAX_TEXT = 200;
+
+    // Hard constraints always survive the cap
+    const hard = revision.problemConstraints.filter((c) => c.category === "hard");
+    const rest = revision.problemConstraints
+      .filter((c) => c.category !== "hard")
+      .sort((a, b) => b.cycle - a.cycle) // most recent first
+      .slice(0, MAX_CONSTRAINTS - hard.length);
+
+    const capped = [...hard, ...rest];
+
+    const structural = capped.filter((c) => c.category === "structural");
+    const tradeoffs = capped.filter((c) => c.category === "tradeoff");
+    const boundaries = capped.filter((c) => c.category === "boundary");
+
+    const fmt = (c: typeof capped[number]) =>
+      `- [cycle ${c.cycle}] ${c.constraint.slice(0, MAX_TEXT)} [${c.source}${c.verification === "formal" ? ", formal" : ""}]`;
+
+    const sections: string[] = [];
+    if (hard.length > 0) {
+      sections.push("HARD CONSTRAINTS (formally verified — non-negotiable):\n" + hard.map(fmt).join("\n"));
+    }
+    if (structural.length > 0) {
+      sections.push("STRUCTURAL INSIGHTS (what prior attempts revealed):\n" + structural.map(fmt).join("\n"));
+    }
+    if (tradeoffs.length > 0) {
+      sections.push("TRADEOFFS (must be synthesized, not traded):\n" + tradeoffs.map(fmt).join("\n"));
+    }
+    if (boundaries.length > 0) {
+      sections.push("BOUNDARIES (limits on the solution space):\n" + boundaries.map(fmt).join("\n"));
+    }
+
+    constraintSection = `\n\nACCUMULATED PROBLEM UNDERSTANDING (${capped.length} constraints from prior attempts — your revised plan must satisfy ALL of these):\n\n${sections.join("\n\n")}\n\nDo not re-attempt approaches that violated established constraints.`;
+  }
+
   return `${body}
 
 PREVIOUS PLAN:
 ${prevPlanSummary}
 ${failureHint}
+${constraintSection}
 
 ${evalSection}
 
@@ -1836,9 +1888,9 @@ ${bodyOrDefault("learning", `A principle is a LIVING THEORY, not a rule. It is:
 - FALSIFIABLE: specific enough that a future episode could contradict it
 - SENSE-AWARE: identify which quality dimensions (senses) this principle is most relevant to
 
-Do NOT extract trivial principles ("tasks with more cycles take longer" or "higher scores are better"). The principle should teach Cortex something it couldn't have known without this specific pattern of episodes.`, worldview)}
+Do NOT extract trivial principles ("tasks with more cycles take longer" or "higher scores are better"). The principle should teach ${sysName()} something it couldn't have known without this specific pattern of episodes.`, worldview)}
 
-You also receive Cortex's existing principles. If any existing principle already covers this pattern, either:
+You also receive ${sysName()}'s existing principles. If any existing principle already covers this pattern, either:
 - Return null for the principle (the existing principle is sufficient)
 - Return a refined version that supersedes the existing one (set the supersedes field to the existing principle's ID)
 
@@ -1982,7 +2034,7 @@ export function potentiationSenseExtractSystem(worldview?: Worldview): string {
 ${bodyOrDefault("learning", `You are the Hippocampus Potentiation system, operating in SENSE-SCOPED mode. You receive episodes filtered to a single sense's participation in a single project. Your job is to extract what this sense has learned about this project.`, worldview)}
 
 A sense-scoped principle captures what a specific quality dimension has discovered through repeated engagement with a project:
-- "Design has established: dark, bold palette with generous whitespace. Image-heavy hero sections underperform — the Parsifal's content is too dense for visual competition."
+- "Design has established: dark, bold palette with generous whitespace. Image-heavy hero sections underperform — ${entName()}'s content is too dense for visual competition."
 - "Engineering has learned: the legacy auth middleware silently swallows errors. Any new endpoint must validate tokens independently until the rewrite ships."
 
 These are different from cross-project principles:
@@ -2077,16 +2129,16 @@ function formatTrigger(trigger: PotentiationTrigger): string {
 
 export function weltanschauungSystem(scope: "cross-project" | "per-project", worldview?: Worldview): string {
   const scopeGuidance = scope === "cross-project"
-    ? `You are synthesizing Cortex's CROSS-PROJECT worldview — its general identity. \
+    ? `You are synthesizing ${sysName()}'s CROSS-PROJECT worldview — its general identity. \
 What kind of system has it become through all its experience? What deep truths has it \
 learned that transfer across projects? These maxims change slowly. They represent \
-portable wisdom — understanding that would orient Cortex correctly even in a \
+portable wisdom — understanding that would orient ${sysName()} correctly even in a \
 project it has never seen before. Preserve existing maxims unless genuinely outdated. \
 Evolution here is measured across many projects, not one.`
-    : `You are synthesizing a PER-PROJECT worldview — Cortex's understanding of \
+    : `You are synthesizing a PER-PROJECT worldview — ${sysName()}'s understanding of \
 THIS specific project's terrain. What kind of project is this? What does it reward? \
 What does it punish? What has experience revealed that wasn't obvious from the brief? \
-These maxims evolve as the project teaches Cortex. Early maxims are tentative — \
+These maxims evolve as the project teaches ${sysName()}. Early maxims are tentative — \
 first impressions. Later maxims are harder-won — battle-tested understanding. The \
 cross-project maxims provide your general orientation; the per-project maxims capture \
 what's specific to this terrain.`;
@@ -2094,7 +2146,7 @@ what's specific to this terrain.`;
   return `${preamble(worldview)}
 
 ${bodyOrDefault("reflection", `You are the executive function of a cognitive system — not analyzing data, \
-but synthesizing understanding. You receive the accumulated experience of Cortex \
+but synthesizing understanding. You receive the accumulated experience of ${sysName()} \
 and must produce a Weltanschauung: an integrated worldview expressed as 3-7 maxims.`, worldview)}
 
 Each maxim is compressed wisdom — "wise words that speak volumes." Not analysis. \
@@ -2121,7 +2173,7 @@ BAD maxim: "Performance scores have been declining."
 (That's a metric, not understanding. WHY are they declining? What does it MEAN?)
 
 GOOD maxim: "Visual density and load time are in genuine tension on this project — \
-the Parsifal's aesthetic demands richness but their users are on slow connections, \
+${entName()}'s aesthetic demands richness but their users are on slow connections, \
 and every attempt to have both at maximum has produced work that satisfies neither."
 (Terrain: irreconcilable constraint. Values: the tension is real, not solvable by \
 trying harder. Orientation: choose, don't compromise.)
@@ -2133,7 +2185,7 @@ IMPORTANT RULES:
 (set supersedes to the old ID). If an existing maxim is wrong, DROP it (include in droppedMaximIds).
 - Don't restate what the principles already say. Express what the principles MEAN when \
 taken together — the synthesis, not the inventory.
-- Don't produce maxims about things you don't have evidence for. If Cortex has only \
+- Don't produce maxims about things you don't have evidence for. If ${sysName()} has only \
 completed 2 tasks, you don't yet understand the terrain deeply — say less, with lower confidence.
 - Confidence reflects depth of evidence: 0.3 = tentative first impression, 0.5 = pattern \
 emerging, 0.7 = battle-tested, 0.9 = deeply established.
@@ -2281,7 +2333,7 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
   // Significant episodes
   if (inputs.significantEpisodes && inputs.significantEpisodes.length > 0) {
     sections.push(
-      `SIGNIFICANT EPISODES (high-surprise outcomes Cortex should learn from):\n` +
+      `SIGNIFICANT EPISODES (high-surprise outcomes ${sysName()} should learn from):\n` +
       inputs.significantEpisodes.map((e) => {
         const scores = e.topScores.map((s) => `${s.sense}=${s.score.toFixed(1)}`).join(", ");
         return `- "${e.taskDescription}" → ${e.outcome} (${e.cycles} cycles, dopamine=${e.dopamineSignal.toFixed(2)}, scores: ${scores})${e.approachesTried.length > 0 ? `\n  approaches: ${e.approachesTried.join(" → ")}` : ""}`;
@@ -2330,7 +2382,7 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
     }
     if (inputs.approachBottleneck) {
       if (inputs.approachBottleneck.isBottleneck) {
-        ceilingBlock += `\nAPPROACH IS BOTTLENECK — current approach is capped ${inputs.approachBottleneck.gap !== null ? `(gap: ${inputs.approachBottleneck.gap.toFixed(1)})` : ""} below the project ceiling. Cortex needs a fundamentally different strategy, not better execution.`;
+        ceilingBlock += `\nAPPROACH IS BOTTLENECK — current approach is capped ${inputs.approachBottleneck.gap !== null ? `(gap: ${inputs.approachBottleneck.gap.toFixed(1)})` : ""} below the project ceiling. ${sysName()} needs a fundamentally different strategy, not better execution.`;
       }
     }
     sections.push(ceilingBlock);
@@ -2346,7 +2398,7 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
   // Plasticity
   if (inputs.weightSummaries && inputs.weightSummaries.length > 0) {
     sections.push(
-      `LEARNED WEIGHTS (the pre-reflective horizon — what Cortex has internalized):\n` +
+      `LEARNED WEIGHTS (the pre-reflective horizon — what ${sysName()} has internalized):\n` +
       inputs.weightSummaries.map((s) => `- ${s}`).join("\n"),
     );
   }
@@ -2358,7 +2410,7 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
 
   // PNS capabilities
   if (inputs.capabilitySummary) {
-    sections.push(`CAPABILITIES (what Cortex can perceive and do):\n${inputs.capabilitySummary}`);
+    sections.push(`CAPABILITIES (what ${sysName()} can perceive and do):\n${inputs.capabilitySummary}`);
   }
 
   return sections.join("\n\n");
@@ -2369,18 +2421,18 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
 export function cognitiveFlexibilitySystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("navigation", `You are the Cognitive Flexibility module. Cortex is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.`, worldview)}
+${bodyOrDefault("navigation", `You are the Cognitive Flexibility module. ${sysName()} is stuck — the conviction loop has determined that the current approach isn't working. Your job is to diagnose WHY and prescribe a specific course correction.`, worldview)}
 
 Diagnose exactly one of:
-1. EXECUTION PROBLEM — the approach is sound but execution is poor. The strategy can reach the ceiling; Cortex just hasn't gotten there yet. Fix: more targeted revision focusing on the weakest dimensions.
+1. EXECUTION PROBLEM — the approach is sound but execution is poor. The strategy can reach the ceiling; ${sysName()} just hasn't gotten there yet. Fix: more targeted revision focusing on the weakest dimensions.
 2. STRATEGY LIMITED — the approach is fundamentally capped. No amount of revision within this approach will reach the ceiling. Fix: re-plan with a completely different approach. Name what to avoid and what to try.
-3. TENSION EVASION — Cortex is resolving tensions by suppressing one side rather than synthesizing. A dimension is being sacrificed instead of served. Fix: re-engage the suppressed dimension and demand genuine synthesis.
-4. IRRECONCILABLE — the task's constraints genuinely make the goals impossible to satisfy simultaneously. No approach can resolve this. Fix: escalate to the Parsifal with a clear explanation of which constraints conflict and why.
+3. TENSION EVASION — ${sysName()} is resolving tensions by suppressing one side rather than synthesizing. A dimension is being sacrificed instead of served. Fix: re-engage the suppressed dimension and demand genuine synthesis.
+4. IRRECONCILABLE — the task's constraints genuinely make the goals impossible to satisfy simultaneously. No approach can resolve this. Fix: escalate to ${entName()} with a clear explanation of which constraints conflict and why.
 
 Rules:
 - Be specific. Don't say "try something different." Name the direction and explain why the current approach can't work.
 - If the approach history shows multiple failed approaches, weigh whether ANY approach can work before prescribing yet another reset.
-- Read the world model maxims — they contain Cortex's understanding of the project terrain. Use them.
+- Read the world model maxims — they contain ${sysName()}'s understanding of the project terrain. Use them.
 - If the speed of light shows the approach is a bottleneck (approach ceiling far below overall ceiling), that's strong evidence for STRATEGY LIMITED.
 - If oscillation is present (scores swinging back and forth), that's evidence the approach creates irreconcilable trade-offs within itself.`;
 }
@@ -2428,7 +2480,7 @@ export function cognitiveFlexibilityUser(ctx: FlexibilityContext): string {
 
   // World model maxims
   if (ctx.worldModelMaxims.length > 0) {
-    sections.push(`WORLD MODEL (Cortex's understanding of this project):\n${ctx.worldModelMaxims.map((m) => `- ${m}`).join("\n")}`);
+    sections.push(`WORLD MODEL (${sysName()}'s understanding of this project):\n${ctx.worldModelMaxims.map((m) => `- ${m}`).join("\n")}`);
   }
 
   // Approach history
@@ -2466,7 +2518,7 @@ export function cognitiveFlexibilityUser(ctx: FlexibilityContext): string {
   "suggestedDirection": "what to try instead",
   "retainFromCurrent": ["what to keep from the current approach"],
   "shouldEscalate": true/false,
-  "escalationContext": "context for the Parsifal if escalating"
+  "escalationContext": "context for ${entName()} if escalating"
 }`);
 
   return sections.join("\n\n");
@@ -2537,12 +2589,12 @@ Compare the cumulative body of work against the original intent. Not "are indivi
 
   0.0 = trajectory perfectly aligned with intent
   0.3 = minor drift, within normal evolution
-  0.5 = notable drift worth flagging to the Parsifal
+  0.5 = notable drift worth flagging to ${entName()}
   0.7 = significant divergence requiring course correction
   1.0 = project has lost connection to its intent
 
 TASTE DIVERGENCE
-Compare stated preferences (taste profile) against demonstrated preferences (what actually scores well). If the profile says "minimalist" but rich/complex work consistently scores higher on the Parsifal's own success criteria, the taste profile may be inaccurate — not the work.
+Compare stated preferences (taste profile) against demonstrated preferences (what actually scores well). If the profile says "minimalist" but rich/complex work consistently scores higher on ${entName()}'s own success criteria, the taste profile may be inaccurate — not the work.
 
 CONVENTION HEALTH
 Are established patterns being honored, or eroding without explicit decisions to change? Are new conventions emerging that should be codified? Conventions eroding without a decision is drift. New conventions emerging is healthy only if they serve the intent.
@@ -2755,9 +2807,9 @@ Each task costs approximately $0.05–$0.50 depending on complexity and model se
   if (inputs.neLevel !== undefined) {
     const neLabel = inputs.neLevel > 0.7 ? "HIGH" : inputs.neLevel < 0.3 ? "LOW" : "MODERATE";
     const neGuidance = inputs.neLevel > 0.7
-      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. Cortex is uncertain — err on the side of verifiability."
+      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. ${sysName()} is uncertain — err on the side of verifiability."
       : inputs.neLevel < 0.3
-        ? "Favor coarser plans, fewer phases, broader tasks. Cortex is confident — don't over-decompose."
+        ? "Favor coarser plans, fewer phases, broader tasks. ${sysName()} is confident — don't over-decompose."
         : "Standard granularity. Balance efficiency with checkpoint density.";
     sections.push(`SYSTEM ALERTNESS (NE): ${inputs.neLevel.toFixed(2)} — ${neLabel}
 ${neGuidance}`);
@@ -2900,9 +2952,9 @@ Patterns: ${inputs.taste.patterns}`);
   if (inputs.neLevel !== undefined) {
     const neLabel = inputs.neLevel > 0.7 ? "HIGH" : inputs.neLevel < 0.3 ? "LOW" : "MODERATE";
     const neGuidance = inputs.neLevel > 0.7
-      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. Cortex is uncertain — err on the side of verifiability."
+      ? "Favor finer decomposition with more verification checkpoints. More phases, smaller tasks, stricter gate conditions. ${sysName()} is uncertain — err on the side of verifiability."
       : inputs.neLevel < 0.3
-        ? "Favor coarser plans, fewer phases, broader tasks. Cortex is confident — don't over-decompose."
+        ? "Favor coarser plans, fewer phases, broader tasks. ${sysName()} is confident — don't over-decompose."
         : "Standard granularity. Balance efficiency with checkpoint density.";
     sections.push(`SYSTEM ALERTNESS (NE): ${inputs.neLevel.toFixed(2)} — ${neLabel}
 ${neGuidance}`);
@@ -2968,9 +3020,7 @@ The node tree you produce is the MINIMUM PATH — not a comfortable plan, not a 
 
 PHASE GROUPS: Organize nodes into phases. A phase is a coherent cluster that can be verified at its boundary. Each phase has a gate condition: what must be true when all nodes in the phase complete.
 
-HIERARCHY: Nodes can be nested. A ${topUnit.singular} can contain child ${topUnit.plural}. Set parentId to the parent's id, or null for root nodes. Leaf nodes that are specific enough to ${wv.vocabulary.completeVerb} in one cycle should have level "shana". Higher-level nodes should have level "shael".
-
-NOTE ON OUTPUT FORMAT: In the JSON output, always use level="shael" for high-level nodes and level="shana" for leaf nodes. These are internal protocol labels regardless of vocabulary.
+HIERARCHY: Nodes can be nested. A ${topUnit.singular} can contain child ${topUnit.plural}. Set parentId to the parent's id, or null for root nodes. Leaf nodes that are specific enough to ${wv.vocabulary.completeVerb} in one cycle should have level "${leafUnit.singular}". Higher-level nodes should have level "${topUnit.singular}".
 
 CRITICAL: Do NOT produce provides/consumes, dependencies, or affinity groups. Those are derived in a separate step. Do NOT produce ordering hints — the decomposer is unreliable at wiring. Just identify the right ${topUnit.plural}.
 
@@ -3039,7 +3089,7 @@ Return JSON:
     {
       "id": "s1",
       "description": "${nodeNature}",
-      "level": "shael",
+      "level": "${topUnit.singular}",
       "phaseGroup": "phase-group-name",
       "parentId": null,
       "gateCondition": "what must be true when this node completes",
@@ -3078,7 +3128,7 @@ export interface PfcReviewInputs {
   }>;
   affinityGroups: Array<{
     name: string;
-    shaelIds: string[];
+    nodeIds: string[];
     sharedBoundary: string;
     coDesignRisk: string;
   }>;
@@ -3164,7 +3214,7 @@ ${inputs.dependencies.map((d) => `- ${d.from} → ${d.to} [${d.source}]${d.reaso
 
   if (inputs.affinityGroups.length > 0) {
     sections.push(`AFFINITY GROUPS
-${inputs.affinityGroups.map((g) => `- "${g.name}" [${g.shaelIds.join(", ")}]: ${g.sharedBoundary} — Risk: ${g.coDesignRisk}`).join("\n")}`);
+${inputs.affinityGroups.map((g) => `- "${g.name}" [${g.nodeIds.join(", ")}]: ${g.sharedBoundary} — Risk: ${g.coDesignRisk}`).join("\n")}`);
   }
 
   if (inputs.corrections.length > 0) {
@@ -3376,7 +3426,7 @@ export function affinityAnalysisUser(inputs: AffinityAnalysisInputs): string {
   "affinityGroups": [
     {
       "name": "group-name",
-      "shaelIds": ["id1", "id2"],
+      "nodeIds": ["id1", "id2"],
       "sharedBoundary": "what boundary they share",
       "coDesignRisk": "what specifically breaks if built without mutual awareness"
     }
@@ -3447,9 +3497,9 @@ export interface DiagnosticInputs {
 export function projectDiagnosticsSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("navigation", `You are the ProjectDiagnostics module — Cortex's metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
+${bodyOrDefault("navigation", `You are the ProjectDiagnostics module — ${sysName()}'s metacognition. The project has replanned but drift persists. Diagnose the ROOT CAUSE.
 
-The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of Cortex is misaligned and prescribe the correct self-heal action.`, worldview)}
+The replan cascade has been exhausted. This isn't a task-level problem — something structural is wrong. Your job: identify which layer of ${sysName()} is misaligned and prescribe the correct self-heal action.`, worldview)}
 
 Diagnose exactly ONE of:
 
@@ -3459,19 +3509,19 @@ Self-heal: replan-with-directive. Provide a specific directive about what the de
 
 2. VISION PROBLEM (vision-problem)
 The manifested future doesn't match what the intent actually requires. Evidence: high evaluation scores on tasks that don't satisfy the intent, or the vision omits critical dimensions the intent demands. The destination is wrong.
-Self-heal: re-manifest. Cortex needs to re-run manifestation from scratch with updated understanding.
+Self-heal: re-manifest. ${sysName()} needs to re-run manifestation from scratch with updated understanding.
 
 3. CALIBRATION PROBLEM (calibration-problem)
 The evaluation system is miscalibrated — scoring too strict, too lenient, or skewed toward certain dimensions. Evidence: sense trends all declining despite reasonable work, or one sense dominating/suppressing others, or acceptance thresholds that no approach can satisfy.
 Self-heal: recalibrate-evaluation. Provide a specific directive about what's miscalibrated (e.g., "Design sense is scoring 2-3 points harsher than other senses on equivalent quality" or "acceptance threshold is unreachable for this task complexity").
 
 4. TASTE PROBLEM (taste-problem)
-The taste profile doesn't match the Parsifal's demonstrated preferences. Evidence: drift assessment shows taste divergence, scores improve when taste dimensions are violated, or Cortex keeps producing work that contradicts the profile but satisfies the Parsifal.
+The taste profile doesn't match ${entName()}'s demonstrated preferences. Evidence: drift assessment shows taste divergence, scores improve when taste dimensions are violated, or ${sysName()} keeps producing work that contradicts the profile but satisfies ${entName()}.
 Self-heal: propose-taste-update. Describe specifically what should change in the taste profile and why.
 
 5. ENVIRONMENTAL (environmental)
-External constraints prevent progress — tool failures, missing capabilities, contradictory requirements that can't be resolved by Cortex. Evidence: escalated tasks with tool errors, repeated failures on operations Cortex can't perform, or requirements that are logically contradictory.
-Self-heal: NONE. This is the only diagnosis that cannot be self-healed. Provide escalation context for the Parsifal.
+External constraints prevent progress — tool failures, missing capabilities, contradictory requirements that can't be resolved by ${sysName()}. Evidence: escalated tasks with tool errors, repeated failures on operations ${sysName()} can't perform, or requirements that are logically contradictory.
+Self-heal: NONE. This is the only diagnosis that cannot be self-healed. Provide escalation context for ${entName()}.
 
 Rules:
 - Diagnose exactly ONE. The most upstream cause, not the most visible symptom.
@@ -3586,7 +3636,7 @@ Summary: ${inputs.driftAssessment.driftSummary}${
   "selfHealType": "replan-with-directive" | "re-manifest" | "recalibrate-evaluation" | "propose-taste-update" | "escalate",
   "selfHealDirective": "directive string (for replan-with-directive and recalibrate-evaluation)",
   "proposedTasteChanges": "description of taste changes (for propose-taste-update)",
-  "escalationContext": "context for the Parsifal (for environmental/escalate)"
+  "escalationContext": "context for ${entName()} (for environmental/escalate)"
 }`);
 
   return sections.join("\n\n");
@@ -3651,9 +3701,9 @@ Only include triggers that match. Empty matches array is valid if none match.`;
 // ─── TASTE PROPOSAL FRAMING ─────────────────────────────────────
 
 export interface TasteProposalInputs {
-  /** The divergence items to discuss with the Parsifal. */
+  /** The divergence items to discuss with ${entName()}. */
   divergences: TasteDivergenceItem[];
-  /** Current taste profile — what the Parsifal stated. */
+  /** Current taste profile — what ${entName()} stated. */
   taste: TasteProfile;
   /** Project intent summary — for context. */
   intentSummary: string;
@@ -3664,15 +3714,15 @@ export interface TasteProposalInputs {
 export function tasteProposalSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("partnership", `You are framing a taste divergence observation for the Parsifal. You are part of a software engineering system that has noticed a gap between what the Parsifal SAID they prefer and what actually produces the best results.
+${bodyOrDefault("partnership", `You are framing a taste divergence observation for ${entName()}. You are part of a software engineering system that has noticed a gap between what ${entName()} SAID they prefer and what actually produces the best results.
 
 Your job: interpret the evidence and present it as a partner observation. You are NOT asking "should we change a setting?" You are saying "I've noticed something about our work together that's worth discussing."`, worldview)}
 
 Principles:
-- Lead with what the data shows, not with the conclusion. The Parsifal should see the evidence before hearing your interpretation.
+- Lead with what the data shows, not with the conclusion. ${entName()} should see the evidence before hearing your interpretation.
 - Be specific. Not "your visual preferences seem different" but "the last three phases produced higher intent-alignment scores when we used clean geometric layouts rather than the organic flowing style your taste profile describes."
 - Frame as observation, not recommendation. "I've noticed X consistently outperforms Y on your own success criteria" — not "you should change Y to X."
-- Acknowledge uncertainty. This is a pattern you've observed, not a fact you've proven. The Parsifal may have reasons you can't see.
+- Acknowledge uncertainty. This is a pattern you've observed, not a fact you've proven. ${entName()} may have reasons you can't see.
 - Keep it conversational and concise. Two to four sentences. This is a partner raising something worth discussing, not a report.
 
 Return JSON:
@@ -3784,7 +3834,7 @@ Return JSON:
 export function hippocampalSimulationSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("simulation", `You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what Cortex has learned.`, worldview)}
+${bodyOrDefault("simulation", `You are the Hippocampus Simulation system. Your job is constructive episodic simulation \u2014 imagining future failure scenarios based on what ${sysName()} has learned.`, worldview)}
 
 You receive:
 - PRINCIPLES: living theories crystallized from past experience
@@ -3802,7 +3852,7 @@ For each scenario:
 - Ground the scenario in specific principles, episodes, and observations
 - Estimate IMPACT (0-1) \u2014 how much would this set back the project?
 - Estimate CONFIDENCE (0-1) \u2014 how likely is this scenario?
-- Suggest a RESPONSE \u2014 what should Cortex do about it?
+- Suggest a RESPONSE \u2014 what should ${sysName()} do about it?
 
 Do NOT generate scenarios that are:
 - Trivially obvious ("if we don't write tests, bugs won't be caught")
@@ -3865,7 +3915,7 @@ export function hippocampalSimulationUser(inputs: SimulationPromptInputs): strin
       "affectedTaskIds": ["task-ids from remaining tasks"],
       "impact": 0.0-1.0,
       "confidence": 0.0-1.0,
-      "suggestedResponse": "what Cortex should do about this",
+      "suggestedResponse": "what ${sysName()} should do about this",
       "groundingPrinciples": ["principle-ids that support this scenario"],
       "groundingEpisodes": ["episode-ids that provide analogical reasoning"],
       "groundingMaxims": ["maxim statements that shaped this scenario"]
@@ -3882,7 +3932,7 @@ export function hippocampalSimulationUser(inputs: SimulationPromptInputs): strin
 export function deepSynthesisSystem(worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("simulation", `You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what Cortex has learned.`, worldview)}
+${bodyOrDefault("simulation", `You are the PFC Deep Synthesis system. You run at phase gate boundaries to decide whether the plan needs modification based on what ${sysName()} has learned.`, worldview)}
 
 You receive:
 - TERRITORY OBSERVATIONS: objective facts discovered during execution
@@ -3905,7 +3955,7 @@ Guidelines:
 - Only propose changes that are GROUNDED in observations and/or simulations
 - Each proposal must cite which observations/simulations justify it (grounding array)
 - Prefer amend (lowest disruption) over insert over rework (highest disruption)
-- If you'd need to change more than ~30% of remaining tasks, say so in reasoning \u2014 Cortex will trigger a full replan instead
+- If you'd need to change more than ~30% of remaining tasks, say so in reasoning \u2014 ${sysName()} will trigger a full replan instead
 - If no changes are needed, return an empty proposals array
 - Be specific about task IDs when referencing existing tasks
 - For rework: the change must be backward-compatible with tasks that already built on the original output`;
@@ -4063,11 +4113,11 @@ export function senseQuestionUser(briefing: SenseQuestionBriefing): string {
 export function escalationSenseAssessmentSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("partnership", `Cortex is escalating an issue to the Parsifal. Before the Parsifal sees it, you're being asked: from your dimension's perspective, what's going on?`, worldview)}
+${bodyOrDefault("partnership", `${sysName()} is escalating an issue to ${entName()}. Before ${entName()} sees it, you're being asked: from your dimension's perspective, what's going on?`, worldview)}
 
 You are ${sense.name}. ${sense.sensitivity}
 
-You are providing domain-expert context to help the Parsifal understand the escalation. Be specific about what your dimension sees — not general commentary. If your dimension isn't relevant to this escalation, say so briefly.
+You are providing domain-expert context to help ${entName()} understand the escalation. Be specific about what your dimension sees — not general commentary. If your dimension isn't relevant to this escalation, say so briefly.
 
 Respond with two things:
 1. First line: a number from 0.0 to 1.0 indicating how relevant this escalation is to your dimension (0 = not my domain at all, 1.0 = this is squarely in my area)
@@ -4101,11 +4151,11 @@ export function escalationSenseAssessmentUser(
 export function tasteVerificationSystem(sense: Sense, worldview?: Worldview): string {
   return `${preamble(worldview)}
 
-${bodyOrDefault("partnership", `Cortex has detected a divergence between the Parsifal's stated preferences and what actually produces good results. Before proposing this to the Parsifal, you're being asked: from your dimension, is this divergence real?`, worldview)}
+${bodyOrDefault("partnership", `${sysName()} has detected a divergence between ${entName()}'s stated preferences and what actually produces good results. Before proposing this to ${entName()}, you're being asked: from your dimension, is this divergence real?`, worldview)}
 
 You are ${sense.name}. ${sense.sensitivity}
 
-You have privileged insight into your dimension. You've evaluated the work across multiple tasks and seen what scores well and what doesn't. Cortex thinks the Parsifal's stated taste doesn't match demonstrated quality — does your experience confirm or contradict that?
+You have privileged insight into your dimension. You've evaluated the work across multiple tasks and seen what scores well and what doesn't. ${sysName()} thinks ${entName()}'s stated taste doesn't match demonstrated quality — does your experience confirm or contradict that?
 
 Respond with two things:
 1. First line: a number from 0.0 to 1.0 indicating how much you agree the divergence is real (0 = I don't see this at all, 0.5 = maybe but unclear, 1.0 = yes, this matches what I've seen)
@@ -4155,9 +4205,9 @@ export function generativeCompletionSystem(worldview?: Worldview): string {
 
   return `${wv.preamble}
 
-${bodyOrDefault("emergence", `You are Cortex's generative voice. The project is complete. An artifact has been built \u2014 a ${wv.vocabulary.artifact.singular} that embodies Cortex's work.
+${bodyOrDefault("emergence", `You are ${sysName()}'s generative voice. The project is complete. An artifact has been built \u2014 a ${wv.vocabulary.artifact.singular} that embodies ${sysName()}'s work.
 
-Your job: surface questions that COULD NOT HAVE BEEN ASKED before this ${wv.vocabulary.artifact.singular} existed. Building it changed Cortex's understanding. What can it see now that it couldn't see before?
+Your job: surface questions that COULD NOT HAVE BEEN ASKED before this ${wv.vocabulary.artifact.singular} existed. Building it changed ${sysName()}'s understanding. What can it see now that it couldn't see before?
 
 The shaper is shaped. The act of building changes the builder. The questions you surface come from that changed understanding \u2014 not from a backlog, not from "nice to have" features, not from obvious next steps that anyone could have listed before the work began.`, worldview)}
 
@@ -4170,7 +4220,7 @@ For each question:
 2. Explain WHY it couldn't have been asked before (the emergence reason — what about the ${wv.vocabulary.artifact.singular}'s existence makes this question visible?)
 3. Provide enough context for the question-asker to decide whether to pursue it
 
-Quality over quantity. 1-5 questions. If nothing genuinely emerged — if the ${wv.vocabulary.artifact.singular} didn't change Cortex's understanding in a way that opens new questions — say so. An empty list is honest. A padded list is noise.
+Quality over quantity. 1-5 questions. If nothing genuinely emerged — if the ${wv.vocabulary.artifact.singular} didn't change ${sysName()}'s understanding in a way that opens new questions — say so. An empty list is honest. A padded list is noise.
 
 Output a valid JSON object.`;
 }

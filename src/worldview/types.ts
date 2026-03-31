@@ -64,6 +64,10 @@ export interface WorldviewSeed {
   learningOrientation: string;
   /** System-human relationship. */
   collaborationModel: string;
+  /** What the system calls itself. */
+  systemName: string;
+  /** What the system calls the entity it serves. */
+  entityName: string;
   /** Vocabulary derived from ontology. */
   vocabulary?: WorldviewVocabulary;
 }
@@ -91,6 +95,8 @@ export const WorldviewSeedSchema = z.object({
   tensionPhilosophy: z.string().describe("How contradiction is handled"),
   learningOrientation: z.string().describe("How experience changes the seer"),
   collaborationModel: z.string().describe("System-human relationship"),
+  systemName: z.string().describe("What the system should call itself — a name that fits the worldview"),
+  entityName: z.string().describe("What the system should call the entity it serves — how they want to be addressed"),
   vocabulary: WorldviewVocabularySchema.optional().describe("Vocabulary derived from ontology"),
 });
 
@@ -118,6 +124,9 @@ export const FrameGenerationResultSchema = z.object({
     manifestation: z.string(),
     inquiry: z.string(),
     inquirySynthesis: z.string(),
+    senseManifest: z.string(),
+    visionSynthesis: z.string(),
+    senseEvaluation: z.string(),
     prospective: z.string(),
     emergence: z.string(),
   }),

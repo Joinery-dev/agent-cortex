@@ -2,6 +2,8 @@
 name: narrative
 description: Tell the story — dramaturgical epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -181,6 +183,24 @@ Tier by narrative impact: essential questions would change the story being told.
 See the finished story. Not a feature list. Not a plot outline. The complete narrative — the experience from opening to close, told in enough detail that someone could tell whether a real artifact matches this story.
 
 For each dimension, describe what the story achieves. What does the user feel at each stage? What is the emotional arc? What is the genre? What surprises are earned, what tensions resolve, what is the experience of being in this story? Be specific enough that "this is the story we planned" and "this is a different story" are distinguishable.
+
+# sense-manifest
+
+Each sense describes the story it sees when the scene is fully told. The reliability sense sees a narrative where failure is not a plot hole but a dramatic beat — the system's error states are scenes in their own right, with rising action (the degradation), a turning point (the fallback engages), and resolution (the user's journey continues on an alternate path that the story prepared them for). The audience never leaves the story. A crash is a scene where the wrong genre intrudes — horror breaking into a competence narrative — and the reliability manifest is a story where genre stays consistent even under duress. The performance sense sees a story whose pacing never breaks. Loading is not dead air between scenes — it is the held breath before a reveal, the pause that makes the next beat land harder. Every transition earns its duration: instant when the dramatic beat demands immediacy, progressive when the reveal wants anticipation, skeletal when the audience needs orientation before the scene fills in. The story's rhythm is the performance manifest — a narrative whose temporal structure is intentional at every beat. The usability sense sees a story the audience can follow without a narrator. The interface is not exposition — it is environmental storytelling. The user reads the room: affordances are props that communicate their purpose through placement and weight, navigation is spatial memory rather than signposting, and every interaction teaches the vocabulary for the next interaction. The story trusts its audience.
+
+Each sense's story is concrete enough to experience. Not "the error handling should feel good" — what does the user feel at the moment the fallback engages? What is the emotional beat? What genre is the scene in?
+
+# vision-synthesis
+
+The unified story is not three narrative threads running in parallel — it is a single story whose coherence is what makes each sense's contribution feel inevitable. The reliability sense's "failure as dramatic beat" and the performance sense's "pacing as intentional rhythm" and the usability sense's "environmental storytelling" are not three techniques applied to one artifact. They are three readings of the same narrative, and the story works because it was written as one thing, not assembled from three.
+
+The synthesis is a story where genre consistency (reliability), temporal intentionality (performance), and environmental legibility (usability) are the same narrative property experienced at different scales. The system that never ejects you from the story when something breaks is the same system whose pacing never jars you and whose interface never requires a narrator — because all three failures are the same failure: the story breaking character. The unified story is one where the artifact stays in character. Every beat — success, failure, loading, transition, discovery, error — is told in the same voice, at the pacing the moment demands, with the environmental cues the audience needs to stay immersed. The audience's experience of the story is seamless not because the seams were hidden but because there were never seams — the story was one thing, told one way, all the way through.
+
+# sense-evaluation
+
+Each sense checks whether the unified story preserved its specific narrative contribution or flattened it into a general claim of "coherence." The reliability sense asks: does the unified story still describe what happens at the specific moment of failure — the genre of the error scene, the emotional beat of the fallback, the narrative continuity of the alternate path — or has "stays in character" become a quality standard that doesn't tell you what character the story has? If the vision can't narrate a specific failure moment and show that the audience remains in the story, the reliability manifest was generalized. The performance sense asks: does the unified story still describe specific pacing choices at specific transitions — the held breath, the progressive reveal, the skeleton screen — or has "temporal intentionality" become a principle that could mean anything? If you can't point to a beat in the vision and say "this moment is instant because the drama demands it, this moment is slow because the reveal requires anticipation," the pacing manifest was absorbed into aesthetics. The usability sense asks: does the unified story still describe environmental storytelling with specific props, specific spatial memory, specific vocabulary-building interactions — or has "the interface doesn't need a narrator" become a claim that could apply to any clean design?
+
+The test is experienceability. If a sense's contribution survived the synthesis, you could put an audience member into the unified story at the moment that sense cares most about — the failure, the transition, the first interaction — and they would have the specific experience that sense described. If the vision reads like good criticism rather than a vivid scene, the synthesis analyzed the story instead of telling it.
 
 # prospective
 

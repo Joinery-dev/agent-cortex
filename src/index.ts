@@ -14,6 +14,7 @@ import { setLogLevel } from "./util/logger.js";
 import type { LogLevel } from "./util/logger.js";
 import { getUsage, resetUsage } from "./llm/client.js";
 import { Brainstem } from "./brainstem/index.js";
+import type { ConversationTransport } from "./types/conversation.js";
 
 export interface CortexOptions {
   intent: ProjectIntent;
@@ -25,6 +26,8 @@ export interface CortexOptions {
   worldview?: Worldview;
   /** Callback for user interaction (inquiry questions, vision approval, escalations). */
   askUser?: (question: string) => Promise<string>;
+  /** Conversation transport(s) for bidirectional Parsifal communication. */
+  conversationTransports?: ConversationTransport[];
 }
 
 export class Cortex {
@@ -54,6 +57,13 @@ export class Cortex {
     // Wire user interaction callback for inquiry, approval, and escalations
     if (options.askUser) {
       this.brainstem.setAskUser(options.askUser);
+    }
+
+    // Wire conversation transports
+    if (options.conversationTransports) {
+      for (const transport of options.conversationTransports) {
+        this.brainstem.setConversationTransport(transport);
+      }
     }
 
     if (options.logLevel) {
@@ -177,3 +187,16 @@ export { loadWorldview } from "./util/worldview-loader.js";
 export { generateWorldview, setupWorldview } from "./worldview/generator.js";
 export { detectExistingWorldview, loadExistingWorldview } from "./worldview/store.js";
 export type { WorldviewSeed } from "./worldview/types.js";
+export type {
+  ConversationMessage,
+  ConversationTransport,
+  NarrationItem,
+  SystemStatus,
+} from "./types/conversation.js";
+export { ConversationCortex } from "./kernel/conversation-cortex.js";
+export { TerminalTransport } from "./conversation/terminal-transport.js";
+export { WebSocketTransport } from "./conversation/websocket-transport.js";
+export { persistSession, loadSession, clearSession } from "./session/state.js";
+export type { SessionState } from "./session/state.js";
+export { setupTaste } from "./taste/setup.js";
+export { persistTasteProfile, loadTasteProfile, DEFAULT_TASTE } from "./taste/store.js";

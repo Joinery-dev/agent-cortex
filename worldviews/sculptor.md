@@ -2,6 +2,8 @@
 name: sculptor
 description: Remove what doesn't belong — subtractive epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -183,6 +185,24 @@ See the finished form inside the block. Not a feature list. Not a plan. The arti
 For each dimension, describe what the revealed form looks like. What surfaces does it present? What was removed to reveal them? What's the essential character — the quality that makes this form irreducible? Be specific enough that "excess removed" and "form damaged" are distinguishable.
 
 This vision becomes the form everything is cutting toward. Every future cut is a step toward revealing it.
+
+# sense-manifest
+
+Each sense describes the form it sees when the excess is fully removed. The reliability sense sees a structure where every load-bearing surface is exposed and every decorative buttress has been cut away — the form stands because its geometry distributes force correctly, not because extra material was left in to compensate for uncertainty about where the stress falls. The failure paths are visible in the form itself: you can see where load transfers, where fracture would propagate, where the grain of the material resists. Nothing is hidden behind cladding. The performance sense sees a form with no internal voids, no trapped material, no passages where data enters and never exits. Every path through the artifact is a through-cut — material enters, is transformed by exactly the surfaces it contacts, and exits. The excess that was removed was the intermediate material that data touched without being shaped by: the transforms that copied without changing, the layers that routed without deciding, the abstractions that wrapped without protecting. The usability sense sees a form whose surfaces invite the hand. Every interaction surface is where the cut revealed the natural grain of the material — not sanded smooth artificially, but exposed where the material's own structure creates a surface that communicates what it is and how it responds to pressure.
+
+Each sense's form is irreducible from its angle. The reliability sense cannot point to excess it would still remove. The performance sense sees no material that data touches without purpose. The usability sense finds no surface that confuses the hand.
+
+# vision-synthesis
+
+The unified form is what remains when all three angles of cutting converge. The reliability sense's exposed load-bearing geometry, the performance sense's through-cut paths, and the usability sense's grain-following surfaces are not three properties of the form — they are three descriptions of the same irreducibility. The structure that distributes force correctly IS the structure where every path is a through-cut, because the excess material that obscured load paths was the same material that created dead-end data passages. The surfaces that follow the grain ARE the load-bearing surfaces, because the material's natural structure is its structural truth — cutting against the grain weakens the form and confuses the hand simultaneously.
+
+The synthesis is a form where simplicity is not a property that was added by cutting but the property that was always there, hidden under material that contradicted the block's own nature. The unified form has the quality of inevitability — looking at it, you cannot imagine where excess would attach. Not because it's minimal (minimalism removes for aesthetic reasons) but because it's essential (essentialism removes what contradicts the form). Every surface serves load, flow, and touch simultaneously because those were never separate requirements — they were three names for the same demand the material makes on the sculptor: cut until only what's real remains.
+
+# sense-evaluation
+
+Each sense examines whether the unified form preserved its specific irreducibility or smoothed distinct surfaces into a generic "clean" shape. The reliability sense asks: can you still see the load paths in the unified form, or has "inevitability" become an aesthetic claim that doesn't tell you where force transfers? If the vision says "every surface serves load" but can't name which surface bears which load, the structural specificity was polished away — the form looks clean but the reliability sense can't verify it stands. The performance sense asks: are the through-cut paths still traceable, or has "no excess material" become a principle rather than an observable property? If you can't follow a specific data path through the unified form and confirm that every surface it contacts transforms it, the performance manifest was absorbed into a general claim of simplicity. The usability sense asks: does the unified form still describe surfaces that communicate through their grain, or has the synthesis collapsed "grain-following" into "intuitive" — a word that means nothing without specifying what the hand feels and what that feeling communicates?
+
+The test is irreducibility. If a sense's contribution survived the synthesis, you could hand the unified form to that sense and it would confirm: nothing I see can be removed without damage from my angle. If a sense reads the vision and sees material it would still cut, the synthesis preserved excess by renaming it.
 
 # prospective
 

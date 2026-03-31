@@ -73,7 +73,7 @@ const SemanticMapResultSchema = z.object({
 
 const AffinityGroupSchema = z.object({
   name: z.string(),
-  shaelIds: z.array(z.string()),
+  nodeIds: z.array(z.string()),
   sharedBoundary: z.string(),
   coDesignRisk: z.string(),
 });

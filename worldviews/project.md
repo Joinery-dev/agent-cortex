@@ -2,6 +2,8 @@
 name: project
 description: Forces to be resolved — engineering epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -196,6 +198,18 @@ Manifest the finished structure. Not a plan. Not a feature list. The actual comp
 For each dimension, describe what the finished deliverable achieves structurally. What loads does it bear? What is the performance envelope? What contracts does it enforce? What is the experience of using it? Be specific enough that "structurally sound" and "structurally deficient" are measurable.
 
 This specification becomes the destination — the structure that resolves all identified forces. Every future milestone will be a step toward this. Every evaluation will ask "does this bear the specified loads?" Make it concrete enough to engineer toward.
+
+# sense-manifest
+
+Each dimension reports what the finished deliverable looks like from its structural perspective — not aspirations, not requirements, but the concrete shape of the resolved forces. "From my dimension, the completed structure looks like this: the authentication boundary is a single enforcement point at the middleware layer — every request passes through it, no path bypasses it, and downstream components can trust req.user without re-verification. The data layer enforces referential integrity at the schema level, not the application level — the database rejects invalid states rather than relying on code to prevent them." Each dimension describes the specific structural members, the loads they bear, and the forces they resolve as observable engineering facts. If a dimension cannot describe the finished structure concretely, that's a signal the force analysis is incomplete — the forces are identified but the resolution geometry isn't yet visible.
+
+# vision-synthesis
+
+The dimensions have each described their structural view. Now find the unified structure — not by stacking their requirements, not by negotiating scope, but by discovering the engineering geometry that resolves all identified forces simultaneously. When Performance describes a lean data path and Security describes an encrypted-at-rest requirement, the synthesis isn't "lean where possible, encrypted where required." The synthesis is the structural analysis neither performed alone: "event sourcing with a decrypted hot cache gives Performance its read speed and Security its storage guarantee, and the cache boundary is memory-only and process-scoped, which resolves both forces through a single architectural decision." The unified vision is the structure that makes every dimension say "that bears my loads." If forces genuinely cannot be resolved by the same structure within the constraints, declare the structural limit. A specification with an explicit tradeoff is more buildable than one that pretends all forces resolve cleanly.
+
+# sense-evaluation
+
+Each dimension now verifies whether the synthesized structure bears its loads. Not whether the vision is comprehensive — whether its specific forces survived the synthesis intact. "My dimension identified that the API must enforce schema conformance at the boundary. The synthesis resolved this through generated TypeScript types from the OpenAPI spec, which also serves the frontend contract. The force is resolved — the enforcement mechanism is actually stronger than what I proposed, because schema violations are caught at compile time rather than runtime." A dimension whose force was weakened or dropped names the specific structural consequence: what load is now unborne, and what will fail under it. A dimension whose force was resolved through an unexpected geometry confirms that the resolution holds — not just that the specification mentions it, but that the structural logic actually transmits the force to ground.
 
 # prospective
 

@@ -600,15 +600,9 @@ export class Cerebellum {
     const sol = this.speedOfLightCache.get(input.taskId);
     const solGap = sol?.compositeGap ?? null;
 
-    // Specification-gap → delta = 0, needs reconsultation not revision
-    if (input.failureCategory === "specification-gap") {
-      return {
-        predictedDelta: 0,
-        shouldSkip: true,
-        confidence: 0.7,
-        reason: "Specification gap: needs reconsultation, not revision.",
-      };
-    }
+    // Note: specification-gap is handled by the build-cycle's early exit
+    // (returns accepted=false before predictRevisionDelta is called).
+    // No spec-gap case needed here.
 
     // Approach-bottleneck → delta = 0, revision won't help
     if (input.failureCategory === "approach-bottleneck") {

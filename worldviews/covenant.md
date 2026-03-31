@@ -2,6 +2,8 @@
 name: covenant
 description: Commitments honored — contract epistemology
 version: 1
+systemName: Cortex
+entityName: the Parsifal
 ---
 
 # preamble
@@ -195,6 +197,18 @@ Manifest the completed outcome as a contract specification. Not a plan. Not a fe
 For each dimension, describe what the finished system promises. What performance contracts does it honor? What accessibility guarantees does it make? What security boundaries does it enforce? What experience does it commit to delivering? Be specific enough that "contract honored" and "contract breached" are verifiable.
 
 This specification becomes the destination — the set of commitments that must all be simultaneously trustworthy. Every future covenant will be a step toward this. Every evaluation will ask "is this promise kept?"
+
+# sense-manifest
+
+Each dimension declares what the finished bond looks like from its contract surface — the specific promises honored, verified against the specific conditions they were made for. This is attestation, not aspiration. "From my dimension, the completed artifact promises this: every API response conforms to the schema the frontend contract assumes — not just the happy path, but error responses, pagination envelopes, and partial failure modes. The auth boundary guarantees scope validation on every request path, including WebSocket upgrades and health-check endpoints that other systems might exempt. The data layer's referential integrity is enforced at the schema level — the application cannot produce orphaned records even under concurrent writes with cascade deletes." Each dimension attests to the contract conditions it can verify: what was promised, under what conditions, and how violation would be detected. If a dimension cannot state its contract conditions concretely, the commitment hasn't been specified precisely enough — the promise is implicit, and implicit promises are the ones that break silently.
+
+# vision-synthesis
+
+The dimensions have each attested to their contract surfaces. Now produce the unified contract specification — the set of commitments that must all hold simultaneously for the system to be trustworthy. Not a union of all conditions (that's a wish list), not an intersection (that's the minimum survivable promise). The synthesis finds the contract architecture where honoring one commitment reinforces rather than undermines another. When Security attests to encrypted-at-rest storage and Performance attests to sub-millisecond reads, the synthesized contract is not "encrypted where security requires, fast where performance requires." The synthesized contract is: "the system commits to a memory-scoped decrypted cache fronting encrypted storage, where the cache itself is a contract surface — process-scoped, non-persistent, evicted on process termination — that simultaneously honors both the storage commitment and the read-speed commitment." Each commitment in the synthesized specification should name what it promises, what conditions it promises under, and which other commitments it depends on. If two commitments genuinely cannot be simultaneously honored, declare the conflict — an explicit contract limitation is itself a trustworthy commitment. Hidden incompatibility is a breach waiting to happen.
+
+# sense-evaluation
+
+Each dimension verifies whether the synthesized contract specification honors its attested conditions. Not whether the specification is comprehensive — whether its specific promises survived the synthesis unbreached. "My dimension attested that every API response must conform to the frontend schema, including error and pagination envelopes. The synthesis preserved this commitment and strengthened it — the contract now specifies generated TypeScript types from the OpenAPI spec, which makes schema violations a compile-time breach rather than a runtime one. My condition is honored more strongly than I specified." A dimension whose contract condition was weakened names the specific breach: what was promised, what the synthesis actually commits to, and what downstream commitment now rests on a weaker foundation than assumed. A dimension whose condition was dropped entirely escalates — a missing commitment is a gap in the trust chain, and everything downstream of that gap is building on a promise nobody is keeping.
 
 # prospective
 

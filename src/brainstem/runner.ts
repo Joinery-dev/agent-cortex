@@ -92,6 +92,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
     definition: RhythmDefinition<TCtx, TRes, any, any, any>,
     context: TCtx,
     parentId?: string,
+    initialAccumulator?: Record<string, unknown>,
   ): Promise<TRes> {
     const rhythmId = newId();
     const abortController = new AbortController();
@@ -102,7 +103,7 @@ export class RhythmRunnerImpl implements RhythmRunner {
       phase: "prepare",
       completedCycles: 0,
       initialContext: context,
-      accumulator: {},
+      accumulator: initialAccumulator ?? {},
       parentId,
       activeChildren: [],
       pendingInterrupts: [],
