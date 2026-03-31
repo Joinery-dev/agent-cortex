@@ -23,11 +23,11 @@ graph LR
 
         subgraph STORED["Stored"]
             direction LR
-            tasks["Task Graph<br/><i>TaskSnapshot[]</i>"]
+            tasks["Task Graph<br/><i>WMTask[]</i>"]
             scores["Score History<br/><i>ScoreSnapshot[]</i>"]
             patterns["Patterns<br/><i>EstablishedPattern[]</i>"]
             decisions["Decisions<br/><i>DecisionRecord[]</i>"]
-            inhibited["Inhibited Senses<br/><i>string[]</i>"]
+            inhibited["Inhibited Senses<br/><i>InhibitedSense[]</i>"]
             questions["Open Questions<br/><i>OpenQuestion[]</i>"]
             current["Current Task<br/><i>string | null</i>"]
         end

@@ -198,6 +198,178 @@ function getNestedField(obj: Record<string, unknown>, path: string): unknown {
   return current;
 }
 
+// ─── Context builders (Thalamus-routed) ────────────────────────
+
+type ContextBuilder = (event: CortexEvent, sources: HookContextSources) => string;
+
+function str(data: Record<string, unknown>, key: string): string {
+  const v = data[key];
+  return v != null ? String(v) : "";
+}
+
+function num(data: Record<string, unknown>, key: string): number {
+  const v = data[key];
+  return typeof v === "number" ? v : 0;
+}
+
+/** Get the Thalamus snapshot as a foundation for any hook context. */
+function thalamusSnapshot(sources: HookContextSources): string {
+  if (!sources.thalamus) return "";
+  return sources.thalamus.forClaus();
+}
+
+const CONTEXT_BUILDERS: Record<string, ContextBuilder> = {
+  "gate-decision": (event, sources) => {
+    const d = event.data;
+    const action = str(d, "action");
+    const cycle = num(d, "cycle");
+    const reason = str(d, "reason");
+    const rhythmType = str(d, "rhythmType");
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push(`Gate decision: **${action}** on ${rhythmType} (cycle ${cycle + 1}).`);
+    if (reason) parts.push(`Reason: ${reason}`);
+
+    if (action === "continue") {
+      parts.push("\nThe system is iterating. Is this worth mentioning, or routine?");
+    } else if (action === "complete") {
+      parts.push("\nThe rhythm completed. Summarize what was achieved.");
+    } else if (action === "escalate") {
+      parts.push("\nThe system is escalating. This needs the Parsifal's attention.");
+    }
+
+    return parts.join("\n");
+  },
+
+  "task-complete": (event, sources) => {
+    const d = event.data;
+    const confidence = d.confidence as number | undefined;
+    const totalCycles = d.totalCycles as number | undefined;
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push("A task completed.");
+    if (confidence != null) parts.push(`Final confidence: ${(confidence * 100).toFixed(0)}%`);
+    if (totalCycles != null) parts.push(`Took ${totalCycles} build cycle(s).`);
+
+    parts.push("\nUpdate the Parsifal on progress. Mention anything notable about the quality or trajectory.");
+    return parts.join("\n");
+  },
+
+  "conviction-change": (event, sources) => {
+    const d = event.data;
+    const level = d.level as number ?? d.conviction as number;
+    const delta = d.delta as number | undefined;
+    const decidingStep = str(d, "decidingStep");
+    const verdict = str(d, "verdict");
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push(`Conviction assessed: ${verdict} at ${(level * 100).toFixed(0)}%.`);
+    if (delta != null) {
+      const dir = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+      parts.push(`Change: ${dir} ${Math.abs(delta * 100).toFixed(0)} points. Deciding factor: ${decidingStep}.`);
+    }
+
+    if (delta != null && Math.abs(delta) > 0.15) {
+      parts.push("\nThis is a significant shift. The Parsifal should know.");
+    } else {
+      parts.push("\nRoutine assessment. Only mention if the trajectory tells a story.");
+    }
+    return parts.join("\n");
+  },
+
+  "tension-detected": (event, sources) => {
+    const d = event.data;
+    const count = num(d, "tensionCount");
+    const highCount = d.highSeverityCount as number | undefined;
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push(`${count} tension(s) detected between senses.`);
+    if (highCount && highCount > 0) {
+      parts.push(`${highCount} are high-severity — significant disagreement.`);
+    }
+
+    parts.push("\nDecide if these tensions are worth surfacing. High-severity tensions usually mean competing values the Parsifal should weigh in on.");
+    return parts.join("\n");
+  },
+
+  "escalation": (event, sources) => {
+    const d = event.data;
+    const summary = str(d, "summary");
+    const severity = str(d, "severity");
+    const source = str(d, "source");
+    const question = str(d, "question");
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push(`Escalation from ${source} (${severity}): ${summary}`);
+    if (question) parts.push(`Question: ${question}`);
+
+    parts.push("\nFormulate this as a natural question for the Parsifal. Give them the context they need to decide.");
+    return parts.join("\n");
+  },
+
+  "amygdala-threat": (event, sources) => {
+    const d = event.data;
+    const severity = d.effectiveSeverity as number;
+    const count = num(d, "threatCount");
+    const blocked = d.blockedCount as number | undefined;
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## URGENT`);
+    parts.push(`AMYGDALA: ${count} threat(s) detected. Severity: ${severity?.toFixed(2) ?? "?"}.`);
+    if (blocked) parts.push(`${blocked} intention(s) blocked.`);
+
+    parts.push("\nThis is urgent. Communicate the threat clearly to the Parsifal. What is at risk and what was the system's automatic response?");
+    return parts.join("\n");
+  },
+
+  "amygdala-alarm": (event, sources) => {
+    const d = event.data;
+    const source = str(d, "source");
+    const description = str(d, "description");
+    const severity = str(d, "severity");
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## URGENT`);
+    parts.push(`ALARM from ${source} (${severity}): ${description}`);
+    parts.push("\nCommunicate this to the Parsifal immediately with context about what it means and what action may be needed.");
+    return parts.join("\n");
+  },
+
+  "project-start": (event, sources) => {
+    const d = event.data;
+    const description = str(d, "description");
+    const shaelCount = d.shaelCount as number | undefined;
+
+    const parts = [thalamusSnapshot(sources)];
+    parts.push(`\n## What just happened`);
+    parts.push(`Project starting: "${description || "new project"}"`);
+    if (shaelCount) parts.push(`${shaelCount} tasks planned.`);
+
+    parts.push("\nOrient the Parsifal. What are you about to do, and what's the approach?");
+    return parts.join("\n");
+  },
+
+  "project-complete": (event, sources) => {
+    const parts = [thalamusSnapshot(sources)];
+    const d = event.data;
+    const totalTasks = d.totalTasks as number | undefined;
+    const totalCycles = d.totalCycles as number | undefined;
+
+    parts.push(`\n## What just happened`);
+    parts.push("Project complete.");
+    if (totalTasks) parts.push(`${totalTasks} tasks executed.`);
+    if (totalCycles) parts.push(`${totalCycles} total build cycles.`);
+
+    parts.push("\nReflect on the project. What was built, what was learned, what would you do differently?");
+    return parts.join("\n");
+  },
+};
+
 // ─── Hook Registry ─────────────────────────────────────────────
 
 export class ClausHookRegistry {
@@ -205,12 +377,18 @@ export class ClausHookRegistry {
   private intervals = new Map<string, ReturnType<typeof setInterval>>();
   private onFire: ((fired: HookFired) => void) | null = null;
   private subscribed = false;
+  private sources: HookContextSources = {};
 
   constructor() {
     // Register system hooks
     for (const h of SYSTEM_HOOKS) {
       this.hooks.set(h.name, { ...h, createdAt: new Date() });
     }
+  }
+
+  /** Wire Thalamus/WM for rich context assembly. */
+  setSources(sources: HookContextSources): void {
+    this.sources = sources;
   }
 
   /** Set the callback for when a hook fires. */
@@ -330,11 +508,38 @@ export class ClausHookRegistry {
   private fire(hook: ClausHook, event?: CortexEvent): void {
     if (!this.onFire) return;
 
+    const assembledContext = this.buildContext(hook, event);
+
     this.onFire({
       hook,
       event,
+      assembledContext,
       timestamp: new Date(),
     });
+  }
+
+  /**
+   * Assemble rich context for a hook invocation.
+   * System hooks get Thalamus-routed context. Custom hooks get raw event data.
+   */
+  private buildContext(hook: ClausHook, event?: CortexEvent): string {
+    const builder = CONTEXT_BUILDERS[hook.name];
+    if (builder && event) {
+      return builder(event, this.sources);
+    }
+
+    // Fallback: hook's static context + raw event summary
+    const parts = [hook.context];
+    if (event) {
+      parts.push(`\nEvent: ${event.type}`);
+      const dataStr = JSON.stringify(event.data, null, 2);
+      if (dataStr.length > 500) {
+        parts.push(dataStr.slice(0, 500) + "...");
+      } else {
+        parts.push(dataStr);
+      }
+    }
+    return parts.join("\n");
   }
 
   // ─── Interval hooks ─────────────────────────────────────────

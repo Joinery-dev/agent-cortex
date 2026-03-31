@@ -110,6 +110,12 @@ export class ConversationCortex {
       });
     }
 
+    // Wire Thalamus/WM as context sources for hooks
+    this.claus.getHooks().setSources({
+      thalamus: deps.thalamus,
+      wm: deps.wm,
+    });
+
     // Subscribe to hook-originated messages from Claus
     this.claus.onMessage((text, _hookModel) => {
       const msg = this.cortexMessage("proactive", text);

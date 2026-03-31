@@ -41,10 +41,12 @@ flowchart TB
 
     subgraph ACTIONS["Scheduler Returns One Action"]
         dispatch["dispatch-task<br/>which task, NE level,<br/>explore or leverage"]
-        escalate["escalate<br/>pause, ask the human"]
+        escalate["escalate<br/>pause, ask the Parsifal"]
         rest["rest<br/>consolidation cycle"]
         replan["replan<br/>re-decompose project"]
         done["complete<br/>all done"]
+        gestate["dispatch-gestate<br/>nursery stress-test<br/>a phase group"]
+        observe["observe<br/>run observation triage<br/>at ambient NE"]
     end
 
     decide ==> ACTIONS

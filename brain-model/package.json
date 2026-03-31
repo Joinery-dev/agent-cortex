@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "verify-setup": "npm install && ./node_modules/.bin/tsc --version",
     "lint": "eslint .",
     "preview": "vite preview",
     "prepare": "husky"

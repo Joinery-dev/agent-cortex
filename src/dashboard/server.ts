@@ -6,7 +6,7 @@ import { bus } from "../events.js";
 import type { CortexEvent } from "../events.js";
 import { createLogger } from "../util/logger.js";
 import { handleStateRequest } from "./state-routes.js";
-import { registerCortex } from "./state-registry.js";
+import { registerCortex, registerWsTransport } from "./state-registry.js";
 import { WebSocketTransport } from "../conversation/websocket-transport.js";
 import type { Cortex } from "../index.js";
 
@@ -70,6 +70,54 @@ export function startDashboard(port = 3000, cortex?: Cortex, opts?: { returnHand
         return;
       }
 
+      // ── /diagrams — list all .mmd files with metadata ──────────
+      if (req.url === "/diagrams") {
+        const diagramsDir = path.join(__dirname, "..", "..", "diagrams");
+        const altDir = path.join(__dirname, "..", "diagrams");
+        const dir = fs.existsSync(diagramsDir) ? diagramsDir : fs.existsSync(altDir) ? altDir : null;
+        if (!dir) {
+          res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+          res.end("[]");
+          return;
+        }
+        const files = fs.readdirSync(dir).filter((f: string) => f.endsWith(".mmd"));
+        const diagrams = files.map((file: string) => {
+          const content = fs.readFileSync(path.join(dir, file), "utf-8");
+          const titleMatch = content.match(/title:\s*["']?([^"'\n]+)/);
+          const scopeMatch = content.match(/scope:\s*(\w+)/);
+          const phaseMatch = content.match(/phase:\s*(\d+)/);
+          const featureMatch = content.match(/feature:\s*(\d+)/);
+          return {
+            file,
+            title: titleMatch?.[1]?.trim() ?? file.replace(".mmd", ""),
+            scope: scopeMatch?.[1] ?? "global",
+            phase: phaseMatch ? parseInt(phaseMatch[1]) : null,
+            feature: featureMatch ? parseInt(featureMatch[1]) : null,
+          };
+        });
+        res.writeHead(200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+        res.end(JSON.stringify(diagrams));
+        return;
+      }
+
+      // ── /diagrams/<file>.mmd — serve raw diagram content ────────
+      if (req.url?.startsWith("/diagrams/") && req.url.endsWith(".mmd")) {
+        const file = req.url.slice("/diagrams/".length);
+        const diagramsDir = path.join(__dirname, "..", "..", "diagrams");
+        const altDir = path.join(__dirname, "..", "diagrams");
+        const dir = fs.existsSync(diagramsDir) ? diagramsDir : fs.existsSync(altDir) ? altDir : null;
+        const filePath = dir ? path.join(dir, file) : null;
+        if (!filePath || !fs.existsSync(filePath)) {
+          res.writeHead(404);
+          res.end("Diagram not found");
+          return;
+        }
+        const content = fs.readFileSync(filePath, "utf-8");
+        res.writeHead(200, { "Content-Type": "text/plain", "Access-Control-Allow-Origin": "*" });
+        res.end(content);
+        return;
+      }
+
       // Determine which file to serve
       let filename = "conversation.html";
       const contentType = "text/html";
@@ -104,6 +152,7 @@ export function startDashboard(port = 3000, cortex?: Cortex, opts?: { returnHand
 
     // Wire WebSocket transport for conversation
     const wsTransport = new WebSocketTransport(server);
+    registerWsTransport(wsTransport);
 
     server.listen(port, () => {
       const url = `http://localhost:${port}`;

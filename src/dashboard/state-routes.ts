@@ -8,8 +8,12 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { getCortex } from "./state-registry.js";
+import { getCortex, clearCortex, getWsTransport, startBoot, finishBoot, isBooting } from "./state-registry.js";
 import { getLastNE } from "../kernel/norepinephrine.js";
+import { bootFromWeb } from "./web-boot.js";
+import { clearWorldviewSelection } from "../worldview/store.js";
+import { clearTasteProfile } from "../taste/store.js";
+import { clearSession } from "../session/state.js";
 
 // ─── JSON helpers ───────────────────────────────────────────────
 
@@ -25,6 +29,20 @@ function unavailable(res: ServerResponse): void {
   json(res, { error: "Cortex not registered" }, 503);
 }
 
+/** Read JSON body from a POST request, then call handler. Returns true for route matching. */
+function readBody(req: IncomingMessage, handler: (body: unknown) => void, res: ServerResponse): true {
+  let data = "";
+  req.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+  req.on("end", () => {
+    try {
+      handler(JSON.parse(data));
+    } catch {
+      json(res, { error: "Invalid JSON body" }, 400);
+    }
+  });
+  return true;
+}
+
 // ─── Route handler ──────────────────────────────────────────────
 
 export function handleStateRequest(req: IncomingMessage, res: ServerResponse): boolean {
@@ -35,7 +53,7 @@ export function handleStateRequest(req: IncomingMessage, res: ServerResponse): b
   if (method === "OPTIONS" && url.startsWith("/api")) {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     });
     res.end();
@@ -43,6 +61,116 @@ export function handleStateRequest(req: IncomingMessage, res: ServerResponse): b
   }
 
   if (!url.startsWith("/api/")) return false;
+
+  // ── Run endpoints — boot Cortex with full sequence ───────────
+  if ((url === "/api/run" || url === "/api/run-project") && method === "POST") {
+    return readBody(req, async (body) => {
+      const { description } = body as { description?: string };
+      const desc = (typeof description === "string" && description.trim()) ? description.trim() : "New project";
+      if (url === "/api/run" && desc === "New project") {
+        json(res, { error: "Missing 'description' string in body" }, 400);
+        return;
+      }
+
+      // Reject if already booting or running
+      if (isBooting()) {
+        json(res, { error: "Boot already in progress" }, 409);
+        return;
+      }
+      const cortex = getCortex();
+      if (cortex) {
+        const runner = cortex.getBrainstem().getRunner();
+        if (runner.getActiveRhythms().length > 0) {
+          json(res, { error: "Cortex is already running" }, 409);
+          return;
+        }
+      }
+
+      const ws = getWsTransport();
+      if (!ws) {
+        json(res, { error: "No WebSocket transport available" }, 503);
+        return;
+      }
+
+      if (!startBoot()) {
+        json(res, { error: "Boot already in progress" }, 409);
+        return;
+      }
+
+      // Fire-and-forget — the boot sequence runs worldview selection,
+      // taste setup, Claus boot, then asks for the project prompt
+      // and runs the project. All interaction via WebSocket.
+      bootFromWeb(ws)
+        .catch((err) => {
+          console.error("Boot failed:", err);
+          try {
+            ws.sendMessage({
+              id: "error-" + Date.now(),
+              role: "cortex" as const,
+              kind: "message" as const,
+              text: `Boot failed: ${String(err)}`,
+              timestamp: new Date(),
+            });
+          } catch { /* best effort */ }
+        })
+        .finally(() => finishBoot());
+
+      json(res, { status: "booting" });
+    }, res);
+  }
+
+  // ── POST /api/stop — hard-interrupt all rhythms, clear Cortex ──
+  if (url === "/api/stop" && method === "POST") {
+    const cortex = getCortex();
+    if (!cortex) {
+      json(res, { error: "Nothing running" }, 404);
+      return true;
+    }
+    const runner = cortex.getBrainstem().getRunner();
+    const active = runner.getActiveRhythms();
+    for (const rhythmId of active) {
+      runner.interrupt(rhythmId, {
+        mode: "hard",
+        source: "webapp",
+        reason: "Stopped by user",
+        context: {},
+      });
+    }
+    clearCortex();
+    json(res, { status: "stopped", interrupted: active.length });
+    return true;
+  }
+
+  // ── POST /api/clean-slate — wipe persisted state, reset to start ──
+  if (url === "/api/clean-slate" && method === "POST") {
+    // Stop any running Cortex first
+    const running = getCortex();
+    if (running) {
+      const runner = running.getBrainstem().getRunner();
+      for (const rhythmId of runner.getActiveRhythms()) {
+        runner.interrupt(rhythmId, {
+          mode: "hard",
+          source: "webapp",
+          reason: "Clean slate",
+          context: {},
+        });
+      }
+      clearCortex();
+    }
+
+    // Wipe persisted worldview, taste, and session
+    clearWorldviewSelection();
+    clearTasteProfile();
+    clearSession();
+
+    // Clear boot lock and WebSocket replay buffer
+    finishBoot();
+    const ws = getWsTransport();
+    if (ws) ws.clearReplayBuffer();
+
+    json(res, { status: "clean" });
+    return true;
+  }
 
   const cortex = getCortex();
   if (!cortex) {

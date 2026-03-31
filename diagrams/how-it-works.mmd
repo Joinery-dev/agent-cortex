@@ -33,15 +33,25 @@ graph TB
         Cere["CEREBELLUM<br/><i>prediction engine:<br/>forecast eval scores<br/>before building</i>"]
     end
 
-    subgraph SC["👁️ SENSORY CORTEX — per-task evaluation loop"]
+    subgraph SC["👁️ SENSORY CORTEX — two nested loops"]
         direction TB
         Consult["CONSULTATION<br/><i>activated senses weigh in<br/>from their perspective</i>"]
-        Build["BUILD<br/><i>produce the artifact</i>"]
-        Evaluate["EVALUATE<br/><i>score on activated receptors<br/>from competing perspectives</i>"]
-        Resolve["RESOLVE<br/><i>detect + synthesize tensions<br/>between senses</i>"]
+        Explore_SC["EXPLORE<br/><i>generate divergent approaches<br/>select by surprise × quality<br/>(skipped for routine tasks)</i>"]
 
-        Consult --> Build --> Evaluate --> Resolve
-        Resolve -.->|"revision needed"| Build
+        subgraph INNER["BUILD CYCLE — inner loop"]
+            direction TB
+            Build["BUILD<br/><i>motor plans + produces</i>"]
+            Evaluate["EVALUATE<br/><i>score on activated receptors<br/>from competing perspectives</i>"]
+            Resolve["RESOLVE<br/><i>detect + synthesize tensions<br/>conviction + gate strategy</i>"]
+            Build --> Evaluate --> Resolve
+            Resolve -.->|"revision needed"| Build
+        end
+
+        OuterGate{"Improvement<br/>potential?"}
+
+        Consult --> Explore_SC --> INNER
+        INNER --> OuterGate
+        OuterGate -.->|"senses re-consult<br/>after seeing work"| Consult
     end
 
     %% Human → PFC

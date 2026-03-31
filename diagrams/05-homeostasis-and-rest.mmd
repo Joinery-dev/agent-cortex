@@ -29,13 +29,14 @@ flowchart TD
         R5["SETTLE WEIGHTS<br/>Let volatile weights<br/>converge"]
         R6["DECAY ROUTINES<br/>Forget unused BG<br/>sense activation patterns"]
         R7["DEFERRED CHECKS<br/>Phase gate integration,<br/>deep drift analysis"]
+        R8["EVOLVE PREEMPTION<br/>Reflective evolution of<br/>failure preemption guidance"]
     end
 
     VITALS -->|"out of range"| REFLEX["Automatic reflex response<br/>(brainstem level, no PFC needed)"]
     LOAD -->|"load high enough"| REST
     REST --> RESUME["Resume task dispatch<br/>with refreshed state"]
 
-    R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7
+    R1 --> R2 --> R3 --> R4 --> R5 --> R6 --> R7 --> R8
 
     style VITALS fill:#1a1d27,stroke:#f87171,color:#e2e4ea
     style LOAD fill:#1a1d27,stroke:#facc15,color:#e2e4ea

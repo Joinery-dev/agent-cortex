@@ -19,7 +19,7 @@ flowchart TD
     I2 --> NE
     I3 --> NE
     I4 --> NE
-    I5 -.->|"not yet wired"| NE
+    I5 --> NE
     I6 --> NE
     I7 --> NE
 
@@ -31,7 +31,7 @@ flowchart TD
         E5["PROPRIOCEPTION<br/>NE ≥ 0.3 → enabled<br/>NE < 0.3 → skipped"]
         E6["PNS CHECKPOINT<br/>High NE → more checkpoints<br/>between operations"]
         E7["BG SUPPRESSION SCALING<br/>High NE → more senses kept<br/>Low NE → routine dominates"]
-        E8["PLANNER GRANULARITY<br/>High NE → more phases, smaller tasks<br/>Low NE → coarser plans"]
+        E8["PLANNER WIRING DEPTH<br/>High NE → eager dependency wiring<br/>Low NE → deferred just-in-time wiring"]
         E9["ESCALATION THRESHOLDS<br/>High NE → escalate sooner<br/>Low NE → push through"]
         E10["REST SENSITIVITY<br/>Cumulative NE > threshold<br/>→ bias toward rest"]
     end

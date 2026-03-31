@@ -170,6 +170,40 @@ async function uploadWorldview(askUser: AskUserFn): Promise<Worldview> {
   }
 }
 
+// ─── Naming ─────────────────────────────────────────────────────
+
+/**
+ * Ask the entity to name the system, themselves, and the voice.
+ * Called after preset selection or file upload — the create path
+ * handles naming inside the conversation.
+ *
+ * Returns a shallow copy of the worldview with names overridden.
+ */
+async function askNames(askUser: AskUserFn, worldview: Worldview): Promise<Worldview> {
+  const response = await askUser(
+    `A few quick questions before we begin:\n\n` +
+    `  1. What should I call myself? (default: ${worldview.systemName})\n` +
+    `  2. What should I call you? (default: ${worldview.entityName})\n` +
+    `  3. What should your voice — the awareness you talk to — be named? (default: ${worldview.voiceName})\n\n` +
+    `(Type your answers separated by commas, or press enter to keep the defaults)`
+  );
+
+  const trimmed = response.trim();
+  if (!trimmed) return worldview;
+
+  const parts = trimmed.split(",").map((s) => s.trim());
+  const systemName = parts[0] || worldview.systemName;
+  const entityName = parts[1] || worldview.entityName;
+  const voiceName = parts[2] || worldview.voiceName;
+
+  // If nothing changed, return as-is
+  if (systemName === worldview.systemName && entityName === worldview.entityName && voiceName === worldview.voiceName) {
+    return worldview;
+  }
+
+  return { ...worldview, systemName, entityName, voiceName };
+}
+
 // ─── Create via conversation ────────────────────────────────────
 
 /**
@@ -273,14 +307,17 @@ export async function setupWorldview(
 
   const choice = response.trim();
 
+  let worldview: Worldview;
+
   if (choice === "1" || choice.toLowerCase().includes("select") || choice.toLowerCase().includes("preset")) {
-    return selectPreset(askUser);
+    worldview = await selectPreset(askUser);
+  } else if (choice === "2" || choice.toLowerCase().includes("upload") || choice.toLowerCase().includes("file")) {
+    worldview = await uploadWorldview(askUser);
+  } else {
+    // Create path — naming happens inside the conversation, so return directly
+    return generateWorldview(askUser, options);
   }
 
-  if (choice === "2" || choice.toLowerCase().includes("upload") || choice.toLowerCase().includes("file")) {
-    return uploadWorldview(askUser);
-  }
-
-  // Default to create (choice 3 or anything else)
-  return generateWorldview(askUser, options);
+  // For select/upload paths, ask for names
+  return askNames(askUser, worldview);
 }

@@ -294,10 +294,6 @@ export class Claus {
     // Skip parsifal-message hook — handled by receive() path instead
     if (fired.hook.name === "parsifal-message") return;
 
-    const eventSummary = fired.event
-      ? `Event: ${fired.event.type} | ${JSON.stringify(fired.event.data).slice(0, 300)}`
-      : "Scheduled wake-up";
-
     log.info("Claus woken by hook", {
       hook: fired.hook.name,
       model: fired.hook.model,
@@ -307,7 +303,7 @@ export class Claus {
     try {
       const result = await this.agenticLoop(
         `hook:${fired.hook.name}`,
-        `${fired.hook.context}\n\n${eventSummary}\n\nDecide whether to act, speak, or stay quiet. If nothing requires attention, respond with message: null.`,
+        `${fired.assembledContext}\n\nDecide whether to act, speak, or stay quiet. If nothing requires attention, respond with message: null.`,
         fired.hook.model,
       );
 

@@ -5,38 +5,42 @@ scope: global
 flowchart TD
     task["🎯 Task Arrives\n'Build the homepage hero section'"]
 
-    activate["⚡ Activation Cascade\nWhich senses care about this task?"]
+    activate["⚙️ Basal Ganglia\nWhich senses care about this task?\nActivate relevant, suppress irrelevant"]
 
-    distill["🧠 Distiller\nDissolve intent + taste into\njudgment for this specific task"]
+    distill["🧠 Thalamus\nAssemble context briefing\nfor this specific task"]
 
-    build["🔨 Motor Cortex\nProduces work guided by\ncontextual briefing"]
+    consult["👁️ Senses Consult\nEach activated sense weighs in\nfrom its perspective"]
 
-    evaluate["👁️ Senses Evaluate\nEach activated sense scores\nthe work through its lens"]
+    explore["🔍 Explore\nGenerate divergent approaches\nselect best (or skip if routine)"]
 
-    check{All scores\nacceptable?}
+    subgraph INNER["Build Cycle (inner loop)"]
+        build["🔨 Motor Cortex\nPlans approach, produces work,\nself-corrects mid-build"]
 
-    resolve["⚖️ Resolve Tensions\nFind creative synthesis that\nsatisfies competing perspectives"]
+        evaluate["📊 Evaluate\nEach receptor scores\nfrom competing perspectives"]
+
+        gate{Gate accepts?}
+
+        build --> evaluate --> gate
+        gate -- "No → revise" --> build
+    end
+
+    improvement{"Improvement\npotential?"}
 
     done["✅ Complete\nWork + evaluations + decision log"]
 
-    human["🙋 Needs Human\nMax cycles reached,\nsurface lowest-confidence decisions"]
-
-    task --> activate
-    activate --> distill
-    distill --> build
-    build --> evaluate
-    evaluate --> check
-    check -- "Yes" --> done
-    check -- "No, tensions found" --> resolve
-    resolve -- "Revision briefing" --> build
-    resolve -- "Max cycles reached" --> human
+    task --> activate --> distill --> consult --> explore --> INNER
+    INNER --> improvement
+    improvement -- "Senses re-consult\nafter seeing work" --> consult
+    improvement -- "Done" --> done
 
     style task fill:#f9f0e6,stroke:#c4956a
     style activate fill:#e8f4e8,stroke:#6b9e6b
     style distill fill:#e6eef9,stroke:#6a8fc4
+    style consult fill:#f0e6f9,stroke:#956ac4
+    style explore fill:#e8f4e8,stroke:#6b9e6b
     style build fill:#f9e6e6,stroke:#c46a6a
     style evaluate fill:#f0e6f9,stroke:#956ac4
-    style resolve fill:#f9f6e6,stroke:#c4b06a
     style done fill:#e8f4e8,stroke:#6b9e6b
-    style human fill:#f9e6e6,stroke:#c46a6a
-    style check fill:#fff,stroke:#999
+    style gate fill:#fff,stroke:#999
+    style improvement fill:#fff,stroke:#999
+    style INNER fill:#1a1d1a,stroke:#fb923c,color:#e2e4ea

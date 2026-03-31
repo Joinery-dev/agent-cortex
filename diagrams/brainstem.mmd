@@ -41,16 +41,16 @@ flowchart TB
         L2G -. "continue" .-> L2P
       end
 
-      subgraph L3["Sensory-Cortex"]
+      subgraph L3["Sensory-Cortex (outer loop)"]
         direction LR
-        L3P["consult\nsenses"] --> L3E["build-cycle ↓"] --> L3I["evaluate\ntensions"] --> L3G["accept?\nrevise?"]
-        L3G -. "continue" .-> L3P
+        L3P["consult + explore\n(or re-consult)"] --> L3E["build-cycle ↓"] --> L3I["weigh evals\nimprovement\npotential"] --> L3G["potential?\nre-consult?"]
+        L3G -. "senses re-consult" .-> L3P
       end
 
-      subgraph L4["Build-Cycle"]
+      subgraph L4["Build-Cycle (inner loop)"]
         direction LR
-        L4P["premotor\nplan"] --> L4E["primary motor\nproduces"] --> L4I["proprioception\ncheck"] --> L4G["correct?"]
-        L4G -. "continue" .-> L4P
+        L4P["premotor\nplan"] --> L4E["primary motor\nproduces"] --> L4I["evaluate\ntensions\nconviction"] --> L4G["gate\naccept?"]
+        L4G -. "revise" .-> L4P
       end
 
       L1E -.-> L2
@@ -71,8 +71,10 @@ flowchart TB
       WM["Working Memory\nLoad 0–1"]
       PA["Prediction\nAccuracy 0–1"]
       CC["Context\nCapacity 0–1"]
+      BU["Budget\nUtilization 0–1"]
       LS["Learning Signal\nHealth 0–1"]
       WV["Weight\nVolatility 0–1"]
+      TD["Tonic\nDopamine 0–1"]
     end
 
     subgraph reflexes["Automatic Responses"]
@@ -80,15 +82,19 @@ flowchart TB
       R1["WM high →\ntrigger rest"]
       R2["Prediction low →\ntrigger rest"]
       R3["Context critical →\nevict context\n(breathing reflex)"]
-      R4["Learning low →\nflag for PFC\n(can't fix by reflex)"]
-      R5["Weights volatile →\ntrigger rest"]
+      R4["Budget high →\ntighten briefings,\nmodel downgrade"]
+      R5["Learning low →\nflag for PFC\n(can't fix by reflex)"]
+      R6["Weights volatile →\ntrigger rest"]
+      R7["Tonic low →\nflag for PFC\n(can't fix by reflex)"]
     end
 
     WM --> R1
     PA --> R2
     CC --> R3
-    LS --> R4
-    WV --> R5
+    BU --> R4
+    LS --> R5
+    WV --> R6
+    TD --> R7
   end
 
   %% ═══════════════════════════════════════════════════════════
@@ -124,7 +130,9 @@ flowchart TB
       C3["Decay Connections\nweaken unused"]
       C4["Recalibrate\nprediction models"]
       C5["Settle Weights\nlet oscillations damp"]
-      C6["Deferred Checks\nphase gates, deep drift"]
+      C6["Decay Routines\nforget unused BG patterns"]
+      C7["Deferred Checks\nphase gates, deep drift"]
+      C8["Evolve Preemption\nreflective guidance evolution"]
     end
 
     triggers --> restRhythm
@@ -149,8 +157,9 @@ flowchart TB
 
   R1 --> rest
   R2 --> rest
-  R5 --> rest
+  R6 --> rest
   R3 --> breathing
+  R4 --> breathing
   homeostasis -. "monitors all rhythms" .-> rhythm
 
   %% ═══════════════════════════════════════════════════════════
