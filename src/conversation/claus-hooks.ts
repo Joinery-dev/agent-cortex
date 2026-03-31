@@ -51,9 +51,17 @@ export interface ClausHook {
   createdAt: Date;
 }
 
+/** Sources the hook registry can use to build rich context. */
+export interface HookContextSources {
+  thalamus?: Thalamus;
+  wm?: WorkingMemory;
+}
+
 export interface HookFired {
   hook: ClausHook;
   event?: CortexEvent;
+  /** Rich context assembled from Thalamus/WM. Falls back to raw event data. */
+  assembledContext: string;
   timestamp: Date;
 }
 
