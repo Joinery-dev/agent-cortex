@@ -21,6 +21,8 @@ export interface OrchestratorResult {
   approach?: string;
   /** How the last gate rejection was classified. Present on tasks that had at least one rejection. */
   failureClassification?: import("./motor-cortex.js").FailureClassification;
+  /** Final convergence between builder and evaluator models (0–1). From dialectic convergence. */
+  convergence?: number;
 }
 
 export interface CortexConfig {
