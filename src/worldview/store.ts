@@ -6,7 +6,7 @@
  * loadWorldview() already parses.
  */
 
-import { existsSync, mkdirSync, readdirSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
@@ -16,12 +16,48 @@ import type { WorldviewSeed, FrameGenerationResult } from "./types.js";
 
 // ─── Paths ──────────────────────────────────────────────────────
 
-const WORLDVIEW_DIR = join(homedir(), ".agent-cortex", "worldviews");
+const CORTEX_DIR = join(homedir(), ".agent-cortex");
+const WORLDVIEW_DIR = join(CORTEX_DIR, "worldviews");
+const SELECTION_FILE = join(CORTEX_DIR, "worldview-selection.json");
 const BUILTIN_NAMES = new Set(["shaela", "project", "hybrid"]);
 
 function ensureDir(): void {
   if (!existsSync(WORLDVIEW_DIR)) {
     mkdirSync(WORLDVIEW_DIR, { recursive: true });
+  }
+}
+
+// ─── Selection persistence ──────────────────────────────────
+
+interface WorldviewSelection {
+  /** The worldview name (matches preset name or generated file name). */
+  name: string;
+  /** For uploaded worldviews, the original file path. */
+  path?: string;
+}
+
+/**
+ * Persist the user's worldview selection so it survives restarts.
+ * Called after preset selection, file upload, or generation.
+ */
+export function persistSelection(name: string, path?: string): void {
+  if (!existsSync(CORTEX_DIR)) {
+    mkdirSync(CORTEX_DIR, { recursive: true });
+  }
+  const selection: WorldviewSelection = { name };
+  if (path) selection.path = path;
+  writeFileSync(SELECTION_FILE, JSON.stringify(selection, null, 2), "utf-8");
+}
+
+/**
+ * Read the persisted worldview selection, if any.
+ */
+function readSelection(): WorldviewSelection | null {
+  try {
+    if (!existsSync(SELECTION_FILE)) return null;
+    return JSON.parse(readFileSync(SELECTION_FILE, "utf-8")) as WorldviewSelection;
+  } catch {
+    return null;
   }
 }
 
