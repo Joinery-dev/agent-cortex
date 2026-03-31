@@ -37,18 +37,26 @@ graph TB
         Weights["CONNECTION WEIGHTS<br/><i>every 🧬 connection has a learned weight<br/>+ per-sense evaluation influence<br/>strengthens what works, weakens what doesn't<br/>— this is how identity forms —</i>"]
     end
 
-    subgraph SC["👁️ SENSORY CORTEX — per-task loop"]
+    subgraph SC["👁️ SENSORY CORTEX — two nested loops"]
         direction TB
         Consult["CONSULTATION<br/><i>senses weigh in — each sense<br/>maintains its own project summary</i>"]
         Explore["EXPLORE<br/><i>generate 3-5 divergent approaches<br/>select by surprise × quality<br/>— skipped when BG has strong match —</i>"]
-        MC["MOTOR CORTEX<br/><i>premotor: plans the approach<br/>primary: produces the artifact<br/>proprioception: self-corrects mid-build</i>"]
-        Evaluate["EVALUATE<br/><i>score on activated receptors<br/>🧬 per-sense weights shape influence</i>"]
-        Resolve["RESOLVE<br/><i>synthesize tensions</i>"]
+
+        subgraph BUILDLOOP["BUILD CYCLE — inner loop"]
+            direction TB
+            MC["MOTOR CORTEX<br/><i>premotor: plans the approach<br/>primary: produces the artifact<br/>proprioception: self-corrects mid-build</i>"]
+            Evaluate["EVALUATE<br/><i>score on activated receptors<br/>🧬 per-sense weights shape influence</i>"]
+            Resolve["RESOLVE<br/><i>tensions + conviction + gate</i>"]
+            MC --> Evaluate --> Resolve
+            Resolve -.->|"revise"| MC
+        end
+
+        OuterGate{"Improvement<br/>potential?"}
 
         Consult --> Explore
-        Explore -->|"selected approach"| MC
-        MC --> Evaluate --> Resolve
-        Resolve -.->|"revise"| MC
+        Explore -->|"selected approach"| BUILDLOOP
+        BUILDLOOP --> OuterGate
+        OuterGate -.->|"senses re-consult<br/>after seeing work"| Consult
     end
 
     %% Human → PFC (fixed)

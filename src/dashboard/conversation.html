@@ -132,6 +132,41 @@
     box-shadow: 0 0 8px var(--green-glow);
   }
 
+  .stop-btn {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 8px;
+    background: rgba(248, 81, 73, 0.1);
+    color: var(--red);
+    border: 1px solid rgba(248, 81, 73, 0.25);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .stop-btn:hover {
+    background: rgba(248, 81, 73, 0.2);
+    box-shadow: 0 0 8px rgba(248, 81, 73, 0.2);
+  }
+
+  .clean-slate-btn {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 12px;
+    border-radius: 8px;
+    background: rgba(139, 148, 158, 0.1);
+    color: var(--text-dim);
+    border: 1px solid rgba(139, 148, 158, 0.25);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .clean-slate-btn:hover {
+    background: rgba(139, 148, 158, 0.2);
+    color: var(--text-secondary);
+    box-shadow: 0 0 8px rgba(139, 148, 158, 0.15);
+  }
+
   .header nav {
     display: flex;
     gap: 2px;
@@ -980,6 +1015,134 @@
   }
 
   .empty-state p { max-width: 240px; color: var(--text-dim); font-weight: 300; }
+
+  /* ── Start form (conversation empty state) ── */
+
+  .start-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    padding: 40px;
+    gap: 20px;
+  }
+
+  .start-form-logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #238636 0%, #3fb950 50%, #58a6ff 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: #fff;
+    box-shadow: 0 0 24px rgba(63, 185, 80, 0.25), 0 0 60px rgba(88, 166, 255, 0.1);
+    margin-bottom: 4px;
+  }
+
+  .start-form h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+
+  .start-form p {
+    font-size: 13px;
+    color: var(--text-dim);
+    max-width: 340px;
+    text-align: center;
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  .start-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .start-input-group textarea {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    padding: 14px 18px;
+    resize: none;
+    min-height: 80px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    line-height: 1.5;
+  }
+
+  .start-input-group textarea::placeholder { color: var(--text-muted); }
+
+  .start-input-group textarea:focus {
+    border-color: rgba(88, 166, 255, 0.3);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.08), 0 0 20px rgba(88, 166, 255, 0.05);
+  }
+
+  .start-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+
+  .start-btn {
+    padding: 10px 28px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .start-btn.primary {
+    background: linear-gradient(135deg, var(--green-dim) 0%, #1a7a30 100%);
+    color: var(--text);
+    border: 1px solid var(--green-border);
+    box-shadow: 0 2px 12px rgba(63, 185, 80, 0.2);
+  }
+
+  .start-btn.primary:hover {
+    background: linear-gradient(135deg, #2a9a40 0%, var(--green) 100%);
+    box-shadow: 0 4px 20px rgba(63, 185, 80, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .start-btn.secondary {
+    background: var(--bg-surface);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+  }
+
+  .start-btn.secondary:hover {
+    background: var(--cyan-surface);
+    color: var(--cyan);
+    border-color: rgba(88, 166, 255, 0.2);
+  }
+
+  .start-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .start-status {
+    font-size: 12px;
+    color: var(--cyan);
+    font-family: 'JetBrains Mono', monospace;
+    animation: pulse 1.5s ease infinite;
+  }
 </style>
 </head>
 <body>
@@ -989,6 +1152,8 @@
     <div class="header-logo">C</div>
     <h1>Agent Cortex</h1>
     <span class="connection-badge" id="connectionBadge">disconnected</span>
+    <button class="stop-btn" id="stopBtn" style="display:none" onclick="stopCortex()">Stop</button>
+    <button class="clean-slate-btn" id="cleanSlateBtn" onclick="cleanSlate()">Clean Slate</button>
   </div>
   <nav>
     <a href="/conversation" class="active">Conversation</a>
@@ -1062,9 +1227,11 @@
       Conversation
     </div>
     <div class="conversation-feed" id="conversationFeed">
-      <div class="empty-state" id="conversationEmpty">
-        <div class="empty-icon">&#10047;</div>
-        <p>Start a conversation with Cortex. It will hear you while it works.</p>
+      <div class="start-form" id="startForm">
+        <div class="start-form-logo">C</div>
+        <h2>Agent Cortex</h2>
+        <p>Start a project and Cortex will ask you what to build.</p>
+        <button class="start-btn primary" id="startProjectBtn" onclick="startProject()">Run Project</button>
       </div>
     </div>
     <div class="input-area">
@@ -1576,11 +1743,104 @@ function handleStatus(status) {
   if (items.length === 0) items.push(si('state', 'idle'));
 
   bar.innerHTML = items.join('');
+
+  // Show/hide stop button + start form based on running state
+  const stopBtn = document.getElementById('stopBtn');
+  if (status.projectState === 'executing' || status.projectState === 'planning') {
+    stopBtn.style.display = 'inline-block';
+    removeEmpty('startForm');
+  } else if (status.projectState === 'complete') {
+    stopBtn.style.display = 'none';
+  }
 }
 
 function si(label, value) {
   return `<div class="status-item"><span class="status-label">${label}</span> <span class="status-value">${escapeHtml(String(value))}</span></div>`;
 }
+
+// ─── Start Cortex ──────────────────────────────────────────
+
+window.startProject = async function() {
+  const btn = document.getElementById('startProjectBtn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  try {
+    const resp = await fetch('/api/run-project', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: 'New project' }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      btn.textContent = data.error || 'Failed';
+      btn.disabled = false;
+      if (resp.status === 409) {
+        document.getElementById('stopBtn').style.display = 'inline-block';
+      }
+      setTimeout(() => { btn.textContent = 'Run Project'; }, 2000);
+      return;
+    }
+    document.getElementById('stopBtn').style.display = 'inline-block';
+    removeEmpty('startForm');
+  } catch (err) {
+    btn.textContent = 'Connection error';
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Run Project'; }, 2000);
+  }
+};
+
+window.stopCortex = async function() {
+  const btn = document.getElementById('stopBtn');
+  btn.disabled = true;
+  btn.textContent = 'Stopping...';
+  try {
+    await fetch('/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  } catch {}
+  btn.style.display = 'none';
+  btn.disabled = false;
+  btn.textContent = 'Stop';
+
+  // Re-show start form
+  const feed = document.getElementById('conversationFeed');
+  if (!document.getElementById('startForm')) {
+    feed.innerHTML = `
+      <div class="start-form" id="startForm">
+        <div class="start-form-logo">C</div>
+        <h2>Agent Cortex</h2>
+        <p>Start a project and Cortex will ask you what to build.</p>
+        <button class="start-btn primary" id="startProjectBtn" onclick="startProject()">Run Project</button>
+      </div>`;
+  }
+};
+
+window.cleanSlate = async function() {
+  const btn = document.getElementById('cleanSlateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Resetting...';
+  try {
+    await fetch('/api/clean-slate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  } catch {}
+  btn.disabled = false;
+  btn.textContent = 'Clean Slate';
+
+  // Hide stop button, re-show start form, clear conversation
+  document.getElementById('stopBtn').style.display = 'none';
+  const feed = document.getElementById('conversationFeed');
+  feed.innerHTML = `
+    <div class="start-form" id="startForm">
+      <div class="start-form-logo">C</div>
+      <h2>Agent Cortex</h2>
+      <p>Start a project and Cortex will ask you what to build.</p>
+      <button class="start-btn primary" id="startProjectBtn" onclick="startProject()">Run Project</button>
+    </div>`;
+
+  // Clear activity/plan/artifact panels
+  document.getElementById('activityList').innerHTML = '';
+  document.getElementById('planContent').innerHTML = '<div class="empty-state">No plan yet.</div>';
+  document.getElementById('artifactList').innerHTML = '<div class="empty-state">No artifacts yet.</div>';
+  document.getElementById('statusBar').innerHTML = '<div class="status-item"><span class="status-label">state</span> <span class="status-value">idle</span></div>';
+};
 
 // ─── Send message ──────────────────────────────────────────
 

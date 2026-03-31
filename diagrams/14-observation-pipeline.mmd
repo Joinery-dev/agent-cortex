@@ -1,5 +1,5 @@
 ---
-title: "Territory Observation Pipeline — 12 Sources, NE Split, Triage Routing"
+title: "Territory Observation Pipeline — 15 Sources, NE Split, Triage Routing"
 scope: global
 ---
 flowchart TD
@@ -8,7 +8,7 @@ flowchart TD
 
     TITLE --> SOURCES
 
-    subgraph SOURCES["12 OBSERVATION SOURCES — grouped by rhythm phase"]
+    subgraph SOURCES["15 OBSERVATION SOURCES — grouped by rhythm phase"]
         direction LR
         subgraph EXEC["During Task"]
             direction TB
@@ -24,6 +24,8 @@ flowchart TD
             B4["drift-monitor<br/><i>threshold crossings,<br/>signal spikes</i>"]
             B5["world-model<br/><i>maxim supersedure</i>"]
             B6["working-memory<br/><i>oscillation,<br/>stale questions</i>"]
+            B7["thalamus<br/><i>capability gaps,<br/>routing failures</i>"]
+            B8["parsifal<br/><i>direct input via<br/>conversation channel</i>"]
         end
         subgraph GATE["Phase Gate"]
             direction TB

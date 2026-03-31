@@ -1,0 +1,82 @@
+---
+title: "Dialectic Convergence — Builder vs Evaluator Models"
+scope: global
+---
+flowchart TD
+    subgraph CYCLE1["Cycle 1 — Models Emerge"]
+        direction TB
+        M1_PRE["PREMOTOR plans approach"]
+        M1_PLAN["MotorPlan includes<br/><b>problemModel</b><br/><i>'I think the solution needs X, Y, Z'</i>"]
+        M1_BUILD["PRIMARY MOTOR<br/>produces work"]
+        M1_EVAL["EVALUATORS score work<br/>rejection drivers identified"]
+
+        M1_NOTE["No convergence check yet<br/><i>(builder model just appeared,<br/>nothing to compare)</i>"]
+
+        M1_PRE --> M1_PLAN --> M1_BUILD --> M1_EVAL
+        M1_EVAL -.-> M1_NOTE
+    end
+
+    subgraph CYCLE2["Cycle 2+ — Dialectic Begins"]
+        direction TB
+
+        subgraph BUILDER["Builder's Model"]
+            B1["Premotor re-plans with:<br/>• previous evaluations<br/>• rejection drivers<br/>• problem constraints<br/>• previous evaluator model<br/>• convergence gap"]
+            B2["Revised <b>problemModel</b><br/><i>'Now I understand: the solution<br/>must also satisfy A and B'</i>"]
+        end
+
+        subgraph EVALUATOR["Evaluator's Model"]
+            E0["After build + evaluate..."]
+            E1["<b>synthesizeEvaluatorModel()</b><br/><i>One cheap LLM call</i>"]
+            E2["Reads:<br/>• evaluation assessments<br/>• formal measurements<br/>(test output, lint, web vitals)<br/>• failure classification<br/>• speed-of-light ceiling<br/>• accumulated constraints<br/>• builder's current model"]
+            E3["Produces:<br/><b>evaluator model</b><br/><i>'The solution must satisfy<br/>these requirements to reach<br/>the SoL ceiling'</i>"]
+            E4["<b>convergence: 0–1</b><br/><i>How aligned are the two models?</i>"]
+            E5["<b>divergenceNote</b><br/><i>What specifically differs<br/>(empty if convergence ≥ 0.8)</i>"]
+        end
+
+        BUILDER --> E0 --> E1
+        E1 --> E2 --> E3
+        E3 --> E4 & E5
+    end
+
+    subgraph FEEDS["Convergence Feeds Into..."]
+        direction TB
+
+        subgraph CONVICTION["Conviction Loop (inner gate)"]
+            CV1["dialecticConvergence<br/>feeds conviction context"]
+            CV2["High convergence = supporting evidence<br/>Low convergence = undermining evidence"]
+        end
+
+        subgraph OUTER["Outer Gate Exit Condition"]
+            OG1{"convergence ≥ 0.8<br/>AND no unacceptable<br/>evaluations?"}
+            OG2{"composite ≥ 70%<br/>of SoL ceiling?"}
+            OG3["EXIT: Dialectic convergence<br/><i>Builder and evaluators agree<br/>on what the solution is and does.<br/>Further cycles won't produce<br/>meaningful improvement.</i>"]
+        end
+
+        subgraph REVISION["Next Cycle's Revision"]
+            RV1["Builder sees evaluator model<br/>+ convergence score<br/>+ divergence note"]
+            RV2["Premotor can address<br/>the specific gap between<br/>what it thinks is needed<br/>and what evaluators say"]
+        end
+    end
+
+    CYCLE1 --> CYCLE2
+    E4 --> CONVICTION
+    E4 --> OG1
+    OG1 -->|yes| OG2
+    OG1 -->|no| REVISION
+    OG2 -->|yes| OG3
+    OG2 -->|no| REVISION
+
+    subgraph INSIGHT["The Core Insight"]
+        direction LR
+        I1["<b>Acceptance = convergence of two independent models</b><br/><br/>The builder maintains a model of what it's trying to build.<br/>The evaluators maintain a model of what the solution must satisfy.<br/>These are independently authored — the builder can't game the evaluator's model.<br/><br/>When both models say the same thing AND the work is near the ceiling,<br/>further iteration won't help — the gap between intent and artifact<br/>has been explored from both sides and there's nothing left to close.<br/><br/>Hard constraints (failing tests, formal violations) veto convergence —<br/>agreement doesn't override reality."]
+    end
+
+    style CYCLE1 fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
+    style CYCLE2 fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style BUILDER fill:#1a2d1a,stroke:#4ade80,color:#e2e4ea
+    style EVALUATOR fill:#1a1d2d,stroke:#60a5fa,color:#e2e4ea
+    style FEEDS fill:#1a1d27,stroke:#facc15,color:#e2e4ea
+    style CONVICTION fill:#2d1a1a,stroke:#f87171,color:#e2e4ea
+    style OUTER fill:#1a2d1a,stroke:#4ade80,color:#e2e4ea
+    style REVISION fill:#2d2d1a,stroke:#facc15,color:#e2e4ea
+    style INSIGHT fill:#1a1d27,stroke:#a78bfa,color:#e2e4ea

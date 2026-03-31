@@ -8,7 +8,7 @@ flowchart TD
     subgraph tier1["Tier 1 — Which senses care?"]
         design["✅ DESIGN\n0.95"]
         intent_a["✅ INTENT ALIGNMENT\n0.85"]
-        perf["✅ PERFORMANCE\n0.70"]
+        perf["✅ SYSTEMS\n0.70"]
         correct["⬜ CORRECTNESS\n0.30"]
         security["❌ SECURITY\n0.05"]
     end
@@ -20,9 +20,9 @@ flowchart TD
         access["❌ Accessibility"]
         vp["✅ Value Proposition"]
         audience["✅ Audience Fit"]
-        loadtime["✅ Page Load"]
-        imgopt["✅ Image Optimization"]
-        mobile["✅ Mobile"]
+        loadtime["✅ Load Performance"]
+        imgopt["✅ Asset Delivery"]
+        mobile["✅ Runtime Efficiency"]
     end
 
     subgraph tier3["Tier 3 — Which specific receptors?"]
@@ -35,9 +35,9 @@ flowchart TD
         spacing["spacing rhythm"]
         vp2["value prop clarity"]
         aud2["audience fit"]
-        img2["image optimization"]
-        load2["page load time"]
-        mob2["mobile responsiveness"]
+        img2["bundle size"]
+        load2["critical rendering path"]
+        mob2["runtime latency"]
     end
 
     result["12 activated receptors\nfrom a cortex of hundreds"]

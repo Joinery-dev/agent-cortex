@@ -17,7 +17,7 @@ flowchart TD
 
     subgraph DISPATCH["Task Dispatch Rhythm (repeats per task)"]
         D1["WORLD MODEL REBUILD<br/>Integrate new info from last task"]
-        D2["SCHEDULER DECIDE<br/>Read: WM + vitals + drift + cogflex<br/>+ PM triggers + BG routines<br/>Output: dispatch / escalate / rest / replan"]
+        D2["SCHEDULER DECIDE<br/>Read: WM + vitals + drift + cogflex<br/>+ PM triggers + BG routines<br/>Output: dispatch / escalate / rest /<br/>replan / complete / gestate / observe"]
         D3["ASSEMBLE GESTALT<br/>World model + task features"]
         D4["BG FIRES<br/>Read gestalt → sense activation"]
         D5["TASK INHIBITION<br/>Suppress for this task"]
@@ -32,44 +32,87 @@ flowchart TD
         D9 -->|yes| D10 --> D1
     end
 
-    subgraph SENSORY["Sensory Cortex Rhythm (per task)"]
-        S1["CEREBELLUM PREDICT<br/>Score forecast + SOL ceiling"]
-        S2["EFFERENCE COPY<br/>Motor feasibility assessment<br/>(what's actually buildable)"]
-        S3["NE ENRICHMENT<br/>+ novelty from Cerebellum"]
-        S4["THALAMUS BRIEFING<br/>Gestalt → consultation briefing<br/>(includes SOL + efference + forward<br/>+ patterns + principles + predictions)"]
-        S5["CONSULTATION<br/>All active senses weigh in<br/>→ perspectives + stakes + eval plan"]
-        S6["BUILD CYCLE<br/>(inner rhythm)"]
-        S7["COMPLETE TASK<br/>WM.completeTask()"]
+    subgraph SENSORY["Sensory Cortex Rhythm (OUTER LOOP — loops on improvement potential)"]
+        direction TB
 
-        S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7
+        subgraph SC_C1["Cycle 1: Full Pipeline"]
+            S1["EFFERENCE COPY<br/>Motor Cortex predicts<br/>feasibility before building"]
+            S2["THALAMUS BRIEFING<br/>Gestalt → consultation briefing"]
+            S3["CONSULTATION<br/>All active senses weigh in<br/>→ perspectives + stakes + eval plan"]
+            S4["CEREBELLUM PREDICT<br/>Score forecast + confidence<br/>+ SoL ceiling"]
+            S5["ATTENTION BUDGET REFINE<br/>Cerebellum cycle dist +<br/>efference revision"]
+            S6["SPEED OF LIGHT +<br/>FAILURE PREDICTION"]
+            S7["NE ENRICHMENT<br/>+ novelty from Cerebellum<br/>+ risk factors"]
+            S8["EXPLORE<br/>Generate divergent approaches<br/>select by surprise × quality<br/>(skipped when BG routine match)"]
+            S1 --> S2 --> S3 --> S4 --> S5 --> S6 --> S7 --> S8
+        end
+
+        subgraph SC_C2["Cycle 2+: Re-Consultation"]
+            RC1["SELECTIVE RE-CONSULT<br/>Only senses that flagged<br/>improvement potential or<br/>unresolved tensions"]
+            RC2["Preserved perspectives<br/>+ updated perspectives<br/>→ evolved consultation"]
+        end
+
+        SC_EXEC["BUILD CYCLE<br/>(inner rhythm — see below)"]
+
+        subgraph SC_INTEGRATE["Integrate"]
+            SI1["WEIGH EVALUATIONS<br/>At outer level: stake-aware"]
+            SI2["COMPOSITE SCORE<br/>Track history across<br/>outer cycles"]
+            SI3["IMPROVEMENT POTENTIAL<br/>Per-sense: significant /<br/>moderate / marginal / none"]
+        end
+
+        subgraph SC_GATE["Outer Gate — Continue or Complete?"]
+            SG1{"Below attention<br/>budget floor?"}
+            SG2{"At/above<br/>ceiling?"}
+            SG3{"Build accepted +<br/>no significant<br/>potential?"}
+            SG4{"Aggregate improvement<br/>below NE-modulated<br/>threshold?"}
+            SG5{"Diminishing returns?<br/>Near SoL ceiling?<br/>Dialectic convergence?<br/>No senses to reconsult?"}
+        end
+
+        SC_C1 --> SC_EXEC
+        SC_C2 --> SC_EXEC
+        SC_EXEC --> SI1 --> SI2 --> SI3
+        SI3 --> SG1
+        SG1 -->|"yes: always continue<br/>(minimum investment)"| SC_C2
+        SG1 -->|no| SG2
+        SG2 -->|"yes: hard stop"| TASK_DONE["Complete Task<br/>WM.completeTask()"]
+        SG2 -->|no| SG3
+        SG3 -->|yes| TASK_DONE
+        SG3 -->|no| SG4
+        SG4 -->|yes| TASK_DONE
+        SG4 -->|no| SG5
+        SG5 -->|"any exit<br/>condition"| TASK_DONE
+        SG5 -->|"none: loop<br/>with reconsult<br/>targets"| SC_C2
     end
 
-    subgraph BUILD["Build Cycle Rhythm (loops until gate accepts)"]
-        B1["MOTOR BRIEFING<br/>Thalamus: gestalt → builder context<br/>(SOL + patterns + capabilities)"]
-        B2["PREMOTOR<br/>Plan approach<br/>(or re-plan on cycle 2+)"]
-        B3["PRIMARY MOTOR<br/>Produce artifact"]
-        B4["PROPRIOCEPTION<br/>Self-check plan adherence<br/>(if NE ≥ threshold)"]
+    subgraph BUILD["Build Cycle Rhythm (INNER LOOP — loops until gate accepts)"]
+        B1["MOTOR BRIEFING<br/>Thalamus: gestalt → builder context<br/>(or revision context on cycle 2+)"]
+        B2["PREMOTOR<br/>Plan approach<br/>(or re-plan / strategy reset)"]
+        B3["PRIMARY MOTOR<br/>Produce artifact<br/>(+ mid-build sense questions)"]
+        B4["PROPRIOCEPTION<br/>Self-check plan adherence<br/>(if NE ≥ 0.3)"]
         B5["EVALUATE<br/>All receptors score<br/>(with per-receptor trend context)"]
-        B6["WEIGH<br/>Join with consultation stakes"]
-        B7["COMPOSITE + TENSIONS<br/>Stake-aware detection"]
-        B8["CONVICTION LOOP<br/>Necessity → conviction<br/>→ SOL test → shape"]
-        B9["COGNITIVE FLEXIBILITY<br/>If reshape: strategy-limited<br/>or execution-limited?"]
-        B10["COLLAPSE DETECTION<br/>Genuine synthesis<br/>or capitulation?"]
-        B11["NE RECOMPUTE<br/>+ conviction level"]
-        B12["GATE STRATEGY<br/>Accept / reject<br/>(deliberative / democratic / expedient)"]
-        B13{Accept?}
-        B14["RESOLVE TENSIONS<br/>→ revision prompt"]
+        B6["WEIGH + COMPOSITE<br/>Join with consultation stakes<br/>Detect tensions + oscillations"]
+        B7["PROBLEM MODEL<br/>Extract constraints from failures<br/>Synthesize evaluator model<br/>Compute builder/evaluator convergence"]
+        B8["CONVICTION LOOP<br/>Necessity → conviction level<br/>→ SOL gap test → shape downstream"]
+        B9["COGNITIVE FLEXIBILITY<br/>If reshape: execution-limited<br/>or strategy-limited?<br/>→ revise or reset from scratch"]
+        B10["NE RECOMPUTE<br/>+ conviction level"]
+        B11["GATE STRATEGY<br/>(deliberative / democratic / expedient)<br/>+ failure classification<br/>+ collapse detection<br/>+ resolution quality"]
+        B12{Accept?}
+        B13["REVISION PROMPT<br/>Scoped to rejection drivers<br/>+ problem constraints<br/>+ convergence gap"]
 
-        B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8 --> B9 --> B10 --> B11 --> B12 --> B13
-        B13 -->|yes| DONE["Complete"]
-        B13 -->|no| B14 --> B1
+        B1 --> B2 --> B3 --> B4 --> B5 --> B6 --> B7 --> B8 --> B9 --> B10 --> B11 --> B12
+        B12 -->|yes| DONE["Return to outer loop"]
+        B12 -->|no| B13 --> B1
     end
 
     P6 -.-> DISPATCH
     D7 -.-> SENSORY
-    S6 -.-> BUILD
+    SC_EXEC -.-> BUILD
 
     style PROJECT fill:#1a1d27,stroke:#7c6af0,color:#e2e4ea
     style DISPATCH fill:#1a1d27,stroke:#60a5fa,color:#e2e4ea
     style SENSORY fill:#1a1d27,stroke:#4ade80,color:#e2e4ea
+    style SC_C1 fill:#1a2d1a,stroke:#4ade80,color:#e2e4ea
+    style SC_C2 fill:#1a2d1a,stroke:#86efac,color:#e2e4ea
+    style SC_INTEGRATE fill:#1a2d1a,stroke:#4ade80,color:#e2e4ea
+    style SC_GATE fill:#1a2d1a,stroke:#facc15,color:#e2e4ea
     style BUILD fill:#1a1d27,stroke:#fb923c,color:#e2e4ea

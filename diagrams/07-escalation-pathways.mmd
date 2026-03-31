@@ -8,9 +8,6 @@ flowchart TD
         S2["COGNITIVE FLEXIBILITY<br/>Perseveration detected:<br/>same approach, no improvement"]
         S3["AMYGDALA<br/>Threat detected:<br/>security, data loss, unsafe op"]
         S4["ATTENTION SCHEDULER<br/>Deadlock, cratering,<br/>open questions"]
-        S5["CONVICTION LOOP<br/>Conviction too low to proceed<br/>or manifested future broken"]
-        S6["HOMEOSTASIS<br/>Learning signal broken<br/>or tonic dopamine crashed"]
-        S7["BUILD CYCLE<br/>Conviction reshape<br/>at task level"]
     end
 
     subgraph GATE["Self-Healing Gate"]
@@ -30,19 +27,18 @@ flowchart TD
     subgraph HANDLER["Escalation Handler"]
         H1["Pause all rhythms"]
         H2["Assemble human briefing:<br/>what happened, why,<br/>what options exist"]
-        H3["Present to human<br/>via PNS"]
+        H3["Present to Parsifal<br/>via PNS"]
     end
 
-    subgraph RESOLUTION["Human Resolves"]
+    subgraph RESOLUTION["Parsifal Resolves"]
         R1["CONTINUE<br/>'Keep going'<br/>→ conviction boost"]
         R2["REDIRECT<br/>'Try this instead'<br/>→ replan"]
         R3["ABORT<br/>'Stop'<br/>→ deliver what's done"]
         R4["ANSWER<br/>'The answer is X'<br/>→ resolve question"]
     end
 
-    %% All non-amygdala sources → conviction gate
-    S1 & S2 & S4 & S5 & S6 --> G1
-    S7 -->|"Build-cycle has its<br/>own conviction gate"| RESUME
+    %% Non-amygdala sources → conviction gate
+    S1 & S2 & S4 --> G1
 
     %% Amygdala bypasses everything
     S3 -->|"HARD — freeze now"| H1
@@ -68,7 +64,7 @@ flowchart TD
     T4 -->|"self-healable"| T3
     T4 -->|"environmental"| H1
 
-    %% Human handler
+    %% Handler
     H1 --> H2 --> H3
     H3 --> R1 & R2 & R3 & R4
 

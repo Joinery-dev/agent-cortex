@@ -11,10 +11,10 @@ flowchart TD
     end
 
     subgraph DETECTORS["Detector Registry (scans every intention)"]
-        DET1["SECURITY<br/>Secrets exposed?<br/>Unsafe operations?<br/>Unvalidated input?"]
-        DET2["SYSADMIN<br/>Dangerous system ops?<br/>Permission changes?<br/>Service modifications?"]
-        DET3["FILESYSTEM<br/>Writing outside sandbox?<br/>Deleting critical files?<br/>Overwriting protected paths?"]
-        DET4["APPROACH CLASSIFIER<br/>(learned from episodes)<br/>Pattern matches known<br/>failure modes"]
+        DET1["DESTRUCTIVE OPERATION<br/>rm -rf, force push,<br/>DROP TABLE, etc."]
+        DET2["SECURITY ANTIPATTERN<br/>eval(), hardcoded secrets,<br/>disabled auth, etc."]
+        DET3["DATA LOSS RISK<br/>Overwrites without backup,<br/>irreversible mutations"]
+        DET4["SCOPE VIOLATION<br/>Modifying artifacts<br/>outside declared scope"]
     end
 
     subgraph ASSESS["Threat Assessment"]

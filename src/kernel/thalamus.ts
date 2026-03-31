@@ -1037,6 +1037,158 @@ export class Thalamus {
     return briefing;
   }
 
+  /**
+   * Assemble context for Claus (the consciousness agent).
+   *
+   * Returns a human-readable snapshot of the current state, optimized
+   * for understanding rather than action. Claus needs to understand
+   * what's happening and why, not execute a task.
+   *
+   * Uses the gestalt when available (mid-task), falls back to WM
+   * directly when no gestalt exists (between tasks, boot).
+   */
+  forClaus(taskId?: string): string {
+    const parts: string[] = [];
+
+    // ── Task + Intent ────────────────────────────────────────
+    const gestalt = taskId ? this.getGestalt(taskId) : this.findActiveGestalt();
+
+    if (gestalt) {
+      parts.push(`## Current task`);
+      parts.push(`**${gestalt.task.description}**`);
+      parts.push(`Intent: ${gestalt.intent.summary}`);
+      if (gestalt.intent.audience) parts.push(`Audience: ${gestalt.intent.audience}`);
+      if (gestalt.mode) parts.push(`Mode: ${gestalt.mode}`);
+      if (gestalt.neLevel != null) parts.push(`NE: ${gestalt.neLevel.toFixed(2)}`);
+      if (gestalt.taskBudget != null) parts.push(`Task budget: $${gestalt.taskBudget.toFixed(2)}`);
+
+      // Taste (dissolved for consciousness — natural language)
+      const taste = gestalt.taste;
+      if (taste) {
+        parts.push(`\n## Who we're working for`);
+        parts.push(`${taste.name}`);
+        if (taste.visual) parts.push(`Visual: ${taste.visual}`);
+        if (taste.decisionStyle) parts.push(`Decisions: ${taste.decisionStyle}`);
+        if (taste.communication) parts.push(`Communication: ${taste.communication}`);
+        if (taste.patterns) parts.push(`Patterns: ${taste.patterns}`);
+      }
+
+      // Predictions
+      if (gestalt.prediction) {
+        const pred = gestalt.prediction;
+        parts.push(`\n## Predictions`);
+        parts.push(`Confidence: ${pred.overallConfidence.toFixed(2)}, based on ${pred.episodeCount} episode(s)`);
+        if (pred.receptorPredictions.length > 0) {
+          const topPreds = pred.receptorPredictions.slice(0, 4)
+            .map(r => `${r.activationPath.join("→")}: ${r.predicted.toFixed(1)}`);
+          parts.push(`Key predictions: ${topPreds.join(", ")}`);
+        }
+      }
+
+      if (gestalt.speedOfLight) {
+        const sol = gestalt.speedOfLight;
+        parts.push(`Speed of light (ceiling): ${sol.compositeCeiling.toFixed(1)}${sol.compositeGap != null ? ` (gap: ${sol.compositeGap.toFixed(1)})` : ""}`);
+      }
+
+      // Efference copy
+      if (gestalt.efferenceCopy) {
+        const ef = gestalt.efferenceCopy;
+        parts.push(`\nBuilder feasibility: convergence estimate ${ef.convergenceEstimate} cycle(s)`);
+        if (ef.hardConstraints?.length) parts.push(`Hard constraints: ${ef.hardConstraints.join(", ")}`);
+        if (ef.tensionCosts?.length) {
+          const costs = ef.tensionCosts.slice(0, 3).map(t => `${t.senseA}↔${t.senseB}: ${t.costDescription}`);
+          parts.push(`Tension costs: ${costs.join("; ")}`);
+        }
+      }
+
+      // Graph position
+      if (gestalt.graphPosition) {
+        const gp = gestalt.graphPosition;
+        parts.push(`\n## Project position`);
+        parts.push(`Completed: ${gp.completedTaskIds.length}/${gp.totalTasks} tasks`);
+        if (gp.dependsOn?.length) parts.push(`This task depends on: ${gp.dependsOn.length} other task(s)`);
+        if (gp.phaseGroup) parts.push(`Phase: ${gp.phaseGroup}`);
+      }
+
+      // Forward briefing
+      if (gestalt.forwardBriefing) {
+        const fb = gestalt.forwardBriefing;
+        if (fb.predictedTensions?.length) {
+          parts.push(`\nPredicted tensions: ${fb.predictedTensions.map(t => `${t.senseA} vs ${t.senseB}`).join(", ")}`);
+        }
+        if (fb.predictedCycles != null) parts.push(`Predicted cycles: ${fb.predictedCycles}`);
+      }
+
+      // World model maxims
+      if (gestalt.weltanschauung?.maxims?.length) {
+        parts.push(`\n## World understanding`);
+        for (const m of gestalt.weltanschauung.maxims.slice(0, 5)) {
+          parts.push(`- ${m}`);
+        }
+      }
+    } else {
+      // No gestalt — use intent + taste directly
+      if (this.intent) {
+        parts.push(`## Project: ${this.intent.summary}`);
+        if (this.intent.audience) parts.push(`Audience: ${this.intent.audience}`);
+      }
+      if (this.taste) {
+        parts.push(`Working for: ${this.taste.name}`);
+      }
+    }
+
+    // ── WM snapshot (always available) ───────────────────────
+    const accumulated = this.getAccumulatedContext();
+
+    if (accumulated.senseTrends.length > 0) {
+      parts.push(`\n## Sense trends`);
+      for (const t of accumulated.senseTrends.slice(0, 6)) {
+        parts.push(`- ${t.label}: ${t.direction} (${t.currentMean.toFixed(1)})`);
+      }
+    }
+
+    if (accumulated.openQuestions.length > 0) {
+      parts.push(`\n## Open questions`);
+      for (const q of accumulated.openQuestions.slice(0, 5)) {
+        parts.push(`- ${q.question}`);
+      }
+    }
+
+    if (accumulated.decisions.length > 0) {
+      parts.push(`\n## Recent decisions`);
+      for (const d of accumulated.decisions.slice(-3)) {
+        parts.push(`- ${d.description} (confidence: ${d.confidence.toFixed(2)})`);
+      }
+    }
+
+    // Observations
+    const observations = this.wm.getObservations("new");
+    if (observations.length > 0) {
+      parts.push(`\n## Pending observations (${observations.length})`);
+      for (const o of observations.slice(0, 5)) {
+        parts.push(`- ${o.fact}`);
+      }
+    }
+
+    // Conviction
+    const conviction = this.wm.getConvictionTrajectory();
+    parts.push(`\n## Conviction: ${conviction.direction}, current ${conviction.currentLevel?.toFixed(2) ?? "?"}`);
+    if (conviction.levels.length > 1) {
+      const recent = conviction.levels.slice(-4).map(l => `${(l * 100).toFixed(0)}%`);
+      parts.push(`Trajectory: ${recent.join(" → ")}`);
+    }
+
+    return parts.join("\n");
+  }
+
+  /** Find the first gestalt that exists (for when taskId isn't known). */
+  private findActiveGestalt(): import("../types/task-gestalt.js").TaskGestalt | null {
+    for (const g of this.gestalts.values()) {
+      return g;
+    }
+    return null;
+  }
+
   async forEscalation(
     escalation: Escalation,
     rhythmState: {

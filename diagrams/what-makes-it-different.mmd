@@ -23,12 +23,13 @@ graph LR
             B4["Norepinephrine sets arousal:<br/>how much attention each task gets"]
         end
 
-        subgraph EXEC["Per-Task Execution"]
+        subgraph EXEC["Per-Task Execution (two nested loops)"]
             B5["Thalamus routes context<br/>from all brain regions"]
             B6["Senses consult — each<br/>with its own project memory"]
             B6b["Explore: generate divergent<br/>approaches before committing<br/>(skipped for routine tasks)"]
             B7["Motor Cortex: plans approach,<br/>builds, self-corrects mid-build"]
             B8["Evaluate from competing<br/>perspectives → resolve tensions"]
+            B8b["Improvement potential?<br/>Senses re-consult after<br/>seeing actual work"]
         end
 
         subgraph LEARN["Learning Between Tasks"]
@@ -48,8 +49,10 @@ graph LR
 
         B1 --> B2 --> B3 --> B4
         B4 --> B5 --> B6 --> B6b --> B7 --> B8
-        B8 -->|"not good enough"| B7
-        B8 --> B9 --> B10
+        B8 -->|"inner loop: revise"| B7
+        B8 --> B8b
+        B8b -->|"outer loop: re-consult"| B6
+        B8b --> B9 --> B10
         B10 --> B11 --> B11b
         B10 --> B12 & B13
         B11b --> B5

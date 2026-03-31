@@ -145,6 +145,11 @@ export class WebSocketTransport implements ConversationTransport {
     this.wss.close();
   }
 
+  /** Clear the replay buffer (used by clean-slate reset). */
+  clearReplayBuffer(): void {
+    this.replayBuffer = [];
+  }
+
   /** Number of connected clients. */
   get clientCount(): number {
     return this.clients.size;

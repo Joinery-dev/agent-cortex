@@ -6,7 +6,7 @@
  * loadWorldview() already parses.
  */
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
@@ -71,6 +71,11 @@ function readSelection(): WorldviewSelection | null {
   } catch {
     return null;
   }
+}
+
+/** Clear the persisted worldview selection. Next boot will prompt fresh. */
+export function clearWorldviewSelection(): void {
+  try { if (existsSync(SELECTION_FILE)) unlinkSync(SELECTION_FILE); } catch { /* ignore */ }
 }
 
 // ─── Detect ─────────────────────────────────────────────────────

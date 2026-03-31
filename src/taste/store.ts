@@ -5,7 +5,7 @@
  * Atomic writes (tmp + rename) to prevent corruption on kill.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
@@ -41,6 +41,11 @@ export function persistTasteProfile(taste: TasteProfile): void {
   const tmpPath = join(CORTEX_DIR, `.taste-profile.${randomBytes(4).toString("hex")}.tmp`);
   writeFileSync(tmpPath, content, "utf-8");
   renameSync(tmpPath, TASTE_FILE);
+}
+
+/** Clear the persisted taste profile. Next boot will prompt fresh. */
+export function clearTasteProfile(): void {
+  try { if (existsSync(TASTE_FILE)) unlinkSync(TASTE_FILE); } catch { /* ignore */ }
 }
 
 /**

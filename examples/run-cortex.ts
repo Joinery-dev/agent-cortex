@@ -214,7 +214,7 @@ async function boot(): Promise<void> {
 
   getTraceCollector();
 
-  // ── 1. Terminal + Dashboard (infrastructure, before Claus) ─────
+  // ── 1. Infrastructure (terminal + dashboard + transports) ──────
 
   resetUsage();
   const library = SensoryCortex.withDefaults();
@@ -222,81 +222,109 @@ async function boot(): Promise<void> {
 
   const dashboard = await startDashboard(port, undefined, { returnHandle: true }) as DashboardHandle;
   dashboardUrl = dashboard.url;
+  const allTransports = [terminalTransport, dashboard.wsTransport];
 
-  // Raw askUser for pre-Claus setup (worldview discovery needs it briefly)
-  askUser = (question: string): Promise<string> => {
-    const rl = terminalTransport.getReadline();
-    return new Promise((resolve) => {
-      console.log("\n" + "─".repeat(60));
-      console.log(question);
-      console.log("─".repeat(60));
-      rl.question("\n> ", (answer) => {
-        resolve(answer);
+  // askUser via chat UI — sends a system question through transports,
+  // waits for the Parsifal's response via readline/WebSocket.
+  // This is the pre-Claus voice — simple, no LLM, just questions.
+  const askViaChat = (question: string): Promise<string> => {
+    const msg = {
+      id: "setup-" + Date.now(),
+      role: "cortex" as const,
+      kind: "question" as const,
+      text: question,
+      timestamp: new Date(),
+    };
+    for (const t of allTransports) t.sendMessage(msg);
+
+    return new Promise<string>((resolve) => {
+      const handler = (text: string) => {
+        // Echo the response back as a parsifal message
+        const echo = {
+          id: "parsifal-" + Date.now(),
+          role: "parsifal" as const,
+          kind: "message" as const,
+          text,
+          timestamp: new Date(),
+        };
+        for (const t of allTransports) t.sendMessage(echo);
+        resolve(text);
+      };
+
+      // Listen on terminal readline
+      const rl = terminalTransport.getReadline();
+      rl.once("line", (line: string) => {
+        const trimmed = line.trim();
+        if (trimmed) handler(trimmed);
       });
     });
   };
 
-  // ── 2. Worldview (needed before Claus can speak) ──────────────
+  askUser = askViaChat;
+
+  // ── 2. Worldview selection (through chat, before Claus) ───────
 
   if (resumeMode) {
     worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
   } else {
-    // Check if a worldview already exists before involving Claus
-    const existing = detectExistingWorldview();
-    if (existing) {
-      worldview = loadExistingWorldview() ?? DEFAULT_WORLDVIEW;
-    } else {
-      worldview = await setupWorldview(askUser, { model: "opus" });
-    }
+    worldview = await setupWorldview(askViaChat, { model: "opus" });
   }
 
-  // ── 3. Boot Claus (standalone, before brainstem) ──────────────
-
-  claus = new Claus({
-    transports: [terminalTransport, dashboard.wsTransport],
-    worldview,
-  });
-
-  // From here, everything goes through Claus
-  askUser = (question: string) => claus.formulateQuestion(question, "", undefined)
-    .then(async (formulated) => {
-      // Send as a question message through the terminal
-      terminalTransport.sendMessage({
-        id: "q-" + Date.now(),
-        role: "cortex",
-        kind: "question",
-        text: formulated,
-        timestamp: new Date(),
-      });
-      // Wait for the response via readline
-      return new Promise<string>((resolve) => {
-        const rl = terminalTransport.getReadline();
-        rl.question("", (answer) => resolve(answer));
-      });
-    });
-
-  // Claus greets the Parsifal
-  const greeting = await claus.respondToMessage(
-    `[system] Cortex is starting up. Worldview: ${worldview.name}. ` +
-    `Dashboard: ${dashboardUrl}/conversation. ` +
-    (resumeMode ? "Resuming from checkpoint." : "Ready for a new project.") +
-    (stepMode ? " Step-by-step mode is active." : ""),
-  );
-  terminalTransport.sendMessage({
-    id: "greeting",
-    role: "cortex",
-    kind: "acknowledgment",
-    text: greeting,
-    timestamp: new Date(),
-  });
-
-  // ── 4. Taste profile ──────────────────────────────────────────
+  // ── 3. Taste / naming (through chat, before Claus) ────────────
 
   if (resumeMode) {
     taste = loadTasteProfile() ?? DEFAULT_TASTE;
   } else {
-    taste = await setupTaste(askUser);
+    taste = await setupTaste(askViaChat);
   }
+
+  // ── 4. Boot Claus (with worldview + taste identity) ───────────
+
+  claus = new Claus({
+    transports: allTransports,
+    worldview,
+  });
+
+  // Claus introduces itself
+  const greeting = await claus.respondToMessage(
+    `[system] You are now online. Worldview: ${worldview.name}. ` +
+    `Working for: ${taste.name}. ` +
+    `Dashboard: ${dashboardUrl}/conversation. ` +
+    (resumeMode ? "Resuming from checkpoint." : "Ready for a new project.") +
+    (stepMode ? " Step-by-step mode is active." : "") +
+    ` Introduce yourself to the Parsifal.`,
+  );
+
+  for (const t of allTransports) {
+    t.sendMessage({
+      id: "greeting",
+      role: "cortex",
+      kind: "acknowledgment",
+      text: greeting,
+      timestamp: new Date(),
+    });
+  }
+
+  // From here, askUser goes through Claus
+  askUser = (question: string) => claus.formulateQuestion(question, "", undefined)
+    .then(async (formulated) => {
+      for (const t of allTransports) {
+        t.sendMessage({
+          id: "q-" + Date.now(),
+          role: "cortex",
+          kind: "question",
+          text: formulated,
+          timestamp: new Date(),
+        });
+      }
+      return new Promise<string>((resolve) => {
+        const rl = terminalTransport.getReadline();
+        rl.once("line", (line: string) => {
+          const trimmed = line.trim();
+          if (trimmed) resolve(trimmed);
+        });
+      });
+    });
 
   // ── 5. Brainstem (pass Claus in) ──────────────────────────────
 
@@ -309,7 +337,7 @@ async function boot(): Promise<void> {
     brainstem.getRunner().setCheckpointConfig({ enabled: false });
   }
 
-  // Wire conversation transports (activates Claus heartbeat + amygdala)
+  // Wire conversation transports (activates Claus hooks)
   brainstem.setConversationTransport(terminalTransport);
   brainstem.setConversationTransport(dashboard.wsTransport);
 
