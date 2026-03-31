@@ -265,8 +265,6 @@ export async function evaluate(
             agenticOpts.neLevel,
             "evaluator",
           );
-          const maxTurns = agenticOpts.neLevel > 0.7 ? 10 : 6;
-
           const agenticResult = await agenticCall(
             "evaluation",
             config.models.evaluation,
@@ -278,7 +276,6 @@ export async function evaluate(
               evaluationContext,
             ),
             toolSet,
-            { maxTurns },
           );
 
           const parseResult = parseAgenticBundleResult(agenticResult.summary);

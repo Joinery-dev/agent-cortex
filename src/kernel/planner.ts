@@ -69,7 +69,7 @@ import { computeCallCost } from "../types/cost.js";
 import type { ProjectCostEstimate } from "../types/cost.js";
 import type { CortexConfig } from "../types/orchestrator.js";
 import type { Worldview } from "../types/worldview.js";
-import { getFrame } from "../types/worldview.js";
+// getFrame import removed — no longer needed after Phase A moved to synthesis loop
 
 const log = createLogger("planner");
 
@@ -137,100 +137,9 @@ export class Planner {
 
   // ── Phase A: Manifestation ──────────────────────────────────
 
-  /**
-   * Create a task for Phase A. Run this through sensory cortex.
-   *
-   * The task description frames the work: senses will consult on
-   * what the finished outcome must look like, and the motor cortex
-   * will synthesize their perspectives into the manifested future.
-   */
-  createManifestationTask(intent: ProjectIntent, additionalContext?: string): Task {
-    const id = `plan-manifest-${newId()}`;
-
-    const defaultBody = [
-      `Produce a CONCRETE VISION of the finished artifact. Not a plan.`,
-      `Not a list of features. The actual finished thing — described in`,
-      `enough detail that someone could evaluate whether a real artifact`,
-      `matches this vision.`,
-      ``,
-      `For each quality dimension the senses care about, describe what`,
-      `the finished artifact achieves. Be specific: what does the visual`,
-      `language look like? What's the performance profile? What's the`,
-      `user experience? What's the content strategy?`,
-      ``,
-      `This vision becomes the destination Cortex builds toward.`,
-      `Every future task will be evaluated against it. Make it concrete`,
-      `enough to reason backward from.`,
-    ].join("\n");
-
-    const body = getFrame("manifestation", this.worldview) ?? defaultBody;
-
-    const descriptionParts = [
-      `Manifest the completed outcome for this project.`,
-      ``,
-      `Project: ${intent.summary}`,
-      `Vision: ${intent.vision}`,
-      `Audience: ${intent.audience}`,
-    ];
-
-    if (additionalContext) {
-      descriptionParts.push(``, `CONTEXT FROM INQUIRY:`, additionalContext);
-    }
-
-    descriptionParts.push(``, body);
-
-    return createTask(id, descriptionParts.join("\n"), {
-      planningPhase: "manifestation",
-      intentId: intent.id,
-    });
-  }
-
-  /**
-   * Extract the manifested future from a sensory cortex result.
-   *
-   * The work field contains the motor cortex's synthesis of the
-   * senses' perspectives into a concrete vision.
-   */
-  extractManifestedFuture(
-    result: SensoryCortexResult,
-  ): ManifestedFuture {
-    // Extract per-sense contributions from evaluations.
-    // Each SenseEvaluation has an activationPath (sense > pathway > receptor),
-    // a score, and an assessment. Group assessments by top-level sense.
-    const senseContributions: Record<string, string> = {};
-    for (const evaluation of result.evaluations) {
-      // activationPath[0] is the top-level sense name
-      const senseName = evaluation.activationPath[0] ?? evaluation.senseId;
-      const existing = senseContributions[senseName];
-      if (evaluation.assessment) {
-        senseContributions[senseName] = existing
-          ? `${existing} ${evaluation.assessment}`
-          : evaluation.assessment;
-      }
-    }
-
-    const future: ManifestedFuture = {
-      vision: result.work,
-      senseContributions,
-      confidence: result.confidence,
-      cycles: result.cycles,
-    };
-
-    emit("planner:manifestation-complete", {
-      confidence: future.confidence,
-      cycles: future.cycles,
-      senseCount: Object.keys(senseContributions).length,
-      visionLength: future.vision.length,
-    });
-
-    log.info("Manifested future extracted", {
-      confidence: future.confidence,
-      cycles: future.cycles,
-      senses: Object.keys(senseContributions),
-    });
-
-    return future;
-  }
+  // Phase A (createManifestationTask, extractManifestedFuture) removed —
+  // replaced by manifestation synthesis loop in project.ts
+  // (manifestSenses → synthesizeVision → evaluateVision)
 
   // ── Phase B: Path Reasoning ─────────────────────────────────
 

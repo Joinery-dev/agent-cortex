@@ -1,24 +1,43 @@
 /**
  * Worldview Generator — pipeline orchestrator.
  *
- * Discovery → Seed Synthesis → Gate 1 → Frame Generation → Gate 2
- *   → Persist → Roundtrip Verification → Worldview
+ * Three entry paths:
+ *   1. Select a preset worldview (shaela, project, hybrid)
+ *   2. Upload a worldview from a file path
+ *   3. Create a new worldview through conversation
  *
- * Each gate allows the Parsifal to approve or redirect (max 3 attempts).
- * After 3 rejections, offers: start over / continue with current / skip to default.
+ * Creation pipeline:
+ *   Conversation (until Parsifal approves seed) → Frame Generation
+ *     → Frame Review → Persist → Roundtrip Verification → Worldview
  */
 
+import { existsSync } from "node:fs";
 import type { Worldview } from "../types/worldview.js";
 import type { AskUserFn } from "./discovery.js";
-import type { WorldviewSeed, FrameGenerationResult } from "./types.js";
-import { runDiscovery } from "./discovery.js";
-import { synthesizeSeed, generateFrames } from "./synthesis.js";
-import { persistAndVerify } from "./store.js";
+import type { FrameGenerationResult } from "./types.js";
+import { buildWorldviewConversation } from "./conversation.js";
+import { generateFrames } from "./synthesis.js";
+import { persistAndVerify, detectExistingWorldview } from "./store.js";
+import { loadWorldview } from "../util/worldview-loader.js";
 import { isApproval } from "../util/approval.js";
 import { createLogger } from "../util/logger.js";
-import { DEFAULT_WORLDVIEW } from "../types/worldview.js";
+import {
+  DEFAULT_WORLDVIEW,
+  SHAELA_WORLDVIEW,
+  PROJECT_WORLDVIEW,
+  HYBRID_WORLDVIEW,
+  COVENANT_WORLDVIEW,
+  GROOVE_WORLDVIEW,
+  ECOSYSTEM_WORLDVIEW,
+  DIALECTIC_WORLDVIEW,
+  CARTOGRAPH_WORLDVIEW,
+  SCULPTOR_WORLDVIEW,
+  NARRATIVE_WORLDVIEW,
+} from "../types/worldview.js";
 
 const log = createLogger("worldview-generator");
+
+export type { AskUserFn } from "./discovery.js";
 
 export interface GenerateWorldviewOptions {
   /** LLM model for synthesis calls. Default: "opus". */
@@ -68,40 +87,9 @@ async function runGate(
   return { action: "revised", feedback: response };
 }
 
-// ─── Seed presentation ──────────────────────────────────────────
-
-function formatSeedForReview(seed: WorldviewSeed): string {
-  const parts = [
-    `Here's what I understand about how you see the work:\n`,
-    `**How you see work (ontology):**\n${seed.ontology}\n`,
-    `**What counts as understanding (epistemology):**\n${seed.epistemology}\n`,
-    `**What you value (axiology):**\n${seed.axiology}\n`,
-    `**How you handle tension:**\n${seed.tensionPhilosophy}\n`,
-    `**How experience changes you:**\n${seed.learningOrientation}\n`,
-    `**How we should work together:**\n${seed.collaborationModel}\n`,
-  ];
-
-  if (seed.vocabulary) {
-    const v = seed.vocabulary;
-    parts.push(
-      `**Vocabulary I'd use:**\n` +
-      `  High-level units: ${v.topUnit.singular} / ${v.topUnit.plural}\n` +
-      `  Leaf units: ${v.leafUnit.singular} / ${v.leafUnit.plural}\n` +
-      `  Completed artifacts: ${v.artifact.singular} / ${v.artifact.plural}\n` +
-      `  Decomposition: "${v.decomposeVerb}"\n` +
-      `  Completion: "${v.completeVerb}"\n` +
-      `  Each node is: ${v.nodeNature}\n`
-    );
-  }
-
-  parts.push(`\nIs this you? If something feels off, tell me what — I'll revise.`);
-  return parts.join("\n");
-}
-
 // ─── Frame presentation ─────────────────────────────────────────
 
 function formatFramesForReview(generated: FrameGenerationResult): string {
-  // Show the highest-leverage frames: preamble + consultation + building + evaluation + resolution
   const parts = [
     `Here's how this worldview shapes my thinking. I'm showing the key cognitive frames — the rest follow the same philosophy.\n`,
     `**Preamble** (injected into every cognitive act):\n${generated.preamble}\n`,
@@ -114,14 +102,86 @@ function formatFramesForReview(generated: FrameGenerationResult): string {
   return parts.join("\n");
 }
 
-// ─── Main pipeline ──────────────────────────────────────────────
+// ─── Preset selection ───────────────────────────────────────────
+
+const PRESETS: Record<string, Worldview> = {
+  shaela: SHAELA_WORLDVIEW,
+  project: PROJECT_WORLDVIEW,
+  hybrid: HYBRID_WORLDVIEW,
+  covenant: COVENANT_WORLDVIEW,
+  groove: GROOVE_WORLDVIEW,
+  ecosystem: ECOSYSTEM_WORLDVIEW,
+  dialectic: DIALECTIC_WORLDVIEW,
+  cartograph: CARTOGRAPH_WORLDVIEW,
+  sculptor: SCULPTOR_WORLDVIEW,
+  narrative: NARRATIVE_WORLDVIEW,
+};
+
+async function selectPreset(askUser: AskUserFn): Promise<Worldview> {
+  const response = await askUser(
+    `Which worldview would you like to use?\n\n` +
+    `  1. **shaela** — Questions to be lived. Understanding emerges from genuine engagement.\n` +
+    `  2. **project** — Forces to be resolved. The tightest structure that produces the full outcome.\n` +
+    `  3. **hybrid** — Shaela framing, project execution. Engineering questions whose answers are load-bearing.\n` +
+    `  4. **covenant** — Commitments honored. Every artifact is a contract. Trust through verification.\n` +
+    `  5. **groove** — Play seriously. Improvisation within structure; craft and intent indistinguishable.\n` +
+    `  6. **ecosystem** — Cultivate living systems. Health is the capacity to absorb problems, not their absence.\n` +
+    `  7. **dialectic** — Contradiction drives progress. Every artifact contains the seed of its own evolution.\n` +
+    `  8. **cartograph** — Map unknown territory. Explore honestly, chart accurately, navigate by truth.\n` +
+    `  9. **sculptor** — Remove what doesn't belong. The artifact exists inside the constraints; reveal it.\n` +
+    `  10. **narrative** — Tell the story. Every artifact has characters, an arc, tension, and resolution.\n\n` +
+    `(Choose 1-10, or type a name)`
+  );
+
+  const normalized = response.trim().toLowerCase();
+  if (normalized === "1" || normalized === "shaela") return PRESETS.shaela;
+  if (normalized === "2" || normalized === "project") return PRESETS.project;
+  if (normalized === "3" || normalized === "hybrid") return PRESETS.hybrid;
+  if (normalized === "4" || normalized === "covenant") return PRESETS.covenant;
+  if (normalized === "5" || normalized === "groove") return PRESETS.groove;
+  if (normalized === "6" || normalized === "ecosystem") return PRESETS.ecosystem;
+  if (normalized === "7" || normalized === "dialectic") return PRESETS.dialectic;
+  if (normalized === "8" || normalized === "cartograph") return PRESETS.cartograph;
+  if (normalized === "9" || normalized === "sculptor") return PRESETS.sculptor;
+  if (normalized === "10" || normalized === "narrative") return PRESETS.narrative;
+
+  // Try name lookup as fallback
+  if (PRESETS[normalized]) return PRESETS[normalized];
+
+  // Default to shaela if unclear
+  return PRESETS.shaela;
+}
+
+// ─── File upload ────────────────────────────────────────────────
+
+async function uploadWorldview(askUser: AskUserFn): Promise<Worldview> {
+  const response = await askUser(
+    `Enter the path to your worldview .md file:\n\n` +
+    `(The file should follow the worldview format — see worldviews/shaela.md for an example)`
+  );
+
+  const filePath = response.trim();
+  if (!existsSync(filePath)) {
+    await askUser(`File not found: ${filePath}\n\nFalling back to default worldview.`);
+    return DEFAULT_WORLDVIEW;
+  }
+
+  try {
+    return loadWorldview(filePath);
+  } catch (err) {
+    await askUser(`Failed to parse worldview file: ${String(err)}\n\nFalling back to default worldview.`);
+    return DEFAULT_WORLDVIEW;
+  }
+}
+
+// ─── Create via conversation ────────────────────────────────────
 
 /**
- * Run the full worldview generation pipeline.
+ * Run the full worldview creation pipeline:
+ * Conversation (until Parsifal approves seed) → Frames → Gate → Persist → Verify
  *
- * @param askUser — callback for interactive questions and approval gates
- * @param options — model and name configuration
- * @returns A fully loaded Worldview ready for Cortex
+ * The conversation handles seed approval internally — the Parsifal
+ * goes as long as they need. No artificial limits.
  */
 export async function generateWorldview(
   askUser: AskUserFn,
@@ -132,59 +192,13 @@ export async function generateWorldview(
 
   log.info("Starting worldview generation pipeline");
 
-  // ── Phase 1: Discovery ──────────────────────────────────────
-  const answers = await runDiscovery(askUser);
-  log.info("Discovery complete", { answersCount: answers.length });
+  // ── Phase 1: Conversation → Approved Seed ───────────────────
+  // The conversation proposes seeds, incorporates feedback, and
+  // continues until the Parsifal approves. No separate gate needed.
+  const seed = await buildWorldviewConversation(askUser, model);
+  log.info("Seed approved by Parsifal");
 
-  // ── Phase 2: Seed Synthesis + Gate 1 ────────────────────────
-  let seed: WorldviewSeed;
-  let seedAttempt = 0;
-
-  seed = await synthesizeSeed(answers, model);
-  seedAttempt++;
-
-  while (true) {
-    const presentation = formatSeedForReview(seed);
-    const outcome = await runGate(askUser, presentation, seedAttempt);
-
-    if (outcome.action === "approved") {
-      log.info("Seed approved", { attempt: seedAttempt });
-      break;
-    }
-
-    if (outcome.action === "exhausted") {
-      if (outcome.choice === "start-over") {
-        log.info("Parsifal chose to start over");
-        return generateWorldview(askUser, options);
-      }
-      if (outcome.choice === "default") {
-        log.info("Parsifal chose default worldview");
-        return DEFAULT_WORLDVIEW;
-      }
-      // "continue" — proceed with current seed
-      log.info("Parsifal chose to continue with current seed");
-      break;
-    }
-
-    // Revised — re-synthesize with feedback incorporated
-    log.info("Seed revision requested", { attempt: seedAttempt, feedback: outcome.feedback.slice(0, 100) });
-    // Re-run synthesis with the original answers — the LLM gets the feedback context
-    const feedbackMessage = `The Parsifal reviewed the seed and gave this feedback: "${outcome.feedback}". Re-synthesize incorporating this feedback.`;
-    // We append feedback to the answers context by re-running synthesis
-    // with augmented answers
-    const augmentedAnswers = [
-      ...answers,
-      {
-        number: 8,
-        dimension: "identity" as const,
-        response: `[Revision feedback]: ${outcome.feedback}`,
-      },
-    ];
-    seed = await synthesizeSeed(augmentedAnswers, model);
-    seedAttempt++;
-  }
-
-  // ── Phase 3: Frame Generation + Gate 2 ──────────────────────
+  // ── Phase 2: Frame Generation + Review ──────────────────────
   let generated: FrameGenerationResult;
   let frameAttempt = 0;
 
@@ -209,7 +223,6 @@ export async function generateWorldview(
         log.info("Parsifal chose default worldview");
         return DEFAULT_WORLDVIEW;
       }
-      // "continue"
       log.info("Parsifal chose to continue with current frames");
       break;
     }
@@ -220,7 +233,7 @@ export async function generateWorldview(
     frameAttempt++;
   }
 
-  // ── Phase 4: Persist + Verify ───────────────────────────────
+  // ── Phase 3: Persist + Verify ───────────────────────────────
   log.info("Persisting worldview", { name });
   const worldview = persistAndVerify(name, seed, generated);
   log.info("Worldview generation complete", {
@@ -229,4 +242,49 @@ export async function generateWorldview(
   });
 
   return worldview;
+}
+
+// ─── Top-level entry point ──────────────────────────────────────
+
+/**
+ * Set up a worldview for Cortex. Checks for an existing custom worldview,
+ * then offers: select a preset, upload a file, or create through conversation.
+ *
+ * @param askUser — callback for interactive prompts
+ * @param options — model and name for generation
+ * @returns A Worldview ready for Cortex
+ */
+export async function setupWorldview(
+  askUser: AskUserFn,
+  options?: GenerateWorldviewOptions,
+): Promise<Worldview> {
+  // Check for existing custom worldview
+  const existingPath = detectExistingWorldview();
+  if (existingPath) {
+    const loaded = loadWorldview(existingPath);
+    log.info("Found existing worldview", { name: loaded.name, path: existingPath });
+    return loaded;
+  }
+
+  // No custom worldview — offer options
+  const response = await askUser(
+    `No custom worldview found. How would you like to set up how I see the work?\n\n` +
+    `  1. **Select** a preset worldview\n` +
+    `  2. **Upload** a worldview file\n` +
+    `  3. **Create** a new worldview together\n\n` +
+    `(Choose 1-3)`
+  );
+
+  const choice = response.trim();
+
+  if (choice === "1" || choice.toLowerCase().includes("select") || choice.toLowerCase().includes("preset")) {
+    return selectPreset(askUser);
+  }
+
+  if (choice === "2" || choice.toLowerCase().includes("upload") || choice.toLowerCase().includes("file")) {
+    return uploadWorldview(askUser);
+  }
+
+  // Default to create (choice 3 or anything else)
+  return generateWorldview(askUser, options);
 }

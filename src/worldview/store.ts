@@ -121,6 +121,7 @@ export function serializeWorldview(
     ["integration", "integration"],
     ["manifestation", "manifestation"],
     ["inquiry", "inquiry"],
+    ["inquiry-synthesis", "inquirySynthesis"],
     ["prospective", "prospective"],
     ["emergence", "emergence"],
   ];

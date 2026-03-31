@@ -93,12 +93,19 @@ export class Thalamus {
   private taskModes = new Map<string, "explore" | "leverage">();
   private forwardBriefing: ForwardBriefing | null = null;
   private manifestedFuture: string | null = null;
+  private guidanceStore?: import("./guidance-store.js").GuidanceStore;
 
   constructor(sources: ThalamusSources) {
     this.wm = sources.wm;
     this.pns = sources.pns;
     this.hippocampus = sources.hippocampus;
     this.worldModel = sources.worldModel;
+    this.guidanceStore = sources.guidanceStore;
+  }
+
+  /** Get the guidance store (for rest cycle evolution + outcome recording). */
+  getGuidanceStore(): import("./guidance-store.js").GuidanceStore | undefined {
+    return this.guidanceStore;
   }
 
   // ── Project Binding ─────────────────────────────────────────────
@@ -479,6 +486,36 @@ export class Thalamus {
       taskId,
       compositeCeiling: sol.compositeCeiling.toFixed(1),
       hasHistory: sol.hasHistory,
+    });
+  }
+
+  /**
+   * Attach a failure mode prediction to an existing gestalt.
+   * Called after consultation (fingerprint available), before build cycle.
+   * The Thalamus uses this to inject preemptive context into briefings.
+   */
+  attachFailureModePrediction(
+    taskId: string,
+    prediction: import("../types/cerebellum.js").FailureModePrediction,
+  ): void {
+    const gestalt = this.gestalts.get(taskId);
+    if (!gestalt) {
+      log.warn("attachFailureModePrediction: no gestalt for task", { taskId });
+      return;
+    }
+    this.gestalts.set(taskId, { ...gestalt, failureModePrediction: prediction });
+
+    emit("thalamus:gestalt-failure-prediction-attached", {
+      taskId,
+      predicted: prediction.predicted,
+      confidence: prediction.confidence,
+      episodesConsidered: prediction.episodesConsidered,
+    });
+
+    log.info("Failure mode prediction attached to gestalt", {
+      taskId,
+      predicted: prediction.predicted,
+      confidence: prediction.confidence.toFixed(3),
     });
   }
 
@@ -1219,6 +1256,129 @@ export class Thalamus {
    * Derive a consultation briefing from the task's gestalt.
    * Replaces forConsultation(task) for gestalt-wired rhythms.
    */
+  // ── Failure preemption assembly helpers ────────────────────────
+
+  /**
+   * Consultation-side: prompt senses to produce information that prevents
+   * the predicted failure. Only specification-gap and integration get
+   * consultation-side preemption — the others are motor-side problems.
+   */
+  private assembleConsultationPreemption(
+    g: import("../types/task-gestalt.js").TaskGestalt,
+  ): import("../types/thalamus.js").ConsultationEnrichment["failurePreemption"] | undefined {
+    const fmp = g.failureModePrediction;
+    if (!fmp?.predicted || fmp.confidence < 0.4) return undefined;
+
+    // Only specification-gap and integration get consultation-side preemption
+    if (fmp.predicted !== "specification-gap" && fmp.predicted !== "integration") return undefined;
+
+    // Read from guidance store when available, fall back to hardcoded defaults
+    const variant = this.guidanceStore?.getActive(fmp.predicted, "consultation");
+    if (variant) {
+      return {
+        category: fmp.predicted,
+        confidence: fmp.confidence,
+        consultationGuidance: variant.text,
+      };
+    }
+
+    // Hardcoded fallback (used when no guidance store is wired)
+    switch (fmp.predicted) {
+      case "specification-gap":
+        return {
+          category: "specification-gap",
+          confidence: fmp.confidence,
+          consultationGuidance:
+            "Tasks like this historically fail because senses and builder disagree on what 'done' means. " +
+            "Be explicit about your acceptance criteria: state concrete pass/fail conditions, not just directional preferences. " +
+            "For each evaluator you activate, describe the specific observable evidence that would satisfy it.",
+        };
+      case "integration":
+        return {
+          category: "integration",
+          confidence: fmp.confidence,
+          consultationGuidance:
+            "Tasks like this historically fail because sense tensions collapse into capitulation instead of synthesis. " +
+            "State your hard boundaries: the non-negotiable minimums for your dimension. " +
+            "The builder needs pre-resolved constraints, not competing aspirations that will conflict during evaluation.",
+        };
+    }
+  }
+
+  /**
+   * Motor-side: inject specific guidance per predicted failure category.
+   * Every category gets motor-side preemption with category-specific content.
+   */
+  private assembleMotorPreemption(
+    g: import("../types/task-gestalt.js").TaskGestalt,
+    consultation: import("../types/consultation.js").Consultation,
+  ): import("../types/thalamus.js").MotorEnrichment["failurePreemption"] | undefined {
+    const fmp = g.failureModePrediction;
+    if (!fmp?.predicted || fmp.confidence < 0.4) return undefined;
+
+    // Assemble dynamic historical patterns per category (always fresh from consultation/SoL)
+    const historicalPatterns: string[] = [];
+    switch (fmp.predicted) {
+      case "specification-gap":
+        historicalPatterns.push(...consultation.perspectives
+          .filter((p) => p.stake > 0.3)
+          .map((p) => `${p.senseName} (stake ${p.stake.toFixed(1)}): ${p.perspective.slice(0, 200)}`));
+        break;
+      case "integration":
+        historicalPatterns.push(...consultation.perspectives
+          .filter((p) => p.stake > 0.4)
+          .map((p) => `${p.senseName}: ceiling ${p.ceiling}/10 — ${p.ceilingRationale}`));
+        break;
+      case "approach-bottleneck":
+        if (g.speedOfLight?.approachSpecific) {
+          const as = g.speedOfLight.approachSpecific;
+          historicalPatterns.push(
+            `Current approach class: ${as.approachTags.join(", ")}`,
+            `Approach-specific best achieved: ${as.compositeBestAchieved?.toFixed(1) ?? "unknown"}`,
+            `Overall best achieved: ${g.speedOfLight.compositeBestAchieved?.toFixed(1) ?? "unknown"}`,
+            `Bottleneck gap: ${as.bottleneckGap?.toFixed(1) ?? "unknown"}`,
+          );
+        }
+        break;
+      case "local-logic":
+        historicalPatterns.push(
+          `Failure mode confidence: ${(fmp.confidence * 100).toFixed(0)}% — targeted fix likely sufficient.`,
+        );
+        break;
+    }
+
+    // Read guidance text from store when available, fall back to hardcoded defaults
+    const variant = this.guidanceStore?.getActive(fmp.predicted, "motor");
+    const guidance = variant?.text ?? this.defaultMotorGuidance(fmp.predicted);
+
+    return {
+      predictedCategory: fmp.predicted,
+      confidence: fmp.confidence,
+      guidance,
+      historicalPatterns,
+    };
+  }
+
+  /** Hardcoded fallback motor guidance (used when no guidance store is wired). */
+  private defaultMotorGuidance(category: import("../types/motor-cortex.js").FailureCategory): string {
+    switch (category) {
+      case "specification-gap":
+        return "Historical pattern: builder and senses disagree on 'done.' " +
+          "The acceptance criteria below are extracted from each sense's consultation. " +
+          "Build to satisfy these specific expectations, not a general interpretation of the task.";
+      case "integration":
+        return "Historical pattern: sense tensions collapse into capitulation. " +
+          "Build within the ceiling constraints below. " +
+          "Satisfy each sense's minimum rather than maximizing one at the expense of another.";
+      case "approach-bottleneck":
+        return "Historical pattern: this approach class hits a performance ceiling below the task's requirements. " +
+          "Consider a fundamentally different strategy rather than optimizing the current one.";
+      case "local-logic":
+        return "Historical pattern: similar tasks fail on specific logic issues in a small number of senses. " +
+          "Pay extra attention to edge cases and boundary conditions in the areas flagged by high-stake senses.";
+    }
+  }
+
   forConsultationFromGestalt(taskId: string): ConsultationBriefing {
     const g = this.requireGestalt(taskId);
 
@@ -1294,6 +1454,7 @@ export class Thalamus {
           ? ec.tensionCosts : undefined),
         efferenceHardConstraints: compressed ? undefined : (ec?.hardConstraints.length
           ? ec.hardConstraints : undefined),
+        failurePreemption: this.assembleConsultationPreemption(g),
       },
       meta: {
         ...this.meta("consultation", taskId, sources, counts),
@@ -1404,6 +1565,7 @@ export class Thalamus {
         prospectiveDirectives: motorCompressed ? undefined : (g.prospectiveDirectives?.length
           ? g.prospectiveDirectives : undefined),
         selectedPath: g.explorePath ?? undefined,
+        failurePreemption: this.assembleMotorPreemption(g, consultation),
       },
       meta: {
         ...this.meta("motor", taskId, sources, counts),

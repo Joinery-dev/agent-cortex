@@ -215,6 +215,12 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     enrichmentSections.push(efferenceBlock);
   }
 
+  if (enrichment.failurePreemption) {
+    enrichmentSections.push(
+      `FAILURE PREVENTION (${(enrichment.failurePreemption.confidence * 100).toFixed(0)}% confidence from similar tasks):\n${enrichment.failurePreemption.consultationGuidance}`,
+    );
+  }
+
   const enrichmentBlock =
     enrichmentSections.length > 0
       ? "\n" + enrichmentSections.join("\n\n") + "\n"
@@ -295,6 +301,331 @@ Visual: ${taste.visual}
 Decisions: ${taste.decisionStyle}
 Patterns: ${taste.patterns}
 ${Object.entries(taste.raw).length > 0 ? Object.entries(taste.raw).map(([k, v]) => `${k}: ${v}`).join("\n") : ""}`;
+}
+
+// ─── INQUIRY SYNTHESIS (Phase 1a — merge + tier questions) ──────
+
+export function inquirySynthesisSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+You are the synthesis layer of a multi-perspective inquiry system. Multiple specialist senses have each independently generated clarifying questions about a new project. Many questions overlap or ask the same thing from different angles.
+
+${bodyOrDefault("inquirySynthesis", `Your job: merge these into a concise, prioritized set of questions for the project owner.
+
+Rules:
+- Cluster questions by semantic topic, not by which sense asked them.
+- For each cluster, pick the single sharpest phrasing — or synthesize a better one that captures what all the senses need to know.
+- Tag each merged question with ALL originating sense IDs and names, and the highest stake among them.
+- Tier the results:
+  - "essential": questions that block 2+ senses with stake >= 0.5, OR a single sense with stake >= 0.8. These shape the fundamental approach. Aim for 5, never exceed 7.
+  - "helpful": questions from 2+ senses OR stake >= 0.4. These refine details.
+  - "optional": single-sense, lower-stake questions. The system can make reasonable defaults without these.
+- If a question is fully subsumed by another (answering one automatically answers the other), drop the subsumed one and count it in droppedCount.
+- Prefer concrete, answerable questions over abstract ones.`, worldview)}
+
+Return JSON:
+{
+  "essential": [
+    {
+      "question": "the sharpest single phrasing",
+      "senseIds": ["sense-id-1", "sense-id-2"],
+      "senseNames": ["Design", "Systems"],
+      "maxStake": 0.0-1.0,
+      "cluster": "brief topic label e.g. 'technology stack'"
+    }
+  ],
+  "helpful": [ ...same shape... ],
+  "optional": [ ...same shape... ],
+  "droppedCount": 0
+}`;
+}
+
+export function inquirySynthesisUser(
+  inquiries: import("../kernel/consul.js").SenseInquiry[],
+  intent: import("../types/intent.js").ProjectIntent,
+): string {
+  const sections: string[] = [];
+  sections.push(`PROJECT: ${intent.summary}\n`);
+  sections.push(`SENSE QUESTIONS:\n`);
+
+  for (const inq of inquiries) {
+    if (inq.questions.length === 0) continue;
+    sections.push(`[${inq.senseName}] (id: "${inq.senseId}", stake: ${inq.stake})`);
+    for (let i = 0; i < inq.questions.length; i++) {
+      sections.push(`  ${i + 1}. ${inq.questions[i].question} — WHY: ${inq.questions[i].why}`);
+    }
+    sections.push("");
+  }
+
+  const totalQuestions = inquiries.reduce((sum, inq) => sum + inq.questions.length, 0);
+  const senseCount = inquiries.filter((inq) => inq.questions.length > 0).length;
+  sections.push(`Total: ${totalQuestions} questions from ${senseCount} senses.`);
+  sections.push(`Merge, deduplicate, and tier these.`);
+
+  return sections.join("\n");
+}
+
+// ─── FOLLOW-UP INQUIRY (Phase 1a — convergence rounds) ──────
+
+export function followUpInquirySystem(sense: Sense, subTree: Sense[], round: number, worldview?: Worldview): string {
+  const pathways = subTree.filter((g) => g.level === "pathway");
+  const subConcerns = pathways
+    .map((pathway) => {
+      const receptors = subTree.filter(
+        (g) => g.level === "receptor" && g.parentId === pathway.id
+      );
+      const receptorList = receptors
+        .map((m) => `    - ${m.name} (id: "${m.id}"): ${m.sensitivity}`)
+        .join("\n");
+      return `  - ${pathway.name}: ${pathway.sensitivity}\n${receptorList}`;
+    })
+    .join("\n");
+
+  return `${preamble(worldview)}
+
+You are ${sense.name}. ${sense.sensitivity}
+
+Your pathways and receptors:
+${subConcerns}
+
+You have been through ${round - 1} round(s) of questions and answers with the person who holds this project. Review the full conversation below.
+
+If you now understand the project well enough from your dimension to advise confidently, return empty questions and stake 0. Only ask follow-up questions if specific gaps remain that would materially change your guidance. Do not repeat questions already answered. Do not ask questions out of thoroughness — ask only what you genuinely need.
+
+Return JSON:
+{
+  "questions": [
+    { "question": "specific follow-up question", "why": "what gap this fills from your dimension" }
+  ],
+  "stake": 0.0-1.0
+}
+
+stake: 0 = you understand enough now. 1 = critical gaps remain that would change your guidance.`;
+}
+
+export function followUpInquiryUser(
+  intent: import("../types/intent.js").ProjectIntent,
+  taste: import("../types/intent.js").TasteProfile,
+  previousQA: string,
+): string {
+  return `${inquiryUser(intent, taste)}
+
+CONVERSATION SO FAR:
+${previousQA}`;
+}
+
+// ─── MANIFESTATION SYNTHESIS (Phase 1b — sense perspectives → unified vision) ──
+
+/**
+ * System prompt for sense manifestation — each sense describes what the
+ * finished product looks like from its perspective.
+ */
+export function senseManifestSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
+  const pathways = subTree.filter((g) => g.level === "pathway");
+  const subConcerns = pathways
+    .map((pathway) => {
+      const receptors = subTree.filter(
+        (g) => g.level === "receptor" && g.parentId === pathway.id
+      );
+      const receptorList = receptors
+        .map((m) => `    - ${m.name} (id: "${m.id}"): ${m.sensitivity}`)
+        .join("\n");
+      return `  - ${pathway.name}: ${pathway.sensitivity}\n${receptorList}`;
+    })
+    .join("\n");
+
+  return `${preamble(worldview)}
+
+You are ${sense.name}. ${sense.sensitivity}
+
+Your pathways and receptors:
+${subConcerns}
+
+${bodyOrDefault("senseManifest", `A project is being planned. Before anything is built, you are manifesting what the finished product looks like from YOUR perspective. Not how to build it — what it IS when it's done.
+
+Describe the properties the finished artifact must have from your dimension. Be concrete: not "good performance" but "first contentful paint under 1.5s, total bundle under 200KB." Not "clean design" but "muted palette with one accent color, generous whitespace, system font stack."
+
+Name any tensions you anticipate with other dimensions. If achieving your vision might conflict with what other senses care about, say so explicitly — these tensions will be resolved in synthesis.`, worldview)}
+
+Return JSON:
+{
+  "perspective": "concrete description of what the finished product looks like from your dimension",
+  "tensions": ["anticipated tension with another dimension — be specific"],
+  "confidence": 0.0-1.0
+}
+
+confidence: how confident you are in this manifestation given what you know. 1 = the intent is clear enough to manifest concretely. 0 = too vague to manifest.`;
+}
+
+/**
+ * User prompt for sense manifestation.
+ */
+export function senseManifestUser(
+  intent: import("../types/intent.js").ProjectIntent,
+  taste: import("../types/intent.js").TasteProfile,
+  inquiryContext?: string,
+): string {
+  const parts = [
+    `PROJECT: ${intent.summary}`,
+    `AUDIENCE: ${intent.audience}`,
+    `SUCCESS: ${intent.successCriteria.join("; ")}`,
+    `VISION: ${intent.vision}`,
+    intent.constraints.length > 0 ? `CONSTRAINTS: ${intent.constraints.join("; ")}` : "",
+    ``,
+    `TASTE:`,
+    `Visual: ${taste.visual}`,
+    `Decisions: ${taste.decisionStyle}`,
+    `Patterns: ${taste.patterns}`,
+    Object.entries(taste.raw).length > 0 ? Object.entries(taste.raw).map(([k, v]) => `${k}: ${v}`).join("\n") : "",
+  ];
+
+  if (inquiryContext) {
+    parts.push(``, `INQUIRY CONTEXT (questions asked and answered):`, inquiryContext);
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+/**
+ * System prompt for vision synthesis — combines sense perspectives into
+ * a unified natural-language vision.
+ */
+export function visionSynthesisSystem(worldview?: Worldview): string {
+  return `${preamble(worldview)}
+
+You are the synthesis layer of a multi-perspective manifestation system. Multiple specialist senses have each independently described what the finished product looks like from their perspective. Your job is to weave these into a single, unified vision.
+
+${bodyOrDefault("visionSynthesis", `The vision you produce is a constraint surface — it describes the destination without dictating the route. It must be concrete enough that someone could evaluate a real artifact against it, but invitational enough that a builder could exceed it.
+
+Rules:
+- Synthesize, don't average. When two senses want different things, find the resolution that satisfies the deeper need of both — or name the trade-off explicitly.
+- Every sense's core contribution must be recognizable in the vision.
+- Tensions must be named and resolved, not smoothed over. "We chose X over Y because Z" is better than pretending the tension doesn't exist.
+- Be concrete. The vision should describe what the finished thing IS — what it looks like, how it behaves, what it feels like to use. Not features. Properties.`, worldview)}
+
+Return JSON:
+{
+  "vision": "unified natural-language description of the finished product — concrete enough to evaluate against",
+  "senseContributions": {
+    "Sense Name": "what this sense contributed to the vision and what it will look for during evaluation"
+  },
+  "tensionResolutions": [
+    { "tension": "the tension between dimensions", "resolution": "how it was resolved and why" }
+  ],
+  "confidence": 0.0-1.0
+}
+
+confidence: how well you were able to synthesize the perspectives. 1 = clean synthesis. Lower = significant unresolved tensions or vague input.`;
+}
+
+/**
+ * User prompt for vision synthesis.
+ */
+export function visionSynthesisUser(
+  perspectives: Array<{ senseName: string; perspective: string; tensions: string[] }>,
+  intent: import("../types/intent.js").ProjectIntent,
+  taste: import("../types/intent.js").TasteProfile,
+  inquiryContext?: string,
+  feedback?: string,
+): string {
+  const parts = [
+    `PROJECT: ${intent.summary}`,
+    `AUDIENCE: ${intent.audience}`,
+    `VISION: ${intent.vision}`,
+    ``,
+    `TASTE:`,
+    `Visual: ${taste.visual}`,
+    `Decisions: ${taste.decisionStyle}`,
+    `Patterns: ${taste.patterns}`,
+  ];
+
+  if (inquiryContext) {
+    parts.push(``, `INQUIRY CONTEXT:`, inquiryContext);
+  }
+
+  parts.push(``, `SENSE PERSPECTIVES:`);
+  for (const p of perspectives) {
+    parts.push(``, `[${p.senseName}]`, p.perspective);
+    if (p.tensions.length > 0) {
+      parts.push(`Tensions: ${p.tensions.join("; ")}`);
+    }
+  }
+
+  if (feedback) {
+    parts.push(``, `FEEDBACK FROM PREVIOUS ROUND (address these concerns):`, feedback);
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * System prompt for sense evaluation of a synthesized vision.
+ */
+export function senseEvaluationSystem(sense: Sense, subTree: Sense[], worldview?: Worldview): string {
+  const pathways = subTree.filter((g) => g.level === "pathway");
+  const subConcerns = pathways
+    .map((pathway) => {
+      const receptors = subTree.filter(
+        (g) => g.level === "receptor" && g.parentId === pathway.id
+      );
+      const receptorList = receptors
+        .map((m) => `    - ${m.name} (id: "${m.id}"): ${m.sensitivity}`)
+        .join("\n");
+      return `  - ${pathway.name}: ${pathway.sensitivity}\n${receptorList}`;
+    })
+    .join("\n");
+
+  return `${preamble(worldview)}
+
+You are ${sense.name}. ${sense.sensitivity}
+
+Your pathways and receptors:
+${subConcerns}
+
+${bodyOrDefault("senseEvaluation", `A unified vision has been synthesized from multiple sense perspectives, including yours. You are evaluating whether this vision adequately captures your contribution and resolves tensions in an acceptable way.
+
+Be honest. If the synthesis lost something important from your perspective, say so. If a tension resolution sacrifices too much of what your dimension needs, push back. But also be reasonable — synthesis requires trade-offs, and a resolution that gives you 80% of what you need while fully satisfying another dimension may be the right call.
+
+The goal is not perfection from your dimension alone — it's a vision that every sense can recognize its contribution in and build toward.`, worldview)}
+
+Return JSON:
+{
+  "satisfied": true/false,
+  "assessment": "what the synthesis got right and wrong from your perspective",
+  "feedback": "specific, actionable feedback if not satisfied — what needs to change. Empty string if satisfied.",
+  "confidence": 0.0-1.0
+}
+
+satisfied: true if you can build toward this vision and recognize your contribution in it. false if something critical is missing or a tension resolution is unacceptable.`;
+}
+
+/**
+ * User prompt for sense evaluation of a synthesized vision.
+ */
+export function senseEvaluationUser(
+  vision: string,
+  senseContributions: Record<string, string>,
+  tensionResolutions: Array<{ tension: string; resolution: string }>,
+): string {
+  const parts = [
+    `SYNTHESIZED VISION:`,
+    vision,
+    ``,
+    `PER-SENSE CONTRIBUTIONS:`,
+  ];
+
+  for (const [name, contribution] of Object.entries(senseContributions)) {
+    parts.push(`[${name}]: ${contribution}`);
+  }
+
+  if (tensionResolutions.length > 0) {
+    parts.push(``, `TENSION RESOLUTIONS:`);
+    for (const tr of tensionResolutions) {
+      parts.push(`- ${tr.tension} → ${tr.resolution}`);
+    }
+  }
+
+  return parts.join("\n");
 }
 
 // ─── RE-CONSULTATION ────────────────────────────────────────
@@ -549,6 +880,15 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
       (sp.senseAlignment.sacrifices.length > 0 ? `; sacrifices ${sp.senseAlignment.sacrifices.join(", ")}` : "") +
       `\n\nThis path was selected by the Explore Phase as strong guidance. Use it to orient your implementation plan. You may adapt details, but the strategic direction should follow this path.`
     );
+  }
+
+  if (enrichment.failurePreemption) {
+    const fp = enrichment.failurePreemption;
+    let preemptionText = `FAILURE PREVENTION (predicted: ${fp.predictedCategory}, ${(fp.confidence * 100).toFixed(0)}% confidence):\n${fp.guidance}`;
+    if (fp.historicalPatterns.length > 0) {
+      preemptionText += `\n\n${fp.historicalPatterns.map((p) => `- ${p}`).join("\n")}`;
+    }
+    enrichmentSections.push(preemptionText);
   }
 
   const enrichmentBlock =
@@ -1273,24 +1613,66 @@ export function premotorRevisionUser(
     // Include tension strategies from previous plan for context
   }
 
-  const evalSummary = revision.evaluations
-    .map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`)
-    .join("\n");
-
   const resolutionSummary = revision.resolutions
     .map((r) => `- ${r.revisedInstructions}`)
     .join("\n");
+
+  // Scoped evaluation sections — when failure classification is available,
+  // separate objecting senses from accepting senses so the premotor
+  // focuses revision effort on what actually needs fixing.
+  let evalSection: string;
+  let scopeInstruction = "";
+  let failureHint = "";
+
+  if (revision.objectingSenseIds && revision.objectingSenseIds.length > 0) {
+    const objectingSet = new Set(revision.objectingSenseIds);
+
+    const objecting = revision.evaluations.filter((e) => objectingSet.has(e.activationPath[0]));
+    const accepting = revision.evaluations.filter((e) => !objectingSet.has(e.activationPath[0]));
+
+    const objectingSummary = objecting
+      .map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`)
+      .join("\n");
+    const acceptingSummary = accepting
+      .map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`)
+      .join("\n");
+
+    evalSection = `SENSES THAT REJECTED (focus here):
+${objectingSummary || "(none)"}
+
+SENSES THAT ACCEPTED (preserve):
+${acceptingSummary || "(none)"}`;
+
+    scopeInstruction = `\nThis is a SURGICAL revision. Focus on the ${objecting.length} objecting sense(s)' concerns. Do NOT modify aspects that accepting senses were satisfied with.`;
+
+    // Failure classification hint
+    if (revision.failureClassification) {
+      const fc = revision.failureClassification;
+      const categoryHints: Record<string, string> = {
+        "local-logic": "Local logic error — targeted fix, not a rebuild.",
+        "integration": "Integration failure — senses conflict, resolution failed. Re-engage the tension.",
+        "specification-gap": "Specification gap — needs reconsultation, not rebuilding.",
+        "approach-bottleneck": "Approach bottleneck — the approach itself is the ceiling. Consider a different strategy.",
+      };
+      failureHint = `\nFAILURE TYPE: ${categoryHints[fc.category] ?? fc.category}`;
+    }
+  } else {
+    // Fallback: flat list when no classification available
+    evalSection = `EVALUATION RESULTS:
+${revision.evaluations.map((e) => `- ${e.activationPath.join(" > ")} (${e.score}/10): ${e.assessment}`).join("\n")}`;
+  }
 
   return `${body}
 
 PREVIOUS PLAN:
 ${prevPlanSummary}
+${failureHint}
 
-EVALUATION RESULTS:
-${evalSummary}
+${evalSection}
 
 REQUIRED CHANGES:
 ${resolutionSummary}
+${scopeInstruction}
 
 Analyze what went wrong. Was the plan wrong (bad approach — needs a different strategy) or the execution wrong (right approach, poor output — needs amendments)?
 

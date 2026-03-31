@@ -139,6 +139,9 @@ export interface TaskGestalt {
    */
   speedOfLight?: SpeedOfLight;
 
+  /** Predicted failure mode from Cerebellum episode similarity. Null on cold start. */
+  failureModePrediction?: import("./cerebellum.js").FailureModePrediction;
+
   // ── Explore Phase (attached after explore runs) ─────
   /**
    * Selected path from explore phase. Attached after explore runs,

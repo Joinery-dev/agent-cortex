@@ -59,7 +59,16 @@ export class Cerebellum {
   private pending: Map<string, PendingPrediction> = new Map();
   private speedOfLightCache: Map<string, SpeedOfLight> = new Map();
   private approachTagCache: Map<string, string[]> = new Map();
+  private failureModePredictionCache: Map<string, import("../types/cerebellum.js").FailureModePrediction> = new Map();
   private accuracyHistory: AccuracyRecord[] = [];
+  private failureModeAccuracy: Array<{
+    taskId: string;
+    predicted: import("../types/motor-cortex.js").FailureCategory | null;
+    actual: import("../types/motor-cortex.js").FailureCategory | null;
+    correct: boolean;
+    preempted: boolean;
+    recordedAt: Date;
+  }> = [];
   private sequenceCounter = 0;
   private config: CerebellumConfig;
 
@@ -210,6 +219,7 @@ export class Cerebellum {
       outerCycles: number;
       attentionBudget?: { floor: number; expected: number; ceiling: number };
     },
+    failureClassification?: import("../types/motor-cortex.js").FailureClassification,
   ): DopamineSignal | null {
     // Filter out degraded evaluations — the cerebellum must never learn from
     // garbage data. A degraded evaluation (e.g., from an agentic parse failure)
@@ -303,6 +313,10 @@ export class Cerebellum {
       // Cycle metadata for attention budget learning
       outerCycles: cycleData?.outerCycles,
       attentionBudget: cycleData?.attentionBudget,
+      // Failure classification metadata for failure mode prediction
+      failureCategory: failureClassification?.category,
+      failureConfidence: failureClassification?.confidence,
+      failureObjectingSenseIds: failureClassification?.objectingSenseIds,
     };
 
     this.episodes.push(episode);
@@ -314,10 +328,58 @@ export class Cerebellum {
       log.debug("Pruned oldest episodes", { pruned });
     }
 
+    // ── Failure mode prediction learning loop ──────────────────
+    const fmpPrediction = this.failureModePredictionCache.get(taskId);
+    if (fmpPrediction?.predicted) {
+      const actualCategory = failureClassification?.category ?? null;
+      const correct = actualCategory !== null && actualCategory === fmpPrediction.predicted;
+      const preempted = actualCategory === null; // predicted failure didn't occur
+
+      this.failureModeAccuracy.push({
+        taskId,
+        predicted: fmpPrediction.predicted,
+        actual: actualCategory,
+        correct,
+        preempted,
+        recordedAt: new Date(),
+      });
+
+      // Trim to accuracy window
+      if (this.failureModeAccuracy.length > this.config.accuracyWindowSize) {
+        this.failureModeAccuracy = this.failureModeAccuracy.slice(
+          this.failureModeAccuracy.length - this.config.accuracyWindowSize,
+        );
+      }
+
+      if (preempted) {
+        emit("gate:failure-preempted", {
+          taskId,
+          predicted: fmpPrediction.predicted,
+          confidence: fmpPrediction.confidence,
+        });
+        log.info("Failure preempted — predicted failure did not occur", {
+          taskId,
+          predicted: fmpPrediction.predicted,
+        });
+      } else if (!correct && actualCategory !== null) {
+        emit("gate:failure-prediction-error", {
+          taskId,
+          predicted: fmpPrediction.predicted,
+          actual: actualCategory,
+        });
+        log.info("Failure mode prediction error", {
+          taskId,
+          predicted: fmpPrediction.predicted,
+          actual: actualCategory,
+        });
+      }
+    }
+
     // Clean up pending state
     this.pending.delete(taskId);
     this.speedOfLightCache.delete(taskId);
     this.approachTagCache.delete(taskId);
+    this.failureModePredictionCache.delete(taskId);
 
     // If no prediction was made, no dopamine — but episode is stored
     if (!entry?.prediction) {
@@ -396,6 +458,25 @@ export class Cerebellum {
     );
     const meanError = totalError / this.accuracyHistory.length;
     return Math.max(0, 1 - meanError / 9);
+  }
+
+  /**
+   * Rolling failure mode prediction accuracy.
+   * Tracks how often the predicted failure mode matches the actual,
+   * plus the preemption rate (predicted failure didn't occur).
+   */
+  getFailureModeAccuracy(): { accuracy: number; preemptionRate: number; sampleCount: number } {
+    if (this.failureModeAccuracy.length === 0) {
+      return { accuracy: 0.8, preemptionRate: 0, sampleCount: 0 };
+    }
+    const total = this.failureModeAccuracy.length;
+    const correct = this.failureModeAccuracy.filter((r) => r.correct).length;
+    const preempted = this.failureModeAccuracy.filter((r) => r.preempted).length;
+    return {
+      accuracy: correct / total,
+      preemptionRate: preempted / total,
+      sampleCount: total,
+    };
   }
 
   // ── Cost prediction ─────────────────────────────────────────
@@ -565,6 +646,89 @@ export class Cerebellum {
       confidence: 0.4,
       reason: "Revision may improve outcome.",
     };
+  }
+
+  // ── Failure mode prediction ─────────────────────────────────
+
+  /**
+   * Predict the likely failure mode for a task before building.
+   *
+   * Uses the same similarity matching infrastructure as score prediction.
+   * Filters to episodes that have failure classification data, computes
+   * a similarity-weighted vote over failure categories.
+   *
+   * Returns null on cold start (insufficient episodes with failure data).
+   */
+  predictFailureMode(
+    taskId: string,
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/cerebellum.js").FailureModePrediction | null {
+    const episodesWithFailure = this.episodes.filter((e) => e.failureCategory !== undefined);
+    if (episodesWithFailure.length < this.config.minEpisodes) return null;
+
+    const matches = findSimilarEpisodes(fingerprint, episodesWithFailure, this.config);
+    if (matches.length === 0) return null;
+
+    // Weighted vote over failure categories
+    const votes = new Map<string, number>();
+    let totalWeight = 0;
+
+    for (const { episode, weight } of matches) {
+      if (!episode.failureCategory) continue;
+      const current = votes.get(episode.failureCategory) ?? 0;
+      votes.set(episode.failureCategory, current + weight);
+      totalWeight += weight;
+    }
+
+    if (totalWeight === 0) return null;
+
+    // Normalize to distribution
+    const distribution: Record<string, number> = {};
+    let maxCategory: string | null = null;
+    let maxShare = 0;
+
+    for (const [category, weight] of votes) {
+      const share = weight / totalWeight;
+      distribution[category] = share;
+      if (share > maxShare) {
+        maxShare = share;
+        maxCategory = category;
+      }
+    }
+
+    // predicted = highest category if vote share > 0.4
+    const predicted = maxCategory && maxShare > 0.4
+      ? maxCategory as import("../types/motor-cortex.js").FailureCategory
+      : null;
+
+    // confidence = vote share × data sufficiency factor
+    const confidence = maxShare * Math.min(1, matches.length / 5);
+
+    const prediction: import("../types/cerebellum.js").FailureModePrediction = {
+      predicted,
+      distribution,
+      confidence,
+      episodesConsidered: matches.length,
+    };
+
+    // Cache for learning loop comparison in recordOutcome()
+    this.failureModePredictionCache.set(taskId, prediction);
+
+    log.info("Failure mode predicted", {
+      predicted,
+      confidence: confidence.toFixed(3),
+      episodesConsidered: matches.length,
+      distribution,
+    });
+
+    emit("cerebellum:failure-mode-predicted", {
+      predicted,
+      confidence,
+      episodesConsidered: matches.length,
+      distribution,
+    });
+
+    return prediction;
   }
 
   /** Number of episodes stored. */
@@ -752,6 +916,7 @@ export class Cerebellum {
     episodeCount: number;
     accuracy: number;
     accuracyWindowSize: number;
+    failureModeAccuracy: { accuracy: number; preemptionRate: number; sampleCount: number };
     pendingPredictions: string[];
     config: CerebellumConfig;
     recentEpisodes: Array<{
@@ -766,6 +931,7 @@ export class Cerebellum {
       episodeCount: this.episodes.length,
       accuracy: this.getAccuracy(),
       accuracyWindowSize: this.accuracyHistory.length,
+      failureModeAccuracy: this.getFailureModeAccuracy(),
       pendingPredictions: [...this.pending.keys()],
       config: this.config,
       recentEpisodes: this.episodes.slice(-5).map((ep) => ({

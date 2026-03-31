@@ -61,6 +61,14 @@ export interface CerebellumEpisode {
   outerCycles?: number;
   /** The attention budget that was active during this task. */
   attentionBudget?: { floor: number; expected: number; ceiling: number };
+
+  // ── Failure classification metadata (for failure mode prediction) ──
+  /** How the gate classified the failure (absent for first-try accepts). */
+  failureCategory?: import("./motor-cortex.js").FailureCategory;
+  /** Classifier confidence in the failure category. */
+  failureConfidence?: number;
+  /** Sense IDs that drove the rejection. */
+  failureObjectingSenseIds?: string[];
 }
 
 // ─── Predictions ────────────────────────────────────────────────
@@ -169,6 +177,24 @@ export const DEFAULT_CEREBELLUM_CONFIG: CerebellumConfig = {
   revisionDeltaThreshold: 0.5,
   revisionSkipConfidence: 0.6,
 };
+
+// ─── Failure mode prediction ──────────────────────────────────
+
+/**
+ * Predicted failure mode for a task, before building.
+ * Produced by the Cerebellum from episode similarity matching.
+ * Consumed by the Thalamus for preemptive briefing enrichment.
+ */
+export interface FailureModePrediction {
+  /** Most likely failure category, or null if insufficient data / no clear winner. */
+  predicted: import("./motor-cortex.js").FailureCategory | null;
+  /** Probability per category (similarity-weighted votes, sums to ~1). */
+  distribution: Record<string, number>;
+  /** 0–1 confidence, based on episode count + vote share agreement. */
+  confidence: number;
+  /** How many episodes with failure data were considered. */
+  episodesConsidered: number;
+}
 
 // ─── Accuracy tracking ─────────────────────────────────────────
 

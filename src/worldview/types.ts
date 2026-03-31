@@ -94,7 +94,7 @@ export const WorldviewSeedSchema = z.object({
   vocabulary: WorldviewVocabularySchema.optional().describe("Vocabulary derived from ontology"),
 });
 
-/** Frame generation output — all 21 frames keyed by name. */
+/** Frame generation output — all 22 frames keyed by name. */
 export const FrameGenerationResultSchema = z.object({
   preamble: z.string().describe("Ontological preamble injected at start of every system prompt"),
   frames: z.object({
@@ -117,6 +117,7 @@ export const FrameGenerationResultSchema = z.object({
     integration: z.string(),
     manifestation: z.string(),
     inquiry: z.string(),
+    inquirySynthesis: z.string(),
     prospective: z.string(),
     emergence: z.string(),
   }),
@@ -124,3 +125,37 @@ export const FrameGenerationResultSchema = z.object({
 });
 
 export type FrameGenerationResult = z.infer<typeof FrameGenerationResultSchema>;
+
+// ─── Conversation ───────────────────────────────────────────────
+
+export interface ConversationTurn {
+  role: "cortex" | "parsifal";
+  message: string;
+}
+
+/**
+ * LLM response during worldview conversation.
+ *   - "continue": keep talking
+ *   - "propose": present a seed for the Parsifal to approve, revise, or deepen
+ *   - "finalize": Parsifal approved — return the accepted seed
+ */
+export const ConversationResponseSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("continue"),
+    message: z.string().describe("Your next message to the Parsifal — a thought, observation, or question that deepens the conversation"),
+    understanding: z.string().describe("Running summary of what you understand so far across the six dimensions. This replaces earlier conversation history to keep context manageable — write it as if briefing yourself for the next turn."),
+  }),
+  z.object({
+    action: z.literal("propose"),
+    message: z.string().describe("Present the seed to the Parsifal in readable form. Ask if this feels right, or if they want to go deeper or change anything."),
+    seed: WorldviewSeedSchema,
+    understanding: z.string().describe("Running summary of your understanding — same as continue, captures what led to this proposal."),
+  }),
+  z.object({
+    action: z.literal("finalize"),
+    message: z.string().describe("Brief acknowledgment that the seed is accepted"),
+    seed: WorldviewSeedSchema,
+  }),
+]);
+
+export type ConversationResponse = z.infer<typeof ConversationResponseSchema>;

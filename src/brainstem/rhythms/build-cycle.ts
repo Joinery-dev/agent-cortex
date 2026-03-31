@@ -312,6 +312,9 @@ export function createBuildCycleDefinition(
           previousPlan: acc.lastPlan!,
           evaluations: acc.lastEvaluations,
           resolutions: acc.allResolutions.slice(-acc.lastEvaluations.length),
+          objectingSenseIds: acc.lastFailureClassification?.objectingSenseIds,
+          rejectionDrivers: acc.lastRejectionDrivers ?? undefined,
+          failureClassification: acc.lastFailureClassification ?? undefined,
         },
       };
     },
@@ -1043,6 +1046,103 @@ export function createBuildCycleDefinition(
       acc.priorWeighted = [...acc.lastWeighted];
       acc.lastCollapseSignal = collapseSignal;
 
+      // ── Failure classification + revision prediction gating ──
+      const failureClassification = classifyFailure({
+        rejectionDrivers: gateOutput.rejectionDrivers,
+        composite: integrated.composite,
+        tensions: integrated.tensions,
+        oscillations: integrated.oscillations,
+        speedOfLight: acc.motorBriefing?.enrichment.speedOfLight,
+        collapseSignal,
+        convictionVerdict: conviction.verdict,
+        planConfidence: acc.lastPlan?.confidence,
+      });
+
+      acc.lastFailureClassification = failureClassification;
+      acc.lastRejectionDrivers = gateOutput.rejectionDrivers;
+
+      emit("gate:failure-classified", {
+        taskId: ctx.task.id,
+        cycle,
+        category: failureClassification.category,
+        confidence: failureClassification.confidence,
+        objectingSenseIds: failureClassification.objectingSenseIds,
+        signals: failureClassification.signals,
+      });
+
+      // Specification-gap: exit early — needs reconsultation, not rebuilding
+      if (failureClassification.category === "specification-gap") {
+        return {
+          action: "complete" as const,
+          result: {
+            work: integrated.work,
+            plan: integrated.plan,
+            selfAssessment: integrated.selfAssessment,
+            intentions: integrated.intentions,
+            evaluations: integrated.evaluations,
+            tensions: acc.allTensions,
+            resolutions: acc.allResolutions,
+            resolutionOutcomes: acc.resolutionOutcomes.length > 0 ? acc.resolutionOutcomes : undefined,
+            cycles: cycle,
+            accepted: false,
+            confidence: integrated.composite.confidence,
+            specificationGap: true,
+            failureClassification,
+          },
+        };
+      }
+
+      // Revision prediction gating: is another cycle worth the tokens?
+      const revisionPrediction = hooks.predictRevisionValue({
+        taskId: ctx.task.id,
+        compositeScore: integrated.composite.weightedMean,
+        failureCategory: failureClassification.category,
+        objectingScores: gateOutput.rejectionDrivers.map((d) => d.score),
+      });
+
+      if (revisionPrediction.shouldSkip) {
+        emit("gate:revision-skipped", {
+          taskId: ctx.task.id,
+          cycle,
+          failureCategory: failureClassification.category,
+          predictedDelta: revisionPrediction.predictedDelta,
+          confidence: revisionPrediction.confidence,
+          reason: revisionPrediction.reason,
+        });
+
+        // Accept current work — revision not worth the cost
+        if (acc.runtimeInstances) {
+          await stopAllRuntimes(acc.runtimeInstances).catch(() => {});
+          acc.runtimeInstances = null;
+        }
+        if (acc.sandbox) {
+          try {
+            await acceptSandbox(acc.sandbox);
+          } catch (err) {
+            log.warn("Sandbox merge failed on revision skip", { error: String(err) });
+          }
+          acc.sandbox = null;
+        }
+
+        return {
+          action: "complete" as const,
+          result: {
+            work: integrated.work,
+            plan: integrated.plan,
+            selfAssessment: integrated.selfAssessment,
+            intentions: integrated.intentions,
+            evaluations: integrated.evaluations,
+            tensions: acc.allTensions,
+            resolutions: acc.allResolutions,
+            resolutionOutcomes: acc.resolutionOutcomes.length > 0 ? acc.resolutionOutcomes : undefined,
+            cycles: cycle,
+            accepted: true,
+            confidence: integrated.composite.confidence,
+            failureClassification,
+          },
+        };
+      }
+
       addEvent(ctx.task, "cycle_back", { cycle });
 
       // Build reason with conviction + gate strategy info + oscillation + collapse notes
@@ -1063,6 +1163,8 @@ export function createBuildCycleDefinition(
           .join("; ");
         reason += ` COLLAPSED TENSIONS: ${guidance || "Senses capitulated instead of synthesizing. Re-engage with genuine tension."}`;
       }
+
+      reason += ` [${failureClassification.category}]`;
 
       return {
         action: "continue",

@@ -16,9 +16,12 @@ import type { CheckpointStore } from "../trace/checkpoint-store.js";
 
 /** Where in the rhythm lifecycle the checkpoint was captured. */
 export type CheckpointKind =
-  | "pre-integrate"   // After execute, before integrate (pre-evaluation)
-  | "post-gate"       // After gate decision (between cycles)
-  | "post-task";      // After sensory-cortex completes a task
+  | "pre-integrate"       // After execute, before integrate (pre-evaluation)
+  | "post-gate"           // After gate decision (between cycles)
+  | "post-task"           // After sensory-cortex completes a task
+  | "post-inquiry"        // After inquiry convergence (Phase 1a complete)
+  | "post-manifestation"  // After vision approved (Phase 1c complete)
+  | "post-plan";          // After hierarchical plan built (Phase B complete)
 
 // ─── Core checkpoint type ──────────────────────────────────────
 
@@ -99,8 +102,8 @@ export interface CheckpointConfig {
 
 export const DEFAULT_CHECKPOINT_CONFIG: CheckpointConfig = {
   enabled: true,
-  kinds: ["pre-integrate"],
-  rhythmTypes: ["build-cycle"],
+  kinds: ["pre-integrate", "post-inquiry", "post-manifestation", "post-plan"],
+  rhythmTypes: ["build-cycle", "project"],
   maxCheckpoints: 10,
 };
 

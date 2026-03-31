@@ -108,6 +108,12 @@ export interface ConsultationEnrichment {
   efferenceTensionCosts?: import("./efference-copy.js").TensionCost[];
   /** Hard constraints the builder cannot overcome regardless of approach. */
   efferenceHardConstraints?: string[];
+  /** Predicted failure mode preemption — guidance to prevent predicted failure before it happens. */
+  failurePreemption?: {
+    category: import("./motor-cortex.js").FailureCategory;
+    confidence: number;
+    consultationGuidance: string;
+  };
 }
 
 /** Simplified principle for inclusion in briefings. */
@@ -165,6 +171,13 @@ export interface MotorEnrichment {
   prospectiveDirectives?: string[];
   /** Selected explore path — strong guidance for the premotor's approach. */
   selectedPath?: import("./explore.js").ExplorePath;
+  /** Predicted failure mode preemption — specific guidance to prevent predicted failure. */
+  failurePreemption?: {
+    predictedCategory: import("./motor-cortex.js").FailureCategory;
+    confidence: number;
+    guidance: string;
+    historicalPatterns: string[];
+  };
 }
 
 // ─── Evaluation Briefing ─────────────────────────────────────
@@ -392,6 +405,9 @@ export interface ThalamusSources {
   worldModel?: WorldModelSource;
   // cerebellum?: { ... }
   // basalGanglia?: { ... }
+
+  // Reflective evolution
+  guidanceStore?: import("../kernel/guidance-store.js").GuidanceStore;
 
   // Phase 4
   // getArousal?: () => number;

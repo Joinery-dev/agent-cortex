@@ -660,6 +660,73 @@ export class RhythmRunnerImpl implements RhythmRunner {
     }
   }
 
+  // ─── Public checkpoint (arbitrary, non-rhythm-bound) ──────────
+
+  /**
+   * Capture a checkpoint at an arbitrary point — not tied to a rhythm phase boundary.
+   * Used by the project rhythm to checkpoint after inquiry, vision approval, and planning.
+   */
+  async checkpoint(
+    kind: Checkpoint["kind"],
+    label: string,
+    data: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.checkpointConfig.enabled) return;
+    if (!this.checkpointProvider) return;
+    if (!this.checkpointConfig.kinds.includes(kind)) return;
+
+    const provider = this.checkpointProvider;
+
+    try {
+      const taskId = (data.taskId as string) ?? "project";
+      const taskDescription = (data.taskDescription as string) ?? label;
+      const ambient = provider.captureAmbient(taskId);
+
+      let gitCommit: string | undefined;
+      try {
+        const { execSync } = await import("node:child_process");
+        gitCommit = execSync("git rev-parse HEAD", { encoding: "utf-8", timeout: 2000 }).trim();
+      } catch {
+        // Not in a git repo or git not available
+      }
+
+      const checkpoint: Checkpoint = {
+        id: newId(),
+        label,
+        kind,
+        createdAt: new Date().toISOString(),
+        rhythmType: "project",
+        cycle: 0,
+        taskId,
+        taskDescription,
+        accumulator: data,
+        phaseOutput: {},
+        initialContext: data.initialContext as Record<string, unknown> ?? {},
+        completedCycles: 0,
+        workingMemory: ambient.workingMemory,
+        plasticity: ambient.plasticity,
+        gestalt: ambient.gestalt,
+        gitCommit,
+        contentStoreSize: getContentStore().size,
+      };
+
+      await provider.store.save(checkpoint);
+      await provider.store.prune(this.checkpointConfig.maxCheckpoints);
+
+      emit("checkpoint:created", {
+        checkpointId: checkpoint.id,
+        kind,
+        rhythmType: "project",
+        taskId,
+        cycle: 0,
+      });
+
+      log.info("Checkpoint captured", { id: checkpoint.id, kind, label });
+    } catch (err) {
+      log.warn("Checkpoint capture failed", { kind, error: String(err) });
+    }
+  }
+
   private checkAbort<TCtx, TRes>(
     signal: AbortSignal,
     state: RhythmState<TCtx, TRes>,

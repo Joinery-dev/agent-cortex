@@ -34,6 +34,8 @@ import type { ProjectIntent, TasteProfile } from "../src/types/intent.js";
 import type { ProjectContext } from "../src/types/brainstem.js";
 import { CheckpointStore } from "../src/trace/checkpoint-store.js";
 import { createInterface } from "readline";
+import { setupWorldview } from "../src/worldview/generator.js";
+import type { Worldview } from "../src/types/worldview.js";
 
 // ─── Parse arguments ────────────────────────────────────────────
 
@@ -41,7 +43,6 @@ const args = process.argv.slice(2);
 const flags = args.filter((a) => a.startsWith("--"));
 const positional = args.filter((a) => !a.startsWith("--"));
 
-const prompt = positional[0];
 const stepMode = flags.includes("--step");
 const replayAll = flags.includes("--replay");
 const replayFromFlag = flags.find((f) => f.startsWith("--replay-from="));
@@ -72,41 +73,8 @@ if (listCheckpoints) {
   process.exit(0);
 }
 
-if (!prompt && !replayAll && replayFromId === null && !resumeMode) {
-  console.error(`
-Usage: npx tsx examples/run-cortex.ts "Your prompt here" [flags]
-
-Flags:
-  --step              Pause before each LLM call and phase transition
-  --replay            Replay all cached responses (no real LLM calls)
-  --replay-from=N     Replay up to content ID N, then go live
-  --resume[=ID]       Resume from a checkpoint (latest or specific ID)
-  --list-checkpoints  List available checkpoints and exit
-  --no-checkpoint     Disable automatic checkpointing
-  --port=N            Dashboard port (default 3456)
-
-Examples:
-  npx tsx examples/run-cortex.ts "Build a personal website with a landing page and about page"
-  npx tsx examples/run-cortex.ts "Build a hello world HTML page" --step
-  npx tsx examples/run-cortex.ts --replay-from=42
-  npx tsx examples/run-cortex.ts --resume
-  npx tsx examples/run-cortex.ts --resume=abc123
-`);
-  process.exit(1);
-}
-
-// ─── Build project intent from prompt ───────────────────────────
-
-const intent: ProjectIntent = {
-  id: `project-${newId().slice(0, 8)}`,
-  summary: prompt ?? "(replay — original prompt in cached content)",
-  audience: "General",
-  successCriteria: prompt ? [`Deliver: ${prompt}`] : [],
-  constraints: [],
-  vision: prompt ?? "",
-  keyDecisions: [],
-  driftLog: [],
-};
+// Prompt can come from CLI or interactively after worldview setup
+let prompt = positional[0];
 
 const taste: TasteProfile = {
   id: "default-taste",
@@ -150,16 +118,10 @@ console.log(`  Dashboard: ${url}/trace\n`);
 
 resetUsage();
 const library = SensoryCortex.withDefaults();
-const brainstem = new Brainstem(DEFAULT_CONFIG, library);
-
-// Disable checkpointing if requested
-if (noCheckpoint) {
-  brainstem.getRunner().setCheckpointConfig({ enabled: false });
-}
 
 // Wire user interaction — inquiry questions and vision approval go through stdin/stdout.
 const rl = createInterface({ input: process.stdin, output: process.stdout });
-brainstem.setAskUser((question: string) => {
+const askUser = (question: string): Promise<string> => {
   return new Promise((resolve) => {
     console.log("\n" + "─".repeat(60));
     console.log(question);
@@ -168,7 +130,44 @@ brainstem.setAskUser((question: string) => {
       resolve(answer);
     });
   });
-});
+};
+
+// ─── Worldview setup ───────────────────────────────────────────
+
+const worldview: Worldview = await setupWorldview(askUser, { model: "opus" });
+console.log(`  Worldview: ${worldview.name}\n`);
+
+// If no prompt was given on the CLI, ask for it now
+if (!prompt) {
+  prompt = await askUser("What would you like to build?");
+  if (!prompt?.trim()) {
+    console.error("  No prompt provided. Exiting.");
+    process.exit(1);
+  }
+  prompt = prompt.trim();
+}
+
+// ─── Build project intent from prompt ───────────────────────────
+
+const intent: ProjectIntent = {
+  id: `project-${newId().slice(0, 8)}`,
+  summary: prompt,
+  audience: "General",
+  successCriteria: [`Deliver: ${prompt}`],
+  constraints: [],
+  vision: prompt,
+  keyDecisions: [],
+  driftLog: [],
+};
+
+const brainstem = new Brainstem(DEFAULT_CONFIG, library, undefined, undefined, undefined, undefined, undefined, undefined, undefined, worldview);
+
+// Disable checkpointing if requested
+if (noCheckpoint) {
+  brainstem.getRunner().setCheckpointConfig({ enabled: false });
+}
+
+brainstem.setAskUser(askUser);
 
 const projectContext: ProjectContext = {
   intent,

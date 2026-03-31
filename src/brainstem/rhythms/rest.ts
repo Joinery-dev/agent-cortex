@@ -139,6 +139,15 @@ export function createRestCycleDefinition(
             // No-op until phase gate integration exists
             completed.push(priority);
             break;
+          case "evolve-preemption": {
+            // Reflective evolution of failure preemption guidance.
+            // The real work is done by the evolver module when a guidance store
+            // is available. The hook satisfies the interface; rest rhythms that
+            // have access to the guidance store call the evolver directly.
+            await hooks.evolvePreemptionGuidance();
+            completed.push(priority);
+            break;
+          }
         }
       }
 

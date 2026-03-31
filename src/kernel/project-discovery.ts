@@ -106,7 +106,7 @@ export async function discoverProject(
     SYSTEM_PROMPT,
     USER_PROMPT,
     toolSet,
-    { maxTurns: 8 },
+    { checkInInterval: 15 },
   );
 
   // Parse the structured result

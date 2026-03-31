@@ -156,8 +156,9 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
       modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
       briefingDepth?: import("../types/cost.js").BriefingDepth;
     },
+    failureClassification?: import("../types/motor-cortex.js").FailureClassification,
   ): Promise<number> {
-    const signal = this.cerebellum.recordOutcome(taskId, evaluations, costData, cycleData);
+    const signal = this.cerebellum.recordOutcome(taskId, evaluations, costData, cycleData, failureClassification);
 
     // Feed prediction efficiency (ceiling-relative) to homeostasis.
     // Recalibration triggers when efficiency is low — meaning room to
@@ -443,6 +444,15 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
     return this.cerebellum.findPreliminaryMatches(activeSenses, library);
   }
 
+  // ── Cerebellum: failure mode prediction ──────────────────────
+
+  predictFailureMode(
+    taskId: string,
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/cerebellum.js").FailureModePrediction | null {
+    return this.cerebellum.predictFailureMode(taskId, fingerprint);
+  }
+
   // ── Cerebellum: revision prediction gating ───────────────────
 
   predictRevisionValue(input: {
@@ -491,6 +501,16 @@ export class CompositeSubcorticalHooks implements SubcorticalHooks {
 
   dismissSimulation(scenarioId: string, materialized: boolean): void {
     this.hippocampus.recordSimulationOutcome(scenarioId, materialized, 0);
+  }
+
+  // ── Reflective evolution ────────────────────────────────────────
+
+  async evolvePreemptionGuidance(): Promise<{ variantsProposed: number; categories: string[] }> {
+    // Requires guidance store + Thalamus — delegated to the evolver module.
+    // The CompositeHooks doesn't own the guidance store; the caller (rest rhythm)
+    // is responsible for invoking the evolver directly with the store reference.
+    // This stub satisfies the interface — real execution goes through the rest rhythm.
+    return { variantsProposed: 0, categories: [] };
   }
 
   // ── Exteroception ──────────────────────────────────────────────

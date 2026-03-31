@@ -268,4 +268,15 @@ export interface RhythmRunner {
     rhythmId: string,
     resolution: import("./brainstem.js").EscalationResolution,
   ) => void;
+
+  /**
+   * Capture a checkpoint at an arbitrary point (not just rhythm phase boundaries).
+   * Used by the project rhythm to checkpoint after inquiry, vision approval, and planning.
+   * No-op if checkpointing is disabled or the kind isn't in the config.
+   */
+  checkpoint: (
+    kind: import("./checkpoint.js").CheckpointKind,
+    label: string,
+    data: Record<string, unknown>,
+  ) => Promise<void>;
 }

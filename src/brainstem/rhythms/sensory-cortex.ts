@@ -360,6 +360,15 @@ export function createSensoryCortexDefinition(
           thalamus.attachSpeedOfLight(task.id, speedOfLight);
         }
 
+        // Failure mode prediction: predict likely failure category before building
+        if (consultation) {
+          const fp = extractFingerprint(consultation);
+          const failurePrediction = hooks.predictFailureMode(task.id, fp);
+          if (failurePrediction) {
+            thalamus.attachFailureModePrediction(task.id, failurePrediction);
+          }
+        }
+
         // Novelty-enriched NE — use frozen risk from dispatch if available
         const gestalt = thalamus.getGestalt(task.id);
         const riskFactors = context.riskSnapshot ?? extractRiskFromGestalt(gestalt);
@@ -569,6 +578,7 @@ export function createSensoryCortexDefinition(
         confidence,
         decisionLog,
         approach: executed.plan?.approach,
+        failureClassification: executed.failureClassification,
       };
 
       return { result, weighted, composite, consultation, buildResult: executed };

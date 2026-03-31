@@ -68,8 +68,16 @@ export interface WorldviewFrames {
   integration: string;
   /** What the manifested future IS. Used by: Planner.createManifestationTask. */
   manifestation: string;
+  /** How senses describe the finished product from their perspective. Used by: senseManifestSystem. */
+  senseManifest: string;
+  /** How perspectives combine into unified vision. Used by: visionSynthesisSystem. */
+  visionSynthesis: string;
+  /** How senses evaluate whether a synthesis captures their contribution. Used by: senseEvaluationSystem. */
+  senseEvaluation: string;
   /** How senses ask clarifying questions before advising. Used by: inquirySystem. */
   inquiry: string;
+  /** How to merge and prioritize questions from multiple senses. Used by: inquirySynthesisSystem. */
+  inquirySynthesis: string;
   /** What to watch for ahead. Used by: prospectiveMatchingSystem. */
   prospective: string;
   /** What emerges after completion. Used by: generativeCompletionSystem. */
@@ -85,6 +93,12 @@ export interface Worldview {
 
   /** Schema version for forward compatibility. */
   version?: number;
+
+  /** What this system calls itself. Default: "Cortex". */
+  systemName: string;
+
+  /** What this system calls the entity it serves. Default: "the Parsifal". */
+  entityName: string;
 
   /**
    * The ontological preamble injected at the start of every system prompt.
@@ -140,22 +154,39 @@ import { existsSync } from "node:fs";
 let _defaultFramesLoaded = false;
 
 /**
- * Populate SHAELA_WORLDVIEW.frames from worldviews/shaela.md.
+ * Populate preset worldview frames from their .md files.
  * Safe to call multiple times — loads once. Fails silently if
- * the .md file isn't found (frames fall back to code defaults).
+ * a .md file isn't found (frames fall back to code defaults).
  */
 export function ensureDefaultFrames(): void {
   if (_defaultFramesLoaded) return;
   _defaultFramesLoaded = true;
-  try {
-    const here = fileURLToPath(import.meta.url);
-    const root = resolve(dirname(here), "../..");
-    const mdPath = join(root, "worldviews/shaela.md");
-    if (!existsSync(mdPath)) return;
-    const loaded = loadWorldview(mdPath);
-    Object.assign(SHAELA_WORLDVIEW.frames, loaded.frames);
-  } catch {
-    // Fail silently — bodyOrDefault falls back to hardcoded defaults
+
+  const here = fileURLToPath(import.meta.url);
+  const root = resolve(dirname(here), "../..");
+
+  const presets: Array<{ worldview: Worldview; file: string }> = [
+    { worldview: SHAELA_WORLDVIEW, file: "shaela.md" },
+    { worldview: PROJECT_WORLDVIEW, file: "project.md" },
+    { worldview: HYBRID_WORLDVIEW, file: "hybrid.md" },
+    { worldview: COVENANT_WORLDVIEW, file: "covenant.md" },
+    { worldview: GROOVE_WORLDVIEW, file: "groove.md" },
+    { worldview: ECOSYSTEM_WORLDVIEW, file: "ecosystem.md" },
+    { worldview: DIALECTIC_WORLDVIEW, file: "dialectic.md" },
+    { worldview: CARTOGRAPH_WORLDVIEW, file: "cartograph.md" },
+    { worldview: SCULPTOR_WORLDVIEW, file: "sculptor.md" },
+    { worldview: NARRATIVE_WORLDVIEW, file: "narrative.md" },
+  ];
+
+  for (const { worldview, file } of presets) {
+    try {
+      const mdPath = join(root, "worldviews", file);
+      if (!existsSync(mdPath)) continue;
+      const loaded = loadWorldview(mdPath);
+      Object.assign(worldview.frames, loaded.frames);
+    } catch {
+      // Fail silently — bodyOrDefault falls back to hardcoded defaults
+    }
   }
 }
 
@@ -234,7 +265,7 @@ that connects the current state to the finished one.`,
   semanticNodeDescription:
     "epics (engineering milestones) and tasks (leaf deliverables)",
 
-  frames: {},  // TODO: populate from worldviews/project.md
+  frames: {},  // Populated from worldviews/project.md by ensureDefaultFrames()
 };
 
 export const HYBRID_WORLDVIEW: Worldview = {
@@ -265,7 +296,221 @@ are load-bearing.`,
   semanticNodeDescription:
     "shaels (engineering questions at epic resolution) and shana (answerable leaf questions)",
 
-  frames: {},  // TODO: populate from worldviews/hybrid.md
+  frames: {},  // Populated from worldviews/hybrid.md by ensureDefaultFrames()
+};
+
+export const COVENANT_WORLDVIEW: Worldview = {
+  name: "covenant",
+  description: "Commitments honored — contract epistemology",
+  version: 1,
+
+  preamble: `In this system, work is framed as covenant — commitments the system \
+makes to itself and to the Parsifal. Every piece of work establishes a contract: \
+a precise statement of what this artifact promises to the rest of the system. A \
+covenant is a commitment at the resolution where breaking it would cascade — where \
+downstream work assumes this promise holds. A clause is a commitment narrow enough \
+to fulfill in one cycle. When a clause is honored, it produces a bond — an artifact \
+whose contract is verifiable. Your role is to understand what must be promised, \
+build what honors the promise, and verify that the promise holds under the \
+conditions it was made for.`,
+
+  vocabulary: {
+    topUnit: { singular: "covenant", plural: "covenants" },
+    leafUnit: { singular: "clause", plural: "clauses" },
+    artifact: { singular: "bond", plural: "bonds" },
+    decomposeVerb: "decompose into binding commitments",
+    completeVerb: "honor",
+    nodeNature: "a commitment the system makes to itself",
+  },
+
+  semanticNodeDescription:
+    "covenants (binding commitments at epic resolution) and clauses (fulfillable leaf commitments)",
+
+  frames: {},  // Populated from worldviews/covenant.md by ensureDefaultFrames()
+};
+
+export const GROOVE_WORLDVIEW: Worldview = {
+  name: "groove",
+  description: "Play seriously — jazz epistemology",
+  version: 1,
+
+  preamble: `In this system, work is play — not casual, not unserious, but play \
+in the deep sense: improvisation within structure, where constraints are the \
+instrument and the artifact emerges from the interplay between discipline and \
+invention. A set is a coherent arc of related challenges — the high-level \
+performance you're building toward. A riff is a single move within the set: \
+concrete enough to execute in one cycle, interesting enough to demand genuine \
+engagement. When a riff locks in — when the execution clicks and the thing \
+just works — it produces a groove: an artifact with that unmistakable quality \
+where craft and intent are indistinguishable. Your role is to find the play \
+in the problem, execute with precision, and know when the groove is real.`,
+
+  vocabulary: {
+    topUnit: { singular: "set", plural: "sets" },
+    leafUnit: { singular: "riff", plural: "riffs" },
+    artifact: { singular: "groove", plural: "grooves" },
+    decomposeVerb: "decompose into riffs worth playing",
+    completeVerb: "lock in",
+    nodeNature: "a move worth making",
+  },
+
+  semanticNodeDescription:
+    "sets (performance arcs) and riffs (executable moves)",
+
+  frames: {},  // Populated from worldviews/groove.md by ensureDefaultFrames()
+};
+
+export const ECOSYSTEM_WORLDVIEW: Worldview = {
+  name: "ecosystem",
+  description: "Cultivate living systems — ecological epistemology",
+  version: 1,
+
+  preamble: `In this system, work is cultivation — not building an artifact but \
+growing a living system. A habitat is a coherent ecological zone where components \
+exist in dynamic relationship — not assembled but co-evolved. A niche is a specific \
+role a component fills in the ecosystem: narrow enough to implement in one cycle, \
+defined by its relationships to everything around it. When a niche is filled well, \
+it produces a symbiosis — an artifact so deeply integrated that removing it would \
+ripple through the entire system. Your role is to understand the ecology, fill \
+niches that strengthen the whole, and recognize health not as the absence of \
+problems but as the capacity to absorb them.`,
+
+  vocabulary: {
+    topUnit: { singular: "habitat", plural: "habitats" },
+    leafUnit: { singular: "niche", plural: "niches" },
+    artifact: { singular: "symbiosis", plural: "symbioses" },
+    decomposeVerb: "decompose into ecological niches",
+    completeVerb: "cultivate",
+    nodeNature: "a role in the living system",
+  },
+
+  semanticNodeDescription:
+    "habitats (ecological zones) and niches (roles to be filled)",
+
+  frames: {},  // Populated from worldviews/ecosystem.md by ensureDefaultFrames()
+};
+
+export const DIALECTIC_WORLDVIEW: Worldview = {
+  name: "dialectic",
+  description: "Contradiction drives progress — dialectical epistemology",
+  version: 1,
+
+  preamble: `In this system, work moves through contradiction. Every artifact \
+contains the seed of its own negation — the tension that will force the next \
+evolution. A thesis is a coherent position at the resolution where its internal \
+contradiction is productive — where confronting that contradiction drives real \
+progress. A motion is a specific confrontation narrow enough to resolve in one \
+cycle. When a motion is resolved, it produces a synthesis — an artifact that \
+doesn't eliminate the contradiction but transcends it, incorporating both what \
+was affirmed and what was negated into something neither could have been alone. \
+Your role is to find the productive contradiction, confront it honestly, and \
+produce the synthesis that moves the work forward.`,
+
+  vocabulary: {
+    topUnit: { singular: "thesis", plural: "theses" },
+    leafUnit: { singular: "motion", plural: "motions" },
+    artifact: { singular: "synthesis", plural: "syntheses" },
+    decomposeVerb: "decompose into productive contradictions",
+    completeVerb: "transcend",
+    nodeNature: "a contradiction worth confronting",
+  },
+
+  semanticNodeDescription:
+    "theses (productive contradictions at epic resolution) and motions (confrontable leaf contradictions)",
+
+  frames: {},  // Populated from worldviews/dialectic.md by ensureDefaultFrames()
+};
+
+export const CARTOGRAPH_WORLDVIEW: Worldview = {
+  name: "cartograph",
+  description: "Map unknown territory — explorer epistemology",
+  version: 1,
+
+  preamble: `In this system, work is exploration — mapping unknown territory so \
+that others can navigate it. An expedition is a coherent journey into unmapped \
+terrain: a region of the problem space that must be surveyed, understood, and \
+charted before it can be settled. A survey is a specific reconnaissance narrow \
+enough to complete in one cycle — a focused exploration of one feature of the \
+terrain. When a survey is complete, it produces an atlas — an artifact that makes \
+the territory navigable, that translates what was discovered into something others \
+can use to find their way. Your role is to explore honestly, map accurately, and \
+produce charts that tell the truth about the terrain even when the terrain is \
+inconvenient.`,
+
+  vocabulary: {
+    topUnit: { singular: "expedition", plural: "expeditions" },
+    leafUnit: { singular: "survey", plural: "surveys" },
+    artifact: { singular: "atlas", plural: "atlases" },
+    decomposeVerb: "decompose into surveys of unknown terrain",
+    completeVerb: "chart",
+    nodeNature: "a region of territory to be mapped",
+  },
+
+  semanticNodeDescription:
+    "expeditions (journeys into unmapped terrain) and surveys (focused reconnaissance)",
+
+  frames: {},  // Populated from worldviews/cartograph.md by ensureDefaultFrames()
+};
+
+export const SCULPTOR_WORLDVIEW: Worldview = {
+  name: "sculptor",
+  description: "Remove what doesn't belong — subtractive epistemology",
+  version: 1,
+
+  preamble: `In this system, work is removal. The artifact already exists inside \
+the constraints — your job is to find it by removing everything that isn't it. A \
+block is a region of possibility space that contains a form waiting to be revealed. \
+A cut is a specific removal narrow enough to execute in one cycle — each cut reveals \
+more of the form and constrains what remains. When cuts converge on the essential \
+shape, they produce a form — an artifact so stripped of excess that nothing can be \
+removed without destroying what remains. Your role is to see the form inside the \
+block, make precise cuts, and know when to stop cutting.`,
+
+  vocabulary: {
+    topUnit: { singular: "block", plural: "blocks" },
+    leafUnit: { singular: "cut", plural: "cuts" },
+    artifact: { singular: "form", plural: "forms" },
+    decomposeVerb: "decompose into revealing cuts",
+    completeVerb: "reveal",
+    nodeNature: "material to be removed",
+  },
+
+  semanticNodeDescription:
+    "blocks (possibility spaces) and cuts (precise removals)",
+
+  frames: {},  // Populated from worldviews/sculptor.md by ensureDefaultFrames()
+};
+
+export const NARRATIVE_WORLDVIEW: Worldview = {
+  name: "narrative",
+  description: "Tell the story — dramaturgical epistemology",
+  version: 1,
+
+  preamble: `In this system, work is storytelling. Every artifact tells a story — \
+it has characters (components that act), an arc (the journey from state to state), \
+tension (challenges that create drama), and resolution (how the tension is \
+addressed). An arc is a coherent story at the resolution where its dramatic \
+structure is complete — a beginning, middle, and end that transforms something. A \
+scene is a single dramatic beat narrow enough to execute in one cycle: a moment \
+where something changes. When a scene is written well, it produces a story — an \
+artifact whose narrative is so clear that anyone encountering it immediately \
+understands what happened, why, and what it means. Your role is to find the story \
+the artifact wants to tell, write scenes that earn their moments, and know when \
+the narrative is complete.`,
+
+  vocabulary: {
+    topUnit: { singular: "arc", plural: "arcs" },
+    leafUnit: { singular: "scene", plural: "scenes" },
+    artifact: { singular: "story", plural: "stories" },
+    decomposeVerb: "decompose into dramatic beats",
+    completeVerb: "tell",
+    nodeNature: "a moment where something changes",
+  },
+
+  semanticNodeDescription:
+    "arcs (dramatic structures) and scenes (moments of change)",
+
+  frames: {},  // Populated from worldviews/narrative.md by ensureDefaultFrames()
 };
 
 // ─── Default ─────────────────────────────────────────────────────

@@ -515,13 +515,14 @@ export interface RestCycleContext {
 }
 
 export type ConsolidationPriority =
-  | "potentiate"        // hippocampus: cluster episodes → extract living principles
-  | "prune-memory"      // working memory: promote to hippocampus or drop
-  | "decay-connections"  // plasticity: weaken unused/unstable connections
-  | "recalibrate"       // cerebellum: holistic prediction model update
-  | "settle-weights"    // plasticity: let volatile weights converge
-  | "decay-routines"    // basal ganglia: decay unused routines, prune low-confidence
-  | "deferred-checks";  // phase gate integration checks, deep drift analysis
+  | "potentiate"          // hippocampus: cluster episodes → extract living principles
+  | "prune-memory"        // working memory: promote to hippocampus or drop
+  | "decay-connections"   // plasticity: weaken unused/unstable connections
+  | "recalibrate"         // cerebellum: holistic prediction model update
+  | "settle-weights"      // plasticity: let volatile weights converge
+  | "decay-routines"      // basal ganglia: decay unused routines, prune low-confidence
+  | "deferred-checks"     // phase gate integration checks, deep drift analysis
+  | "evolve-preemption";  // reflective evolution of failure preemption guidance
 
 /** What the rest rhythm produces. */
 export interface RestCycleResult {

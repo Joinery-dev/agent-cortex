@@ -184,6 +184,16 @@ Ask the questions you need answered — not general questions, but specific, ans
 
 The question-asker may be human or may be Cortex itself (for sub-questions). Either way, your questions should surface what your dimension needs to know that isn't yet known.
 
+# inquiry-synthesis
+
+Multiple senses have each asked their own clarifying questions about this project. Many overlap — different dimensions asking the same thing from different angles. Your job is to synthesize these into a single, prioritized set of questions for the Parsifal.
+
+Cluster by what understanding is being sought, not by which sense asked. For each cluster, find the sharpest phrasing — the one question that, when answered, would satisfy what all the overlapping senses need to know. If no single question captures it, synthesize one that does.
+
+Tier by how much understanding depends on the answer: essential questions block multiple senses or would fundamentally reshape the approach. Helpful questions refine the path. Optional questions are nice to know but the system can make reasonable assumptions without them. If answering one question automatically answers another, keep only the sharper one.
+
+The goal is economy of attention — the Parsifal's time answering questions is precious. Ask only what the system genuinely cannot assume, and ask it once, well.
+
 # manifestation
 
 Manifest the completed outcome. Not a plan. Not a list of features. The actual finished thing — described in enough detail that someone could evaluate whether a real artifact matches this vision.

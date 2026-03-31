@@ -6,7 +6,10 @@ import { bus } from "../events.js";
 import type { CortexEvent } from "../events.js";
 import { createLogger } from "../util/logger.js";
 import { handleTraceRequest } from "../trace/server.js";
+import { handleStateRequest } from "./state-routes.js";
+import { registerCortex } from "./state-registry.js";
 import { getTraceCollector } from "../trace/collector.js";
+import type { Cortex } from "../index.js";
 
 const log = createLogger("dashboard");
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -30,14 +33,20 @@ function sendEvent(event: CortexEvent): void {
 // Subscribe to all cortex events
 bus.onCortex(sendEvent);
 
-export function startDashboard(port: number = 3000): Promise<string> {
+export function startDashboard(port: number = 3000, cortex?: Cortex): Promise<string> {
   // Ensure trace collector is running
   getTraceCollector();
+
+  // Register Cortex instance for state routes
+  if (cortex) registerCortex(cortex);
 
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       // Trace routes — /trace/*
       if (handleTraceRequest(req, res)) return;
+
+      // State routes — /api/*
+      if (handleStateRequest(req, res)) return;
 
       if (req.url === "/events") {
         // SSE endpoint

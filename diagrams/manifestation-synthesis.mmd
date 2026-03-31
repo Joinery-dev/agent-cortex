@@ -1,0 +1,47 @@
+---
+title: "Manifestation via Synthesis"
+scope: feature
+phase: 1
+feature: 1
+---
+flowchart TB
+    subgraph inquiry["Phase 1a — Inquiry (unchanged)"]
+        Q[Senses ask questions] --> A[Parsifal answers]
+        A --> FU{Follow-ups?}
+        FU -->|yes| Q
+        FU -->|no| IC[Inquiry context locked]
+    end
+
+    subgraph synthesis["Phase 1b — Synthesis Loop (new)"]
+        direction TB
+        SM["Each sense manifests<br/><i>What does the finished thing<br/>look like from my perspective?</i>"]
+        SY["Synthesizer combines<br/>into unified vision<br/><i>Tensions named & resolved,<br/>not smoothed over</i>"]
+        SE["Each sense evaluates<br/><i>Does this capture what I said?<br/>Are tension resolutions acceptable?<br/>Am I satisfied?</i>"]
+        CHECK{All senses<br/>satisfied?}
+
+        SM --> SY
+        SY --> SE
+        SE --> CHECK
+        CHECK -->|"unresolved tensions"| SY
+    end
+
+    subgraph approval["Phase 1c — Approval (unchanged)"]
+        direction TB
+        SHOW["Present vision to Parsifal<br/><i>Per-sense contributions visible<br/>Resolved tensions flagged</i>"]
+        DECIDE{Parsifal says?}
+        SHOW --> DECIDE
+    end
+
+    IC --> SM
+    CHECK -->|"all satisfied"| SHOW
+    DECIDE -->|"redirect + feedback"| SE
+    DECIDE -->|"accepted"| MF
+
+    MF["Manifested Future locked<br/><i>Constraint surface, not artifact.<br/>The senses are the checklist.</i>"]
+    MF --> PATH["Phase B — Path Reasoning<br/><i>Backward from the vision</i>"]
+
+    style inquiry fill:#2d3436,stroke:#636e72,color:#dfe6e9
+    style synthesis fill:#1e3a5f,stroke:#74b9ff,color:#dfe6e9
+    style approval fill:#2d3436,stroke:#636e72,color:#dfe6e9
+    style MF fill:#0a3d2e,stroke:#00b894,color:#dfe6e9
+    style PATH fill:#2d3436,stroke:#636e72,color:#dfe6e9,stroke-dasharray: 5 5

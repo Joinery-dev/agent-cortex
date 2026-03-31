@@ -19,6 +19,8 @@ export interface OrchestratorResult {
   decisionLog: DecisionRecord[];
   /** Raw approach string from MotorPlan, threaded for downstream consumers. */
   approach?: string;
+  /** How the last gate rejection was classified. Present on tasks that had at least one rejection. */
+  failureClassification?: import("./motor-cortex.js").FailureClassification;
 }
 
 export interface CortexConfig {

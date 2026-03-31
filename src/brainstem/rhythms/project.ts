@@ -71,7 +71,7 @@ interface PreparedProject {
 // ─── Manifestation helper (reused for initial plan + re-manifestation) ──
 
 import type { RhythmRunner } from "../../types/rhythm.js";
-import type { RhythmDefinition as RD } from "../../types/rhythm.js";
+// RD import removed — manifestation no longer runs through sensory cortex
 import type { SensoryCortexResult } from "../../types/brainstem.js";
 import type { ProjectIntent, TasteProfile } from "../../types/intent.js";
 
@@ -81,7 +81,7 @@ import { newId } from "../../util/ids.js";
 import { allocateBudget } from "../../kernel/budget-allocator.js";
 import type { CostTracker } from "../cost-tracker.js";
 import { setCostTaskId } from "../../llm/client.js";
-import { inquire, formatInquiryForParsifal, formatApprovalForParsifal } from "../../kernel/consul.js";
+import { inquire, followUpInquire, formatInquiryForParsifal, formatApprovalForParsifal, synthesizeInquiry, formatSynthesizedForParsifal, formatSynthesizedFollowUpForParsifal, buildSynthesizedInquiryContext, manifestSenses, synthesizeVision, evaluateVision } from "../../kernel/consul.js";
 
 /** Options for the interactive parts of manifestation (inquiry + approval). */
 interface ManifestationInteraction {
@@ -93,63 +93,167 @@ interface ManifestationInteraction {
 // isApproval imported from ../../util/approval.js
 
 async function runManifestation(
-  planner: Planner,
   thalamus: Thalamus,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sensoryCortexDef: RD<SensoryCortexContext, SensoryCortexResult, any, any, any>,
+  library: SensoryCortex,
+  config: CortexConfig,
   runner: RhythmRunner,
-  parentId: string,
   intent: ProjectIntent,
   taste: TasteProfile,
   interaction?: ManifestationInteraction,
 ): Promise<ManifestedFuture> {
-  // ── Phase 1a: Inquiry — senses ask clarifying questions ───
+  // ── Phase 1a: Inquiry — convergence loop ──────────────────
+  // Senses ask questions, Parsifal answers, senses ask follow-ups
+  // until all senses are satisfied (no more questions).
   let inquiryContext: string | undefined;
+  const MAX_INQUIRY_ROUNDS = 4;
 
   if (interaction) {
     const activeSenses = thalamus.getActiveSenses(interaction.library);
-    const inquiries = await inquire(
-      activeSenses, interaction.library, interaction.config, intent, taste,
-    );
+    const qaRounds: string[] = [];
+    let round = 0;
 
-    const withQuestions = inquiries.filter((r) => r.questions.length > 0);
-    if (withQuestions.length > 0) {
+    while (round < MAX_INQUIRY_ROUNDS) {
+      round++;
+
+      const inquiries = round === 1
+        ? await inquire(activeSenses, interaction.library, interaction.config, intent, taste)
+        : await followUpInquire(activeSenses, interaction.library, interaction.config, intent, taste, qaRounds.join("\n\n"), round);
+
+      const withQuestions = inquiries.filter((r) => r.questions.length > 0);
+
+      if (withQuestions.length === 0) {
+        log.info("Inquiry converged — all senses satisfied", { rounds: round });
+        emit("planner:inquiry-converged", { rounds: round });
+        break;
+      }
+
       emit("planner:phase-a-inquiry", {
+        round,
         sensesWithQuestions: withQuestions.length,
         totalQuestions: withQuestions.reduce((sum, r) => sum + r.questions.length, 0),
       });
 
-      const formatted = formatInquiryForParsifal(withQuestions, intent);
+      // Synthesize every round — merge, deduplicate, tier across senses.
+      let formatted: string;
+      let buildContext: (answers: string) => string;
+
+      try {
+        const synthesis = await synthesizeInquiry(inquiries, interaction.config, intent);
+        formatted = round === 1
+          ? formatSynthesizedForParsifal(synthesis, intent)
+          : formatSynthesizedFollowUpForParsifal(synthesis, intent);
+        buildContext = (answers) => buildSynthesizedInquiryContext(synthesis, answers);
+      } catch (err) {
+        log.warn("Inquiry synthesis failed, falling back to raw format", { error: String(err) });
+        formatted = formatInquiryForParsifal(withQuestions, intent, round);
+        buildContext = (answers) => {
+          const qaParts: string[] = [];
+          for (const inq of withQuestions) {
+            for (const q of inq.questions) {
+              qaParts.push(`[${inq.senseName}] ${q.question}`);
+            }
+          }
+          return [`Questions:`, ...qaParts, ``, `Parsifal's answers:`, answers].join("\n");
+        };
+      }
+
       const answers = await interaction.askUser(formatted);
 
-      // Build context string that flows into the manifestation task
-      const qaParts: string[] = [];
-      for (const inq of withQuestions) {
-        for (const q of inq.questions) {
-          qaParts.push(`[${inq.senseName}] ${q.question}`);
-        }
-      }
-      inquiryContext = [
-        `Questions asked:`,
-        ...qaParts,
-        ``,
-        `Parsifal's answers:`,
-        answers,
-      ].join("\n");
+      qaRounds.push([
+        `--- Round ${round} ---`,
+        buildContext(answers),
+      ].join("\n"));
 
-      log.info("Inquiry answers received", { answerLength: answers.length });
+      log.info("Inquiry round complete", { round, answerLength: answers.length });
+    }
+
+    if (qaRounds.length > 0) {
+      inquiryContext = qaRounds.join("\n\n");
+
+      // Checkpoint after inquiry — preserves Q&A so a crash doesn't lose it
+      await runner.checkpoint("post-inquiry", "post-inquiry", {
+        inquiryContext,
+        intentSummary: intent.summary,
+        initialContext: { intent, taste },
+      });
     } else {
       log.info("No inquiry questions — senses understood the intent");
     }
   }
 
-  // ── Phase 1b: Synthesis — sensory cortex produces concrete vision ──
+  // ── Phase 1b: Synthesis loop — senses manifest → synthesize → evaluate → converge ──
   emit("planner:phase-a-start", { taskId: "pending", hasInquiryContext: !!inquiryContext });
 
-  let future = await runSynthesis(
-    planner, thalamus, sensoryCortexDef, runner, parentId,
-    intent, taste, inquiryContext,
+  const activeSensesForManifest = thalamus.getActiveSenses(library);
+
+  // Step 1: Each sense manifests its perspective
+  const perspectives = await manifestSenses(
+    activeSensesForManifest, library, config, intent, taste, inquiryContext,
   );
+
+  // Step 2: Synthesize into unified vision
+  let synthesis = await synthesizeVision(
+    perspectives, config, intent, taste, inquiryContext,
+  );
+
+  // Steps 3-4: Sense evaluation → convergence loop
+  const MAX_CONVERGENCE_ROUNDS = 4;
+  let convergenceRound = 0;
+
+  while (convergenceRound < MAX_CONVERGENCE_ROUNDS) {
+    convergenceRound++;
+
+    const evaluations = await evaluateVision(
+      activeSensesForManifest, library, config,
+      synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+    );
+
+    const allSatisfied = evaluations.every((e) => e.satisfied);
+
+    if (allSatisfied) {
+      log.info("Manifestation converged — all senses satisfied", { rounds: convergenceRound });
+      emit("manifestation-synthesis:converged", { rounds: convergenceRound });
+      break;
+    }
+
+    // Build feedback from unsatisfied senses
+    const unsatisfiedFeedback = evaluations
+      .filter((e) => !e.satisfied)
+      .map((e) => `[${e.senseName}]: ${e.feedback}`)
+      .join("\n\n");
+
+    log.info("Manifestation not converged — re-synthesizing", {
+      round: convergenceRound,
+      unsatisfied: evaluations.filter((e) => !e.satisfied).map((e) => e.senseName),
+    });
+
+    emit("manifestation-synthesis:reconverge", {
+      round: convergenceRound,
+      unsatisfied: evaluations.filter((e) => !e.satisfied).map((e) => e.senseName),
+    });
+
+    // Re-synthesize with sense feedback
+    synthesis = await synthesizeVision(
+      perspectives, config, intent, taste, inquiryContext, unsatisfiedFeedback,
+    );
+  }
+
+  // Derive confidence from sense evaluations + synthesis confidence
+  const lastEvaluations = await evaluateVision(
+    activeSensesForManifest, library, config,
+    synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+  );
+  const avgSenseConfidence = lastEvaluations.length > 0
+    ? lastEvaluations.reduce((sum, e) => sum + e.confidence, 0) / lastEvaluations.length
+    : synthesis.confidence;
+  const overallConfidence = (avgSenseConfidence + synthesis.confidence) / 2;
+
+  let future: ManifestedFuture = {
+    vision: synthesis.vision,
+    senseContributions: synthesis.senseContributions,
+    confidence: overallConfidence,
+    cycles: convergenceRound,
+  };
 
   // ── Phase 1c: Approval — question-asker confirms or redirects ──
   if (interaction) {
@@ -166,7 +270,7 @@ async function runManifestation(
         break;
       }
 
-      // Redirect: re-run synthesis with user feedback
+      // Redirect: re-synthesize with Parsifal feedback, then re-evaluate with senses
       redirectCount++;
       emit("planner:phase-a-redirect", {
         redirectCount,
@@ -178,16 +282,55 @@ async function runManifestation(
         feedbackLength: response.length,
       });
 
-      const redirectContext = [
-        inquiryContext ?? "",
-        `\nParsifal feedback on vision (redirect ${redirectCount}):`,
+      const parsiFeedback = [
+        `Parsifal feedback on vision (redirect ${redirectCount}):`,
         response,
-      ].filter(Boolean).join("\n");
+      ].join("\n");
 
-      future = await runSynthesis(
-        planner, thalamus, sensoryCortexDef, runner, parentId,
-        intent, taste, redirectContext,
+      // Re-synthesize with Parsifal feedback
+      synthesis = await synthesizeVision(
+        perspectives, config, intent, taste, inquiryContext, parsiFeedback,
       );
+
+      // Run sense evaluation on the redirected vision
+      let redirectRound = 0;
+      while (redirectRound < MAX_CONVERGENCE_ROUNDS) {
+        redirectRound++;
+        const evals = await evaluateVision(
+          activeSensesForManifest, library, config,
+          synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+        );
+
+        if (evals.every((e) => e.satisfied)) {
+          log.info("Post-redirect convergence achieved", { redirectRound });
+          break;
+        }
+
+        const fb = evals
+          .filter((e) => !e.satisfied)
+          .map((e) => `[${e.senseName}]: ${e.feedback}`)
+          .join("\n\n");
+
+        synthesis = await synthesizeVision(
+          perspectives, config, intent, taste, inquiryContext,
+          [parsiFeedback, `\nSense feedback:`, fb].join("\n"),
+        );
+      }
+
+      const redirectEvals = await evaluateVision(
+        activeSensesForManifest, library, config,
+        synthesis.vision, synthesis.senseContributions, synthesis.tensionResolutions,
+      );
+      const redirectConfidence = redirectEvals.length > 0
+        ? redirectEvals.reduce((sum, e) => sum + e.confidence, 0) / redirectEvals.length
+        : synthesis.confidence;
+
+      future = {
+        vision: synthesis.vision,
+        senseContributions: synthesis.senseContributions,
+        confidence: (redirectConfidence + synthesis.confidence) / 2,
+        cycles: convergenceRound + redirectRound,
+      };
     }
   }
 
@@ -197,38 +340,20 @@ async function runManifestation(
   });
 
   thalamus.setManifestedFuture(future.vision);
+
+  // Checkpoint after vision approved — the most expensive interactive work is done
+  await runner.checkpoint("post-manifestation", "post-manifestation", {
+    vision: future.vision,
+    confidence: future.confidence,
+    inquiryContext,
+    intentSummary: intent.summary,
+    initialContext: { intent, taste },
+  });
+
   return future;
 }
 
-/**
- * Run a single synthesis pass through the sensory cortex.
- * Extracted so runManifestation can loop on redirects.
- */
-async function runSynthesis(
-  planner: Planner,
-  thalamus: Thalamus,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  sensoryCortexDef: RD<SensoryCortexContext, SensoryCortexResult, any, any, any>,
-  runner: RhythmRunner,
-  parentId: string,
-  intent: ProjectIntent,
-  taste: TasteProfile,
-  additionalContext?: string,
-): Promise<ManifestedFuture> {
-  const manifestationTask = planner.createManifestationTask(intent, additionalContext);
-  thalamus.assembleGestalt({ task: manifestationTask });
-
-  const manifestCtx: SensoryCortexContext = {
-    task: manifestationTask,
-    intent,
-    taste,
-  };
-
-  const manifestResult = await runner.run(sensoryCortexDef, manifestCtx, parentId);
-  thalamus.clearGestalt(manifestationTask.id);
-
-  return planner.extractManifestedFuture(manifestResult);
-}
+// runSynthesis removed — replaced by manifestation synthesis loop (manifestSenses → synthesizeVision → evaluateVision)
 
 // ─── Hierarchical planning helpers ───────────────────────────────
 
@@ -392,7 +517,7 @@ export function createProjectDefinition(
         const interaction = askUser
           ? { askUser, library, config }
           : undefined;
-        const future = await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste, interaction);
+        const future = await runManifestation(thalamus, library, config, runner, intent, taste, interaction);
         state.accumulator.__manifestedFuture = future;
 
         emit("planner:phase-b-start", { hierarchical: true });
@@ -448,6 +573,14 @@ export function createProjectDefinition(
           criticalWarnings: pfcReview.warnings.filter((w) => w.severity === "critical").length,
           patches: pfcReview.patches.length,
           thoroughReview: pfcReview.thoroughReview,
+        });
+
+        // Checkpoint after planning — full shael graph is built, ready for dispatch
+        await runner.checkpoint("post-plan", "post-plan", {
+          shaelCount: reviewedShaels.length,
+          edgeCount: reviewedWiring.dependencies.length,
+          intentSummary: intent.summary,
+          initialContext: { intent, taste },
         });
 
         // ── Shael dispatch loop ──────────────────────────────────
@@ -850,7 +983,7 @@ export function createProjectDefinition(
               case "re-manifest":
                 log.info("Diagnostic: re-manifesting");
                 if (planner) {
-                  await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste);
+                  await runManifestation(thalamus, library, config, runner, intent, taste);
                 }
                 break;
               case "replan-with-directive":
@@ -871,7 +1004,7 @@ export function createProjectDefinition(
           // ── Re-manifest (triage-driven, without full diagnostic) ──
           if (route === "re-manifest" && planner) {
             log.info("Triage: re-manifesting before replan");
-            await runManifestation(planner, thalamus, sensoryCortexDef, runner, state.id, intent, taste);
+            await runManifestation(thalamus, library, config, runner, intent, taste);
           }
 
           // ── Replan (all non-escalation routes end here) ──────

@@ -527,6 +527,11 @@ export function createTaskDispatchDefinition(
           if (load.predictionDrift > 0.5) priorities.push("recalibrate");
           if (load.weightInstability > 0.6) priorities.push("settle-weights", "decay-connections");
           if (load.episodeDensity > 0.7) priorities.push("potentiate");
+          // Reflective evolution: evolve guidance when preemption underperforms
+          const guidanceStore = thalamus.getGuidanceStore?.();
+          if (guidanceStore && guidanceStore.getUnderperformers(0.5, 5).length > 0) {
+            priorities.push("evolve-preemption");
+          }
           if (priorities.length === 0) priorities.push("potentiate");
 
           return {
@@ -1150,7 +1155,7 @@ export function createTaskDispatchDefinition(
           attentionBudget: budgetSnapshot
             ? { floor: budgetSnapshot.floor, expected: budgetSnapshot.expected, ceiling: budgetSnapshot.ceiling }
             : undefined,
-        }, costData);
+        }, costData, executed.taskResult.failureClassification);
         acc.lastDopamine = dopamine;
         await hooks.recordEpisode(taskId, executed.taskResult, dopamine);
         await hooks.updateRoutines(taskId, dopamine);

@@ -819,6 +819,8 @@ const KIND_NARRATORS: Record<ContentKind, (entry: ContentEntry) => StepNarrative
   flexibility: narrateGeneric,
   dopamine: narrateGeneric,
   checkpoint: narrateGeneric,
+  "inquiry-synthesis": narrateGeneric,
+  manifestation: narrateGeneric,
 };
 
 export function narrate(entry: ContentEntry): StepNarrative {

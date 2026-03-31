@@ -1131,7 +1131,7 @@
             <div class="narrative-item-headline" style="color:${c}">${esc(step.headline || step.kind || 'Step ' + (i + 1))}</div>
             <div class="narrative-item-meta">
               <span>${esc(step.actor || '')}</span>
-              <span>${step.time ? new Date(step.time).toLocaleTimeString() : ''}</span>
+              <span>${step.timestamp ? new Date(step.timestamp).toLocaleTimeString() : ''}</span>
             </div>
           </div>
         </div>`;
@@ -1244,7 +1244,7 @@
         </div>
         <div class="context-section">
           <div class="context-label">Time</div>
-          <div class="context-value">${step.time ? new Date(step.time).toLocaleString() : 'unknown'}</div>
+          <div class="context-value">${step.timestamp ? new Date(step.timestamp).toLocaleString() : 'unknown'}</div>
         </div>
         <div class="context-section">
           <div class="context-label">Content ID</div>

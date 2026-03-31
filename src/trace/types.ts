@@ -160,7 +160,9 @@ export type ContentKind =
   | "ne-computation"
   | "flexibility"
   | "dopamine"
-  | "checkpoint";
+  | "checkpoint"
+  | "inquiry-synthesis"
+  | "manifestation";
 
 export interface ContentBlock {
   label: string;

@@ -64,7 +64,7 @@ export class Cortex {
   async startDashboard(port?: number): Promise<string> {
     const { startDashboard } = await import("./dashboard/server.js");
     const p = port ?? 3000;
-    this.dashboardUrl = await startDashboard(p);
+    this.dashboardUrl = await startDashboard(p, this);
     return this.dashboardUrl;
   }
 
@@ -164,6 +164,16 @@ export {
   SHAELA_WORLDVIEW,
   PROJECT_WORLDVIEW,
   HYBRID_WORLDVIEW,
+  COVENANT_WORLDVIEW,
+  GROOVE_WORLDVIEW,
+  ECOSYSTEM_WORLDVIEW,
+  DIALECTIC_WORLDVIEW,
+  CARTOGRAPH_WORLDVIEW,
+  SCULPTOR_WORLDVIEW,
+  NARRATIVE_WORLDVIEW,
   DEFAULT_WORLDVIEW,
 } from "./types/worldview.js";
 export { loadWorldview } from "./util/worldview-loader.js";
+export { generateWorldview, setupWorldview } from "./worldview/generator.js";
+export { detectExistingWorldview, loadExistingWorldview } from "./worldview/store.js";
+export type { WorldviewSeed } from "./worldview/types.js";

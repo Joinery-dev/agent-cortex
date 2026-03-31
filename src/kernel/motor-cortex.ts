@@ -28,7 +28,7 @@ import type {
 import type { EfferenceCopy, EfferenceCopyContext } from "../types/efference-copy.js";
 import type { Intention } from "../types/pns.js";
 import { createIntention } from "../types/pns.js";
-import { call, agenticCall } from "../llm/client.js";
+import { call, agenticCall, type AgenticCheckIn } from "../llm/client.js";
 import { callStructured } from "../llm/structured.js";
 import type { PeripheralNervousSystem } from "./pns.js";
 import {
@@ -166,6 +166,14 @@ export interface MotorCortexOpts {
    * The Motor Cortex stays decoupled from routing — it just asks and gets an answer.
    */
   questionHandler?: QuestionHandler;
+  /**
+   * Check-in callback for the agentic session. Constructed by the build-cycle
+   * with Cerebellum predictions baked in. The Motor Cortex stays decoupled
+   * from the Cerebellum — it just calls the callback and gets a verdict.
+   */
+  checkIn?: AgenticCheckIn;
+  /** How often to call the check-in, in turns. */
+  checkInInterval?: number;
 }
 
 // ── Class ───────────────────────────────────────────────────
@@ -229,9 +237,13 @@ export class MotorCortex {
 
     if (useAgentic) {
       // Agentic mode: real tools, multi-turn. The builder acts in the world.
-      agenticResult = await this.primaryProduceAgentic(
-        briefing, plan, opts?.previousWork, opts?.neLevel, opts?.signal,
-      );
+      agenticResult = await this.primaryProduceAgentic(briefing, plan, {
+        previousWork: opts?.previousWork,
+        neLevel: opts?.neLevel,
+        signal: opts?.signal,
+        checkIn: opts?.checkIn,
+        checkInInterval: opts?.checkInInterval,
+      });
       work = agenticResult.summary;
     } else {
       // Text-only mode: single-turn artifact. Used when premotor determines
@@ -536,11 +548,15 @@ export class MotorCortex {
   private async primaryProduceAgentic(
     briefing: MotorBriefing,
     plan: MotorPlan,
-    previousWork?: string,
-    neLevel?: number,
-    signal?: AbortSignal,
+    opts?: {
+      previousWork?: string;
+      neLevel?: number;
+      signal?: AbortSignal;
+      checkIn?: AgenticCheckIn;
+      checkInInterval?: number;
+    },
   ): Promise<AgenticMotorResult> {
-    const ne = neLevel ?? 0.5;
+    const ne = opts?.neLevel ?? 0.5;
     const toolSet = this.pns!.activateToolsForTask(
       briefing.task.description,
       ne,
@@ -550,18 +566,22 @@ export class MotorCortex {
       taskId: briefing.task.id,
       neLevel: ne,
       tools: toolSet.tools,
-      isRevision: !!previousWork,
+      isRevision: !!opts?.previousWork,
     });
+
+    // Default check-in interval scales with NE: high arousal → check in more often
+    const checkInInterval = opts?.checkInInterval ?? (ne > 0.7 ? 8 : ne > 0.3 ? 12 : 20);
 
     const result = await agenticCall(
       "agenticMotor",
       this.config.models.motorCortex,
       motorCortexAgenticSystem(),
-      motorCortexAgenticUser(briefing, plan, previousWork),
+      motorCortexAgenticUser(briefing, plan, opts?.previousWork),
       toolSet,
       {
-        maxTurns: ne > 0.7 ? 20 : ne > 0.3 ? 15 : 10,
-        signal,
+        checkIn: opts?.checkIn,
+        checkInInterval,
+        signal: opts?.signal,
       },
     );
 

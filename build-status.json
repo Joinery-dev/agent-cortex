@@ -1645,7 +1645,7 @@
             {
               "name": "Phase A interactive: Inquiry + Approval (1a/1c)",
               "status": "complete",
-              "detail": "src/llm/prompts.ts — inquirySystem(), inquiryUser() prompt functions + 'inquiry' worldview frame. src/kernel/consul.ts — inquire() parallel sense inquiry, formatInquiryForHuman(), formatApprovalForHuman(), SenseInquiry/InquiryQuestion types. src/kernel/planner.ts — createManifestationTask() accepts additionalContext for inquiry answers. src/brainstem/rhythms/project.ts — runManifestation() with Phase 1a inquiry loop (askUser → aggregate questions → collect answers), Phase 1c approval gate (confirm/redirect loop with MAX_REDIRECTS=3), runSynthesis() extracted helper. src/brainstem/index.ts — Brainstem.setAskUser() threads callback through createProjectDefinition. worldviews/shaela.md — inquiry frame. src/types/worldview.ts — inquiry added to WorldviewFrames. src/llm/client.ts — 'inquiry' added to Purpose + totalUsage."
+              "detail": "src/llm/prompts.ts — inquirySystem(), inquiryUser(), followUpInquirySystem(), followUpInquiryUser() prompt functions + 'inquiry' worldview frame. src/kernel/consul.ts — inquire() initial inquiry, followUpInquire() convergence rounds, formatInquiryForParsifal() round-aware formatting, formatApprovalForParsifal(), SenseInquiry/InquiryQuestion types. src/brainstem/rhythms/project.ts — runManifestation() Phase 1a convergence loop (rounds until all senses satisfied, MAX_INQUIRY_ROUNDS=4), Phase 1c approval gate (confirm/redirect loop with MAX_REDIRECTS=3). src/brainstem/index.ts — Brainstem.setAskUser() threads callback through createProjectDefinition."
             }
           ]
         },
@@ -2400,7 +2400,11 @@
       "[Reconciled] src/types/exteroception.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/visual-capture.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/visual-capture.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/types/checkpoint.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/types/checkpoint.ts — CheckpointKind extended with post-inquiry/post-manifestation/post-plan. RhythmRunner.checkpoint() added for arbitrary-point captures. Project rhythm fires checkpoints after inquiry convergence, vision approval, and planning.",
+      "[Reconciled] src/kernel/failure-classifier.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/checkpoint.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/guidance-store.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/guidance-evolver.ts exists but isn't referenced in any subtask."
     ]
   }
 }

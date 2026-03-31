@@ -20,6 +20,15 @@
 import type { NEWeights, NEInputs, NEResult, NEComponents } from "../types/norepinephrine.js";
 import { emit } from "../events.js";
 
+// ─── Last-computed NE cache (for dashboard queries) ─────────────
+
+let lastNEResult: (NEResult & { computedAt: string }) | null = null;
+
+/** Get the most recently computed NE result, or null if none yet. */
+export function getLastNE(): (NEResult & { computedAt: string }) | null {
+  return lastNEResult;
+}
+
 // ─── Defaults ────────────────────────────────────────────────────
 
 export const DEFAULT_NE_WEIGHTS: NEWeights = {
@@ -131,7 +140,13 @@ export function computeNE(
     amygdalaOverride: false,
   };
 
-  return { ne, components };
+  const result = { ne, components };
+
+  // Cache + emit so the dashboard can query the latest NE state
+  lastNEResult = { ...result, computedAt: new Date().toISOString() };
+  emit("ne:computed", { ne, ...components });
+
+  return result;
 }
 
 // ─── Urgency mapping ────────────────────────────────────────────

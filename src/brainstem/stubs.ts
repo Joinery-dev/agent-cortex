@@ -76,6 +76,7 @@ export interface SubcorticalHooks {
       modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
       briefingDepth?: import("../types/cost.js").BriefingDepth;
     },
+    failureClassification?: import("../types/motor-cortex.js").FailureClassification,
   ): Promise<number>;
 
   /** Hippocampus: record a full task episode with its dopamine signal. */
@@ -124,6 +125,16 @@ export interface SubcorticalHooks {
   ): ScoredEpisode[];
 
   /**
+   * Cerebellum: predict likely failure mode for a task before building.
+   * Returns null on cold start (insufficient episodes with failure data).
+   * Called during sensory-cortex prepare, after consultation.
+   */
+  predictFailureMode(
+    taskId: string,
+    fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/cerebellum.js").FailureModePrediction | null;
+
+  /**
    * Cerebellum: predict whether a revision cycle is worth the token cost.
    * Returns shouldSkip=true when predicted improvement is below threshold.
    * Called after failure classification, before committing to revision.
@@ -170,6 +181,12 @@ export interface SubcorticalHooks {
    * Optional — no-op when hippocampus isn't wired.
    */
   dismissSimulation?(scenarioId: string, materialized: boolean): void;
+
+  /**
+   * Reflective evolution: evolve underperforming failure preemption guidance.
+   * Runs during rest cycles. One LLM call per underperforming variant.
+   */
+  evolvePreemptionGuidance(): Promise<{ variantsProposed: number; categories: string[] }>;
 
   /**
    * Exteroception: assemble batch of accumulated external signals for processing.
@@ -243,6 +260,7 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
       modelsByPurpose?: Partial<Record<import("../llm/client.js").Purpose, string>>;
       briefingDepth?: import("../types/cost.js").BriefingDepth;
     },
+    _failureClassification?: import("../types/motor-cortex.js").FailureClassification,
   ): Promise<number> {
     log.debug("[stub] computeDopamineSignal", { taskId });
     return 0;
@@ -305,6 +323,14 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
     return [];
   }
 
+  predictFailureMode(
+    _taskId: string,
+    _fingerprint: import("../types/cerebellum.js").TaskFingerprint,
+  ): import("../types/cerebellum.js").FailureModePrediction | null {
+    log.debug("[stub] predictFailureMode");
+    return null;
+  }
+
   predictRevisionValue(_input: {
     taskId: string;
     compositeScore: number;
@@ -325,6 +351,11 @@ export class NoOpSubcorticalHooks implements SubcorticalHooks {
   ): import("../types/attention-budget.js").CyclePercentiles | null {
     log.debug("[stub] predictCycleDistribution");
     return null;
+  }
+
+  async evolvePreemptionGuidance(): Promise<{ variantsProposed: number; categories: string[] }> {
+    log.debug("[stub] evolvePreemptionGuidance");
+    return { variantsProposed: 0, categories: [] };
   }
 
   async simulate(

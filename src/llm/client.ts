@@ -56,8 +56,13 @@ export type Purpose =
   | "nursery-observation"
   | "graph-builder"
   | "inquiry"
+  | "inquiry-synthesis"
+  | "manifestation-sense"
+  | "manifestation-synthesis"
+  | "manifestation-eval"
   | "worldview-seed"
-  | "worldview-frames";
+  | "worldview-frames"
+  | "guidance-evolution";
 
 export interface TokenUsage {
   inputTokens: number;
@@ -157,8 +162,13 @@ const totalUsage: Record<Purpose, TokenUsage> = {
   "nursery-observation": { inputTokens: 0, outputTokens: 0 },
   "graph-builder": { inputTokens: 0, outputTokens: 0 },
   inquiry: { inputTokens: 0, outputTokens: 0 },
+  "inquiry-synthesis": { inputTokens: 0, outputTokens: 0 },
   "worldview-seed": { inputTokens: 0, outputTokens: 0 },
   "worldview-frames": { inputTokens: 0, outputTokens: 0 },
+  "guidance-evolution": { inputTokens: 0, outputTokens: 0 },
+  "manifestation-sense": { inputTokens: 0, outputTokens: 0 },
+  "manifestation-synthesis": { inputTokens: 0, outputTokens: 0 },
+  "manifestation-eval": { inputTokens: 0, outputTokens: 0 },
 };
 
 // Map our model IDs to Agent SDK model aliases
@@ -435,8 +445,38 @@ export function resetUsage(): void {
 import type { ActivatedToolSet } from "../types/pns.js";
 import type { ToolUseTrace, AgenticMotorResult } from "../types/motor-cortex.js";
 
+/** Snapshot of an in-flight agentic session, passed to the check-in callback. */
+export interface AgenticCheckInState {
+  /** Turns completed so far. */
+  turns: number;
+  /** Tool calls made so far. */
+  toolCalls: ToolUseTrace[];
+  /** Wall-clock time since the call started (ms). */
+  elapsedMs: number;
+  /** Accumulated cost so far (USD), if available. */
+  costUsd?: number;
+}
+
+/**
+ * Check-in callback. Called periodically during an agentic session.
+ * Return "continue" to let the agent keep working, or "abort" to
+ * signal it to stop (via AbortSignal).
+ */
+export type AgenticCheckIn = (state: AgenticCheckInState) => "continue" | "abort";
+
 export interface AgenticCallOpts {
-  /** Max agentic turns before stopping. Default: 15. */
+  /**
+   * Check-in callback, called every `checkInInterval` turns (default: 10).
+   * If absent, the agent runs until natural completion or the safety ceiling.
+   */
+  checkIn?: AgenticCheckIn;
+  /** How often to call the check-in, in turns. Default: 10. */
+  checkInInterval?: number;
+  /**
+   * Hard safety ceiling — the agent is killed if it reaches this many turns.
+   * This is a last-resort backstop, not a planning tool.
+   * Default: 200.
+   */
   maxTurns?: number;
   /** Abort signal for cancellation. */
   signal?: AbortSignal;
@@ -499,14 +539,16 @@ export async function agenticCall(
     taskModelsUsed.set(currentTaskId, used);
   }
 
-  const maxTurns = opts?.maxTurns ?? 15;
+  const safetyCeiling = opts?.maxTurns ?? 200;
+  const checkInInterval = opts?.checkInInterval ?? 10;
   const startTime = Date.now();
 
   log.debug(`${purpose} agentic call via Agent SDK (${sdkModel})`, {
     systemLength: system.length,
     userLength: userMessage.length,
     tools: toolSet.tools,
-    maxTurns,
+    safetyCeiling,
+    checkIn: opts?.checkIn ? `every ${checkInInterval} turns` : "none",
   });
 
   const maxRetries = 3;
@@ -516,11 +558,19 @@ export async function agenticCall(
     }
 
     try {
+      // Check-in abort controller — layers on top of the caller's signal.
+      // When the check-in says "abort", we trigger this rather than throwing
+      // directly, so the SDK can wind down cleanly.
+      const checkInAbort = new AbortController();
+      const combinedSignal = opts?.signal
+        ? AbortSignal.any([opts.signal, checkInAbort.signal])
+        : checkInAbort.signal;
+
       const conversation = query({
         prompt: userMessage,
         options: {
           model: sdkModel,
-          maxTurns,
+          maxTurns: safetyCeiling,
           tools: toolSet.tools,
           allowedTools: toolSet.allowedTools,
           systemPrompt: system,
@@ -534,14 +584,45 @@ export async function agenticCall(
       let cacheReadTokens = 0;
       let cacheCreationTokens = 0;
       let turns = 0;
+      let liveTurns = 0; // incremented as assistant messages arrive
+      let abortedByCheckIn = false;
       const toolTrace: ToolUseTrace[] = [];
 
       for await (const message of conversation) {
-        if (opts?.signal?.aborted) {
+        if (combinedSignal.aborted) {
+          if (checkInAbort.signal.aborted) {
+            abortedByCheckIn = true;
+            break;
+          }
           throw new AbortError(`${purpose} agentic call aborted mid-stream`);
         }
 
+        // Track turns as they happen (each assistant message = one turn)
+        if (message.type === "assistant") {
+          liveTurns++;
+
+          // Run check-in at the configured interval
+          if (opts?.checkIn && liveTurns > 0 && liveTurns % checkInInterval === 0) {
+            const verdict = opts.checkIn({
+              turns: liveTurns,
+              toolCalls: toolTrace,
+              elapsedMs: Date.now() - startTime,
+            });
+            if (verdict === "abort") {
+              log.warn(`${purpose} check-in aborted at turn ${liveTurns}`, {
+                toolCalls: toolTrace.length,
+                elapsedMs: Date.now() - startTime,
+              });
+              checkInAbort.abort();
+              abortedByCheckIn = true;
+              break;
+            }
+            log.debug(`${purpose} check-in passed at turn ${liveTurns}`);
+          }
+        }
+
         if (message.type === "result") {
+          const m = message as Record<string, unknown>;
           if (message.subtype === "success") {
             resultText = message.result;
             const u = message.usage as Record<string, unknown> | undefined;
@@ -549,12 +630,44 @@ export async function agenticCall(
             outputTokens = (u?.output_tokens as number) ?? 0;
             cacheReadTokens = (u?.cache_read_input_tokens as number) ?? 0;
             cacheCreationTokens = (u?.cache_creation_input_tokens as number) ?? 0;
-            turns = (message as Record<string, unknown>).num_turns as number ?? 1;
+            turns = (m.num_turns as number) ?? 1;
           } else {
-            const errMsg = "errors" in message
-              ? (message.errors as string[]).join("; ")
-              : "Unknown SDK error";
-            throw new Error(`SDK error: ${errMsg}`);
+            const subtype = m.subtype ?? "unknown";
+            const errors = Array.isArray(m.errors) && m.errors.length > 0
+              ? (m.errors as string[]).join("; ")
+              : undefined;
+            const stopReason = m.stop_reason ?? undefined;
+            const numTurns = m.num_turns ?? undefined;
+            const durationMs = m.duration_ms ?? undefined;
+            const costUsd = m.total_cost_usd ?? undefined;
+
+            const detail = [
+              `subtype=${subtype}`,
+              errors ? `errors=[${errors}]` : null,
+              stopReason ? `stop_reason=${stopReason}` : null,
+              numTurns != null ? `turns=${numTurns}` : null,
+              durationMs != null ? `duration_ms=${durationMs}` : null,
+              costUsd != null ? `cost_usd=${costUsd}` : null,
+            ].filter(Boolean).join(", ");
+
+            // Safety ceiling hit — not a crash, just the backstop
+            if (subtype === "error_max_turns") {
+              log.warn(`${purpose} hit safety ceiling at ${numTurns} turns`, {
+                detail,
+              });
+              turns = (numTurns as number) ?? liveTurns;
+              // Extract whatever usage we can from the error result
+              const eu = m.usage as Record<string, unknown> | undefined;
+              inputTokens = (eu?.input_tokens as number) ?? 0;
+              outputTokens = (eu?.output_tokens as number) ?? 0;
+              cacheReadTokens = (eu?.cache_read_input_tokens as number) ?? 0;
+              cacheCreationTokens = (eu?.cache_creation_input_tokens as number) ?? 0;
+              // No result text — the agent didn't finish naturally
+              resultText = `[Safety ceiling reached at ${turns} turns. The agent was still working. Last ${toolTrace.length} tool calls recorded.]`;
+            } else {
+              log.error(`${purpose} SDK result error`, { subtype, errors: m.errors, stopReason, numTurns, durationMs, costUsd });
+              throw new Error(`SDK error (${detail})`);
+            }
           }
         }
 
@@ -567,6 +680,13 @@ export async function agenticCall(
             timestamp: new Date(),
           });
         }
+      }
+
+      // If aborted by check-in, we broke out of the loop without a result message.
+      // Use liveTurns and whatever we captured.
+      if (abortedByCheckIn) {
+        turns = liveTurns;
+        resultText = `[Check-in aborted at turn ${turns}. Last ${toolTrace.length} tool calls recorded.]`;
       }
 
       const usage: TokenUsage = {
