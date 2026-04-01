@@ -217,6 +217,7 @@ export class ConversationCortex {
         selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
         selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
         worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        awareness: this.deps.thalamus.getAwarenessSummaries(),
         recentConversation: this.history.slice(-20).map((m) => ({
           role: m.role,
           text: m.text,
@@ -249,6 +250,7 @@ export class ConversationCortex {
         selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
         selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
         worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        awareness: this.deps.thalamus.getAwarenessSummaries(),
         recentConversation: this.history.slice(-10).map((m) => ({
           role: m.role,
           text: m.text,
@@ -322,6 +324,7 @@ export class ConversationCortex {
         selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
         selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
         worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        awareness: this.deps.thalamus.getAwarenessSummaries(),
         recentConversation: this.history.slice(-10).map((m) => ({
           role: m.role,
           text: m.text,

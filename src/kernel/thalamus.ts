@@ -48,6 +48,8 @@ import type {
   PrincipleSummary,
   ObservationHarvestOpts,
   ObservationHarvest,
+  AwarenessInsight,
+  AwarenessSource,
 } from "../types/thalamus.js";
 import type { BuildQuestion } from "../types/motor-cortex.js";
 import type { OrchestratorResult } from "../types/orchestrator.js";
@@ -77,7 +79,9 @@ import type { WorkingMemory } from "./working-memory.js";
 import type { PeripheralNervousSystem } from "./pns.js";
 import type { SensoryCortex } from "../senses/cortex.js";
 import { createLogger } from "../util/logger.js";
-import { emit, emitWarn } from "../events.js";
+import { emit, emitWarn, bus } from "../events.js";
+import type { CortexEvent } from "../events.js";
+import { newId } from "../util/ids.js";
 import { getContentStore, contentBlock } from "../trace/content-store.js";
 
 const log = createLogger("thalamus");
@@ -95,12 +99,20 @@ export class Thalamus {
   private manifestedFuture: string | null = null;
   private guidanceStore?: import("./guidance-store.js").GuidanceStore;
 
+  /** Stream of Awareness — chronological buffer of significant findings. */
+  private awarenessBuffer: AwarenessInsight[] = [];
+  /** Cleanup function for the event bus listener. */
+  private stopAwarenessListening: (() => void) | null = null;
+  /** Max buffer size before oldest entries are pruned. */
+  private readonly maxAwarenessInsights = 50;
+
   constructor(sources: ThalamusSources) {
     this.wm = sources.wm;
     this.pns = sources.pns;
     this.hippocampus = sources.hippocampus;
     this.worldModel = sources.worldModel;
     this.guidanceStore = sources.guidanceStore;
+    this.startAwarenessListening();
   }
 
   /** Get the guidance store (for rest cycle evolution + outcome recording). */
@@ -585,7 +597,263 @@ export class Thalamus {
   clearAllGestalts(): void {
     const count = this.gestalts.size;
     this.gestalts.clear();
+    this.clearAwareness();
     log.info("All gestalts cleared", { count });
+  }
+
+  // ── Stream of Awareness ─────────────────────────────────────────
+
+  /**
+   * Subscribe to the event bus and accumulate significant findings.
+   * Passive watching — no active detection. The existing detector
+   * systems produce events; this just listens and digests them.
+   *
+   * Pattern: same as HomeostasisMonitor.startListening().
+   */
+  private startAwarenessListening(): void {
+    const listener = (event: CortexEvent) => {
+      const insight = this.digestEvent(event);
+      if (insight) {
+        this.awarenessBuffer.push(insight);
+        this.pruneAwareness();
+
+        emit("thalamus:awareness-insight", {
+          source: insight.source,
+          taskId: insight.taskId,
+          severity: insight.severity,
+          summary: insight.summary.slice(0, 120),
+        });
+      }
+    };
+
+    bus.onCortex(listener);
+    this.stopAwarenessListening = () => bus.removeListener("cortex", listener);
+  }
+
+  /** Stop listening. For cleanup/tests. */
+  disposeAwareness(): void {
+    this.stopAwarenessListening?.();
+    this.stopAwarenessListening = null;
+  }
+
+  /**
+   * Convert a significant event into an AwarenessInsight, or null if
+   * the event isn't significant enough to track.
+   *
+   * Each case extracts the salient facts from the event data and
+   * produces a human-readable summary. No LLM — pure deterministic
+   * extraction from existing event payloads.
+   */
+  private digestEvent(event: CortexEvent): AwarenessInsight | null {
+    const taskId = (event.data.taskId as string) ?? event.rhythmContext?.taskId ?? null;
+    const ts = new Date(event.timestamp);
+
+    switch (event.type) {
+      case "flexibility:assessment": {
+        const diagnosis = event.data.diagnosis as string;
+        const shouldReset = event.data.shouldReset as boolean;
+        const shouldEscalate = event.data.shouldEscalate as boolean;
+        if (!shouldReset && !shouldEscalate) return null;
+        const action = shouldEscalate ? "needs Parsifal help" : "resetting approach";
+        return this.insight(ts, "flexibility", taskId, "warn",
+          `Stuck: diagnosed as ${diagnosis} — ${action}`);
+      }
+
+      case "drift-monitor:level-changed": {
+        const direction = event.data.direction as string;
+        const threshold = event.data.threshold as number;
+        const newLevel = event.data.newLevel as number;
+        if (direction === "crossed-below") return null;
+        return this.insight(ts, "drift", taskId, threshold >= 0.8 ? "critical" : "warn",
+          `Drift crossed ${threshold} (now ${newLevel.toFixed(2)}) — work may be diverging from intent`);
+      }
+
+      case "drift-monitor:deep-analysis": {
+        const level = event.data.overallLevel as number;
+        if (level < 0.3) return null;
+        const intentTrajectory = event.data.intentTrajectory as string;
+        const tasteDetected = event.data.tasteDivergenceDetected as boolean;
+        const parts = [`Deep drift analysis: level ${level.toFixed(2)}`];
+        if (intentTrajectory) parts.push(`intent ${intentTrajectory}`);
+        if (tasteDetected) parts.push("taste divergence detected");
+        return this.insight(ts, "drift", taskId, level >= 0.5 ? "warn" : "info",
+          parts.join(", "));
+      }
+
+      case "vitals:reflex": {
+        const actions = event.data.actions as Array<{ type: string; reason: string }>;
+        if (!actions?.length) return null;
+        const summary = actions.map((a) => a.type).join(", ");
+        return this.insight(ts, "vitals", null, "warn",
+          `Health reflex: ${summary}`);
+      }
+
+      case "hippocampus:principle-extracted": {
+        const statement = event.data.statement as string;
+        return this.insight(ts, "hippocampus", taskId, "info",
+          `Learned: ${statement}`);
+      }
+
+      case "hippocampus:principle-replaced": {
+        const statement = event.data.statement as string;
+        const reasoning = (event.data.reasoning as string)?.slice(0, 80);
+        return this.insight(ts, "hippocampus", taskId, "info",
+          `Understanding changed: ${statement}${reasoning ? ` (${reasoning})` : ""}`);
+      }
+
+      case "motor:proprioception-complete": {
+        const adherence = event.data.planAdherence as number;
+        if (adherence > 0.7) return null;
+        const driftAreas = event.data.driftAreas as number;
+        return this.insight(ts, "proprioception", taskId, "warn",
+          `Builder drifted from plan: adherence ${(adherence * 100).toFixed(0)}%, ${driftAreas} drift area(s)`);
+      }
+
+      case "conviction:result": {
+        const verdict = event.data.verdict as string;
+        if (verdict !== "reshape" && verdict !== "escalate") return null;
+        const level = (event.data.level ?? event.data.convictionLevel ?? 0) as number;
+        const deciding = event.data.decidingStep as string;
+        return this.insight(ts, "conviction", taskId,
+          verdict === "escalate" ? "critical" : "warn",
+          `Conviction ${verdict}: ${(level * 100).toFixed(0)}%${deciding ? ` (${deciding})` : ""}`);
+      }
+
+      case "gate:failure-classified": {
+        const mode = (event.data.failureMode ?? event.data.category ?? "unknown") as string;
+        return this.insight(ts, "gate", taskId, "warn",
+          `Gate rejected work — failure mode: ${mode}`);
+      }
+
+      case "sensory-cortex:double-expected": {
+        const outerCycle = event.data.outerCycle as number;
+        const expected = event.data.expected as number;
+        return this.insight(ts, "pacing", taskId, "warn",
+          `Task at ${outerCycle} cycles (expected ${expected}) — taking longer than predicted`);
+      }
+
+      case "task:complete": {
+        const status = event.data.status as string;
+        const cycles = event.data.cycles as number;
+        const confidence = (event.data.confidence ?? 0) as number;
+        const exitReason = event.data.exitReason as string;
+        if (status === "complete" && confidence > 0.7) return null;
+        return this.insight(ts, "lifecycle", taskId, "info",
+          `Task finished: ${status}, ${cycles} cycle(s), confidence ${(confidence * 100).toFixed(0)}%${exitReason ? ` (${exitReason})` : ""}`);
+      }
+
+      // ── Identity changes ──────────────────────────────────
+
+      case "world-model:maxim-evolved": {
+        const oldStatement = event.data.oldStatement as string;
+        const newStatement = event.data.newStatement as string;
+        const scope = event.data.scope as string;
+        return this.insight(ts, "identity", null, "info",
+          `Understanding shifted (${scope}): "${oldStatement?.slice(0, 60)}" → "${newStatement?.slice(0, 60)}"`);
+      }
+
+      case "world-model:maxim-dropped": {
+        const statement = event.data.statement as string;
+        const scope = event.data.scope as string;
+        return this.insight(ts, "identity", null, "info",
+          `Dropped ${scope} understanding: "${statement?.slice(0, 80)}"`);
+      }
+
+      case "world-model:narratives-updated": {
+        const newCount = event.data.newCount as number;
+        const totalCount = event.data.totalCount as number;
+        return this.insight(ts, "identity", null, "info",
+          `Self-narratives evolved: ${newCount} new (${totalCount} total)`);
+      }
+
+      // ── Phase gates + escalation ──────────────────────────
+
+      case "dispatch:phase-gate-check": {
+        const phaseGroup = event.data.phaseGroup as string;
+        const passed = event.data.passed as boolean;
+        const issueCount = (event.data.issueCount ?? event.data.discoveredProblemCount ?? 0) as number;
+        if (passed && issueCount === 0) return null; // clean pass, not notable
+        return this.insight(ts, "phase-gate", null, passed ? "info" : "warn",
+          `Phase gate "${phaseGroup}": ${passed ? "passed" : "failed"}${issueCount > 0 ? `, ${issueCount} issue(s) found` : ""}`);
+      }
+
+      case "escalation:created": {
+        const summary = event.data.summary as string;
+        return this.insight(ts, "escalation", taskId, "warn",
+          `Escalated to Parsifal: ${summary?.slice(0, 100)}`);
+      }
+
+      case "escalation:resolved": {
+        const answer = event.data.answer as string;
+        return this.insight(ts, "escalation", taskId, "info",
+          `Parsifal responded: ${answer?.slice(0, 100)}`);
+      }
+
+      // ── Plan revisions ────────────────────────────────────
+
+      case "surgery:rework": {
+        const reworkTaskId = event.data.taskId as string;
+        const reason = event.data.reason as string;
+        return this.insight(ts, "surgery", reworkTaskId, "warn",
+          `Task reopened for rework: ${reason?.slice(0, 100)}`);
+      }
+
+      default:
+        return null;
+    }
+  }
+
+  /** Factory for AwarenessInsight. */
+  private insight(
+    timestamp: Date,
+    source: AwarenessSource,
+    taskId: string | null,
+    severity: "info" | "warn" | "critical",
+    summary: string,
+  ): AwarenessInsight {
+    return { id: newId(), timestamp, source, taskId, severity, summary };
+  }
+
+  /**
+   * Prune the awareness buffer when it exceeds max size.
+   * Drop oldest "info" entries first, then oldest "warn", keeping "critical" longest.
+   */
+  private pruneAwareness(): void {
+    if (this.awarenessBuffer.length <= this.maxAwarenessInsights) return;
+
+    const priorityOf = (s: string) => s === "critical" ? 2 : s === "warn" ? 1 : 0;
+    this.awarenessBuffer.sort((a, b) => {
+      const sp = priorityOf(b.severity) - priorityOf(a.severity);
+      if (sp !== 0) return sp;
+      return b.timestamp.getTime() - a.timestamp.getTime();
+    });
+    this.awarenessBuffer = this.awarenessBuffer.slice(0, this.maxAwarenessInsights);
+
+    // Re-sort chronologically for streaming
+    this.awarenessBuffer.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+  }
+
+  /** Layer 1 getter: all awareness insights, chronologically ordered. The buffer IS the stream. */
+  getAwareness(): AwarenessInsight[] {
+    return [...this.awarenessBuffer];
+  }
+
+  /** Layer 1 getter: awareness insights for a specific task. */
+  getAwarenessForTask(taskId: string): AwarenessInsight[] {
+    return this.awarenessBuffer.filter((i) => i.taskId === taskId);
+  }
+
+  /** Layer 1 getter: awareness as summary strings for briefing inclusion. Same shape as getWorldModelMaxims(). */
+  getAwarenessSummaries(taskId?: string): string[] {
+    const insights = taskId
+      ? this.awarenessBuffer.filter((i) => i.taskId === taskId || i.taskId === null)
+      : this.awarenessBuffer;
+    return insights.map((i) => i.summary);
+  }
+
+  /** Clear awareness between projects. */
+  clearAwareness(): void {
+    this.awarenessBuffer = [];
   }
 
   // ── Private: Gestalt snapshot helpers ─────────────────────────
@@ -815,6 +1083,7 @@ export class Thalamus {
     if (this.forwardBriefing) sources.push("forward-briefing");
 
     const lfb = this.forwardBriefing;
+    const legacyConsultAwareness = this.getAwarenessSummaries(task.id);
 
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
@@ -824,6 +1093,7 @@ export class Thalamus {
       openQuestions: accumulated.openQuestions.length,
       principles: principles.length,
       worldModelMaxims: maxims.length,
+      awareness: legacyConsultAwareness.length,
       capabilities: hasCaps ? 1 : 0,
     };
 
@@ -841,6 +1111,7 @@ export class Thalamus {
         capabilitySummary: hasCaps ? capSummary : undefined,
         principles: principles.length > 0 ? principles : undefined,
         worldModelMaxims: maxims.length > 0 ? maxims : undefined,
+        awareness: legacyConsultAwareness.length > 0 ? legacyConsultAwareness : undefined,
         predictedTensions: lfb?.predictedTensions.length
           ? lfb.predictedTensions : undefined,
         convictionNotes: lfb?.convictionCarryForward.notes.length
@@ -891,6 +1162,7 @@ export class Thalamus {
     if (this.forwardBriefing) sources.push("forward-briefing");
 
     const lmfb = this.forwardBriefing;
+    const legacyMotorAwareness = this.getAwarenessSummaries(task.id);
 
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
@@ -899,6 +1171,7 @@ export class Thalamus {
       openQuestions: accumulated.openQuestions.length,
       principles: principles.length,
       worldModelMaxims: maxims.length,
+      awareness: legacyMotorAwareness.length,
       predictions: prediction?.receptorPredictions.length ?? 0,
     };
 
@@ -917,6 +1190,7 @@ export class Thalamus {
         prediction: prediction ?? undefined,
         speedOfLight: speedOfLight ?? undefined,
         worldModelMaxims: maxims.length > 0 ? maxims : undefined,
+        awareness: legacyMotorAwareness.length > 0 ? legacyMotorAwareness : undefined,
         predictedCycles: lmfb?.predictedCycles ?? undefined,
         approachNotes: lmfb?.convictionCarryForward.reshapeGuidance
           ? [lmfb.convictionCarryForward.reshapeGuidance] : undefined,
@@ -1141,6 +1415,15 @@ export class Thalamus {
           }
         }
       }
+
+      // Stream of awareness — what I've noticed
+      const commAwareness = this.getAwarenessSummaries(gestalt?.task.id);
+      if (commAwareness.length > 0) {
+        parts.push(`\n## What I've noticed`);
+        for (const a of commAwareness.slice(-8)) {
+          parts.push(`- ${a}`);
+        }
+      }
     } else {
       // No gestalt — use intent + taste directly
       if (this.intent) {
@@ -1221,6 +1504,7 @@ export class Thalamus {
     if (this.worldModel) sources.push("world-model");
 
     const worldModelMaxims = this.getWorldModelMaxims();
+    const escalationAwareness = this.getAwarenessSummaries();
 
     const rhythmContext: EscalationRhythmContext = {
       rhythmId: rhythmState.id,
@@ -1237,6 +1521,7 @@ export class Thalamus {
       openQuestions: accumulated.openQuestions,
       senseTrends: accumulated.senseTrends,
       worldModelMaxims: worldModelMaxims.length > 0 ? worldModelMaxims : undefined,
+      awareness: escalationAwareness.length > 0 ? escalationAwareness : undefined,
     };
 
     const counts: Record<string, number> = {
@@ -1244,6 +1529,7 @@ export class Thalamus {
       senseTrends: accumulated.senseTrends.length,
       completedTasks: accumulated.completedSummaries.length,
       worldModelMaxims: worldModelMaxims.length,
+      awareness: escalationAwareness.length,
     };
 
     const briefing: EscalationBriefing = {
@@ -1578,6 +1864,7 @@ export class Thalamus {
     const maxims = g.weltanschauung?.maxims;
     const fb = g.forwardBriefing;
     const ec = g.efferenceCopy;
+    const awarenessSummaries = this.getAwarenessSummaries(taskId);
 
     const counts: Record<string, number> = {
       patterns: g.accumulated.patterns.length,
@@ -1587,6 +1874,7 @@ export class Thalamus {
       openQuestions: g.accumulated.openQuestions.length,
       principles: principles?.length ?? 0,
       worldModelMaxims: maxims?.length ?? 0,
+      awareness: awarenessSummaries.length,
       capabilities: g.capabilities.capabilities.length,
       predictedTensions: fb?.predictedTensions.length ?? 0,
       convictionNotes: fb?.convictionCarryForward.notes.length ?? 0,
@@ -1624,6 +1912,7 @@ export class Thalamus {
         capabilitySummary: compressed ? undefined : (hasCaps ? g.capabilities.description : undefined),
         principles: compressed ? undefined : (principles && principles.length > 0 ? principles : undefined),
         worldModelMaxims: compressed ? undefined : (maxims && maxims.length > 0 ? maxims : undefined),
+        awareness: compressed ? undefined : (awarenessSummaries.length > 0 ? awarenessSummaries : undefined),
         predictedTensions: fb?.predictedTensions.length
           ? fb.predictedTensions : undefined,
         convictionNotes: compressed ? undefined : (fb?.convictionCarryForward.notes.length
@@ -1652,7 +1941,7 @@ export class Thalamus {
 
     // Track dropped sections
     if (minimal) droppedSections.push("patterns", "decisions");
-    if (compressed) droppedSections.push("capabilities", "principles", "worldModel", "efference", "senseTrends", "openQuestions");
+    if (compressed) droppedSections.push("capabilities", "principles", "worldModel", "awareness", "efference", "senseTrends", "openQuestions");
 
     emit("thalamus:briefing", {
       consumer: "consultation",
@@ -1702,6 +1991,7 @@ export class Thalamus {
     const principles = g.episodic?.principles;
     const maxims = g.weltanschauung?.maxims;
     const mfb = g.forwardBriefing;
+    const motorAwareness = this.getAwarenessSummaries(taskId);
 
     const counts: Record<string, number> = {
       patterns: g.accumulated.patterns.length,
@@ -1710,6 +2000,7 @@ export class Thalamus {
       openQuestions: g.accumulated.openQuestions.length,
       principles: principles?.length ?? 0,
       worldModelMaxims: maxims?.length ?? 0,
+      awareness: motorAwareness.length,
       predictions: g.prediction?.receptorPredictions.length ?? 0,
       predictedCycles: mfb?.predictedCycles ?? 0,
       bottleneckSenses: mfb?.predictedBottlenecks.length ?? 0,
@@ -1740,6 +2031,7 @@ export class Thalamus {
         prediction: motorCompressed ? undefined : (g.prediction ?? undefined),
         speedOfLight: motorCompressed ? undefined : (g.speedOfLight ?? undefined),
         worldModelMaxims: motorCompressed ? undefined : (maxims && maxims.length > 0 ? maxims : undefined),
+        awareness: motorCompressed ? undefined : (motorAwareness.length > 0 ? motorAwareness : undefined),
         predictedCycles: mfb?.predictedCycles ?? undefined,
         approachNotes: mfb?.convictionCarryForward.reshapeGuidance
           ? [mfb.convictionCarryForward.reshapeGuidance] : undefined,

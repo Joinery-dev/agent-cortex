@@ -95,6 +95,9 @@ export interface CommunicationContext {
   /** World model maxim statements — what I understand about the situation. */
   worldMaxims: string[];
 
+  /** Stream of awareness — what I've noticed across the project. */
+  awareness?: string[];
+
   // ── Conversation ────────────────────────────────────────────
 
   /** Recent conversation history with the Parsifal. */

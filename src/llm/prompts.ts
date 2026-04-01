@@ -126,6 +126,13 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     );
   }
 
+  // Stream of awareness — what the system has noticed about its own process
+  if (enrichment.awareness && enrichment.awareness.length > 0) {
+    enrichmentSections.push(
+      `STREAM OF AWARENESS (what ${sysName()} has noticed — let this inform your recommendations):\n${enrichment.awareness.map((a) => `- ${a}`).join("\n")}`
+    );
+  }
+
   // Dissolved taste comes after the worldview frame — natural language guidance
   // shaped for this consumer, rather than raw taste fields.
   if (enrichment.dissolvedTaste) {
@@ -795,6 +802,13 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
   if (enrichment.worldModelMaxims && enrichment.worldModelMaxims.length > 0) {
     enrichmentSections.push(
       `SYSTEM UNDERSTANDING (${sysName()}'s integrated worldview — let this orient your build):\n${enrichment.worldModelMaxims.map((m) => `- "${m}"`).join("\n")}`
+    );
+  }
+
+  // Stream of awareness — what the system has noticed about its own process
+  if (enrichment.awareness && enrichment.awareness.length > 0) {
+    enrichmentSections.push(
+      `STREAM OF AWARENESS (what ${sysName()} has noticed — account for this in your approach):\n${enrichment.awareness.map((a) => `- ${a}`).join("\n")}`
     );
   }
 

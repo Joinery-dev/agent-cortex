@@ -94,6 +94,8 @@ export interface ConsultationEnrichment {
   principles?: PrincipleSummary[];
   /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
+  /** Stream of awareness — what Claus has noticed across the project. */
+  awareness?: string[];
   /** Sense pairs predicted to conflict — from prospective preparation. */
   predictedTensions?: PredictedTension[];
   /** Tactical notes from the completed task's conviction loop. */
@@ -122,6 +124,50 @@ export interface PrincipleSummary {
   confidence: number;
   relevantSenses: string[];
 }
+
+// ─── Awareness ──────────────────────────────────────────────
+
+/**
+ * A single insight from the Stream of Awareness.
+ *
+ * The Thalamus passively listens to the event bus and accumulates
+ * significant findings from existing detector systems (cognitive
+ * flexibility, drift monitor, homeostasis, conviction, hippocampus,
+ * motor proprioception, gate failure classification).
+ *
+ * Each insight is a digested, natural-language summary of what
+ * happened and why it matters. Consumers receive these as string
+ * arrays in briefings — same shape as worldModelMaxims.
+ */
+export interface AwarenessInsight {
+  /** Unique ID for deduplication. */
+  id: string;
+  /** When this insight was captured. */
+  timestamp: Date;
+  /** Which detector system produced the source event. */
+  source: AwarenessSource;
+  /** Task ID, if the event was task-scoped. Null for system-level events. */
+  taskId: string | null;
+  /** Human-readable summary — what happened and why it matters. */
+  summary: string;
+  /** Severity from the source event. Drives pruning priority. */
+  severity: "info" | "warn" | "critical";
+}
+
+export type AwarenessSource =
+  | "flexibility"      // cognitive flexibility assessment
+  | "drift"            // drift monitor level change or deep analysis
+  | "vitals"           // homeostasis reflex
+  | "hippocampus"      // principle extracted or replaced
+  | "proprioception"   // motor self-assessment
+  | "conviction"       // reshape or escalate verdict
+  | "gate"             // failure classified
+  | "pacing"           // task taking 2x expected cycles
+  | "lifecycle"        // task complete
+  | "identity"         // world model maxim evolved or dropped
+  | "phase-gate"       // phase boundary check
+  | "escalation"       // system escalated to / resolved by Parsifal
+  | "surgery";         // graph surgery (plan revision)
 
 // ─── Motor Briefing ──────────────────────────────────────────
 
@@ -159,6 +205,8 @@ export interface MotorEnrichment {
   speedOfLight?: SpeedOfLight;
   /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
+  /** Stream of awareness — what Claus has noticed across the project. */
+  awareness?: string[];
   /** Predicted build cycles based on similar past tasks. */
   predictedCycles?: number;
   /** Tactical approach notes from conviction shaping. */
@@ -265,6 +313,8 @@ export interface EscalationProjectSnapshot {
   driftLevel?: number;
   /** World model maxims if available — Cortex's current understanding. */
   worldModelMaxims?: string[];
+  /** Stream of awareness — what Claus has noticed across the project. */
+  awareness?: string[];
   /** Per-sense assessments of the escalation — domain expert perspectives. */
   senseAssessments?: Array<{
     senseId: string;

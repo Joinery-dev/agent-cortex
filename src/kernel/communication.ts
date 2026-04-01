@@ -166,6 +166,14 @@ function buildUserPrompt(ctx: CommunicationContext): string {
     );
   }
 
+  // Stream of awareness — what I've noticed
+  if (ctx.awareness && ctx.awareness.length > 0) {
+    sections.push(
+      `WHAT I'VE NOTICED (stream of awareness):\n` +
+      ctx.awareness.slice(-8).map((a) => `- ${a}`).join("\n"),
+    );
+  }
+
   // Parsifal message
   if (ctx.parsifalMessage) {
     sections.push(`PARSIFAL MESSAGE: ${ctx.parsifalMessage}`);

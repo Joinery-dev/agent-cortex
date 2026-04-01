@@ -866,6 +866,7 @@ export function createTaskDispatchDefinition(
             gateCtx.selfMaxims = worldModel.getSelfMaxims().map((m) => m.statement);
             gateCtx.selfNarratives = worldModel.getSelfNarratives().map((n) => n.narrative);
             gateCtx.worldMaxims = worldModel.getMaximsForBriefing();
+            gateCtx.awareness = thalamus.getAwarenessSummaries();
             gateCtx.recentConversation = getRecentConversation?.() ?? [];
             gateCtx.consciousnessFrame = getActiveWorldview()?.frames?.consciousness ?? "";
             return communicate(gateCtx);
