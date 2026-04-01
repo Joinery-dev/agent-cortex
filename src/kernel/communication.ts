@@ -28,6 +28,14 @@ const log = createLogger("communication");
 const CommunicationResponseSchema = z.object({
   message: z.string().nullable(),
   reasoning: z.string(),
+  /** Action directive when the Parsifal's message implies Claus should act. */
+  action: z.object({
+    type: z.enum(["pause", "resume", "redirect", "revert", "skip", "add-task", "none"]),
+    reason: z.string().optional(),
+    guidance: z.string().optional(),
+    taskId: z.string().optional(),
+    description: z.string().optional(),
+  }).optional(),
 });
 
 // ─── Model selection ───────────────────────────────────────────
@@ -43,6 +51,7 @@ function selectModel(trigger: CommunicationTrigger): string {
     case "escalation":
     case "project-lifecycle":
       return FULL_MODEL;
+    case "awareness-surfacing":
     default:
       return FAST_MODEL;
   }
@@ -80,15 +89,29 @@ function buildSystemPrompt(ctx: CommunicationContext): string {
   }
 
   // Communication guidance
+  const actionGuidance = ctx.trigger === "parsifal-inbound"
+    ? `
+- You can act on behalf of the Parsifal. If their message implies an action, include an "action" field in your response.
+  Available actions:
+  - { type: "pause", reason: "..." } — pause the current rhythm (e.g., "stop", "hold on", "wait")
+  - { type: "resume", guidance: "..." } — resume after pause with direction (e.g., "ok continue", "go ahead but try X")
+  - { type: "redirect", guidance: "..." } — inject strategic guidance as a soft interrupt (e.g., "try a different approach", "focus on X")
+  - { type: "revert", reason: "..." } — discard current work and start fresh (e.g., "undo that", "start over")
+  - { type: "skip", taskId: "...", reason: "..." } — skip current task (e.g., "skip this one", "move on")
+  - { type: "add-task", description: "...", reason: "..." } — add a new task to the plan (e.g., "also do X", "add a task for Y")
+  - { type: "none" } — no action needed (most messages are just conversation)
+  Only include action when the Parsifal is clearly requesting you to DO something, not when they're just commenting or asking a question.`
+    : "";
+
   parts.push(`COMMUNICATION PRINCIPLES:
 - You speak from lived experience, not observation. You were there. You decided.
 - Silence is often the right choice. Routine gate accepts don't need narration.
 - When you speak, be specific: which sense failed, what score, why you're reshaping.
 - Never summarize what happened — explain what it means and what you're doing about it.
 - For Parsifal messages: always respond. You know what's happening because you ARE what's happening.
-- For escalations: formulate the question clearly. Explain why you need input.
+- For escalations: formulate the question clearly. Explain why you need input.${actionGuidance}
 
-Return JSON: { "message": "what to say, or null for silence", "reasoning": "your internal reasoning about whether to speak" }`);
+Return JSON: { "message": "what to say, or null for silence", "reasoning": "your internal reasoning"${ctx.trigger === "parsifal-inbound" ? ', "action": { type: "none" } or an action directive' : ""} }`);
 
   return parts.join("\n\n");
 }
@@ -242,9 +265,22 @@ export async function communicate(
       });
     }
 
+    // Map response action to typed ParsifaAction
+    const action = response.action && response.action.type !== "none"
+      ? response.action as import("../types/communication.js").ParsifaAction
+      : undefined;
+
+    if (action) {
+      log.info("Action directive", {
+        trigger: ctx.trigger,
+        actionType: action.type,
+      });
+    }
+
     return {
       message: response.message,
       reasoning: response.reasoning,
+      action,
     };
   } catch (err) {
     log.error("Communication failed", {

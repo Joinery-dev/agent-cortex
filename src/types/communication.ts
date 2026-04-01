@@ -23,7 +23,8 @@ export type CommunicationTrigger =
   | "project-lifecycle"     // Project start, complete, greeting
   | "parsifal-inbound"      // Parsifal sent a message
   | "escalation"            // System needs Parsifal input
-  | "threat-detected";      // Amygdala alarm
+  | "threat-detected"       // Amygdala alarm
+  | "awareness-surfacing";  // Critical awareness insight worth volunteering
 
 // ─── Context ───────────────────────────────────────────────────
 
@@ -134,4 +135,24 @@ export interface CommunicationResult {
   message: string | null;
   /** Internal reasoning (for logging, not shown to Parsifal). */
   reasoning?: string;
+  /** Action directive — when the Parsifal's message implies an action Claus should take. */
+  action?: ParsifaAction;
 }
+
+// ─── Parsifal Actions ─────────────────────────────────────────
+
+/**
+ * Actions Claus can take on behalf of the Parsifal.
+ *
+ * The communication function interprets the Parsifal's message and,
+ * when it detects an action intent, returns the appropriate directive.
+ * ConversationCortex dispatches it to the underlying system.
+ */
+export type ParsifaAction =
+  | { type: "pause"; reason: string }
+  | { type: "resume"; guidance: string }
+  | { type: "redirect"; guidance: string }
+  | { type: "revert"; reason: string }
+  | { type: "skip"; taskId: string; reason: string }
+  | { type: "add-task"; description: string; reason: string }
+  | { type: "none" };

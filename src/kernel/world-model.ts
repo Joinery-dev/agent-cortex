@@ -541,6 +541,20 @@ export class WorldModel {
         }
       }
 
+      // Awareness stream — what I've been noticing about my own process
+      if (sources.awarenessStream) {
+        const insights = sources.awarenessStream.getAwareness();
+        if (insights.length > 0) {
+          inputs.awarenessInsights = insights
+            .filter((i) => i.severity !== "info") // Only warn/critical for self-reflection
+            .slice(-10)
+            .map((i) => ({
+              source: i.source,
+              summary: i.summary,
+            }));
+        }
+      }
+
       return inputs;
     }
 

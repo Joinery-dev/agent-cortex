@@ -2350,6 +2350,8 @@ export interface WeltanschauungInputs {
   evaluationTrends?: Array<{ sense: string; direction: string; mean: number }>;
   flexibilityHistory?: Array<{ diagnosis: string; timestamp: string }>;
   satisfactionHistory?: Array<{ signal: number; context: string }>;
+  /** Awareness stream — what the system noticed about its own process. */
+  awarenessInsights?: Array<{ source: string; summary: string }>;
 }
 
 export function weltanschauungUser(inputs: WeltanschauungInputs): string {
@@ -2523,6 +2525,13 @@ export function weltanschauungUser(inputs: WeltanschauungInputs): string {
         inputs.satisfactionHistory.map((s) =>
           `- signal=${s.signal.toFixed(2)}: ${s.context}`
         ).join("\n"),
+      );
+    }
+
+    if (inputs.awarenessInsights && inputs.awarenessInsights.length > 0) {
+      sections.push(
+        `WHAT I'VE BEEN NOTICING ABOUT MY OWN PROCESS (stream of awareness — patterns here may reveal who I am):\n` +
+        inputs.awarenessInsights.map((a) => `- [${a.source}] ${a.summary}`).join("\n"),
       );
     }
   }

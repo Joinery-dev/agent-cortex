@@ -1222,6 +1222,7 @@ export function createTaskDispatchDefinition(
             pns,
             cognitiveFlexibility,
             satisfactionHistory: tasteFeedbackLoop,
+            awarenessStream: thalamus,
           });
         }
 

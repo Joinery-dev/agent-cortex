@@ -741,6 +741,7 @@ export function createProjectDefinition(
           projectProfile,
           cognitiveFlexibility,
           satisfactionHistory: tasteFeedbackLoop,
+          awarenessStream: thalamus,
         });
       }
 
@@ -1334,6 +1335,7 @@ export function createProjectDefinition(
                 pns,
                 cognitiveFlexibility,
                 satisfactionHistory: tasteFeedbackLoop,
+                awarenessStream: thalamus,
               });
             }
           }
@@ -1371,6 +1373,7 @@ export function createProjectDefinition(
           pns,
           cognitiveFlexibility,
           satisfactionHistory: tasteFeedbackLoop,
+          awarenessStream: thalamus,
         });
       }
 

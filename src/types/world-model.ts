@@ -198,6 +198,9 @@ export interface WorldModelSources {
 
   /** Satisfaction signals — taste evolution feedback (for self-model). */
   satisfactionHistory?: SatisfactionSource;
+
+  /** Awareness stream — what Claus has noticed, for self-reflection. */
+  awarenessStream?: AwarenessStreamSource;
 }
 
 /** What the WorldModel reads from WM. */
@@ -249,6 +252,11 @@ export interface CognitiveFlexibilitySource {
 /** What the WorldModel reads from Satisfaction history (for self-model). */
 export interface SatisfactionSource {
   getRecentSignals(count: number): Array<{ signal: number; context: string }>;
+}
+
+/** What the WorldModel reads from the awareness stream (for self-model). */
+export interface AwarenessStreamSource {
+  getAwareness(): Array<{ source: string; summary: string; severity: string }>;
 }
 
 // ─── Config ─────────────────────────────────────────────────────

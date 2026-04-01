@@ -226,6 +226,11 @@ export class ConversationCortex {
       });
       const msg = this.cortexMessage("acknowledgment", result.message ?? "Got it.", { inReplyTo });
       this.recordAndBroadcast(msg);
+
+      // Dispatch action if the communication function detected an action intent
+      if (result.action && result.action.type !== "none") {
+        this.dispatchAction(result.action);
+      }
     } catch (err) {
       log.warn("Communication response failed, using fallback", { error: String(err) });
       const msg = this.cortexMessage("acknowledgment", "Got it.", { inReplyTo });
@@ -294,6 +299,16 @@ export class ConversationCortex {
       this.recordAndBroadcast(msg);
     }
 
+    // Critical awareness insight → proactive surfacing
+    // The communication function decides whether this is worth telling the Parsifal.
+    if (event.type === "thalamus:awareness-insight") {
+      const severity = event.data.severity as string;
+      if (severity === "critical") {
+        const summary = event.data.summary as string;
+        this.proactiveSurface(summary);
+      }
+    }
+
     // Escalation → communication function formulates the question
     if (event.type === "escalation:created") {
       const escalationId = event.data.id as string;
@@ -341,6 +356,141 @@ export class ConversationCortex {
         pendingId: escalationId,
       });
       this.recordAndBroadcast(msg);
+    }
+  }
+
+  /**
+   * Proactively surface a critical awareness insight to the Parsifal.
+   * The communication function decides whether this is actually worth saying.
+   * Most of the time, even critical insights don't need Parsifal attention —
+   * the system handles them internally. But sometimes Claus should speak up.
+   */
+  private async proactiveSurface(insightSummary: string): Promise<void> {
+    try {
+      const result = await communicate({
+        trigger: "awareness-surfacing",
+        taskDescription: insightSummary,
+        selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+        selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+        worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+        awareness: this.deps.thalamus.getAwarenessSummaries(),
+        recentConversation: this.history.slice(-10).map((m) => ({
+          role: m.role,
+          text: m.text,
+        })),
+        consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+      });
+      if (result.message) {
+        const msg = this.cortexMessage("proactive", result.message);
+        this.recordAndBroadcast(msg);
+      }
+    } catch (err) {
+      log.debug("Proactive surfacing failed — silence is fine", { error: String(err) });
+    }
+  }
+
+  // ─── Parsifal Action Dispatch ────────────────────────────
+
+  /**
+   * Execute an action directive from the communication function.
+   * The Parsifal's message was interpreted as requesting an action —
+   * Claus acts on their behalf.
+   */
+  private dispatchAction(action: import("../types/communication.js").ParsifaAction): void {
+    log.info("Dispatching Parsifal action", { type: action.type });
+
+    switch (action.type) {
+      case "pause": {
+        // Hard interrupt the innermost active rhythm
+        const rhythms = this.deps.runner.getActiveRhythms();
+        if (rhythms.length > 0) {
+          this.deps.runner.interrupt(rhythms[rhythms.length - 1], {
+            mode: "hard",
+            source: "parsifal-conversation",
+            reason: action.reason,
+            context: { parsifaAction: "pause" },
+          });
+          emit("parsifal-action:pause", { reason: action.reason });
+        }
+        break;
+      }
+
+      case "resume": {
+        // Resolve the oldest active escalation with the guidance
+        const active = this.deps.escalationHandler.getActive();
+        if (active.length > 0) {
+          this.deps.escalationHandler.resolve(active[0].id, {
+            answer: action.guidance,
+            directive: action.guidance,
+            resolvedAt: new Date(),
+          });
+          emit("parsifal-action:resume", { guidance: action.guidance });
+        }
+        break;
+      }
+
+      case "redirect": {
+        // Soft interrupt with strategic guidance — the next gate will see it
+        const rhythms = this.deps.runner.getActiveRhythms();
+        if (rhythms.length > 0) {
+          this.deps.runner.interrupt(rhythms[rhythms.length - 1], {
+            mode: "soft",
+            source: "parsifal-conversation",
+            reason: action.guidance,
+            context: { parsifaAction: "redirect", guidance: action.guidance },
+          });
+          emit("parsifal-action:redirect", { guidance: action.guidance });
+        }
+        break;
+      }
+
+      case "revert": {
+        // Store as high-priority WM observation — the gate will see it and act
+        this.deps.wm.addObservation({
+          id: newId(),
+          fact: `Parsifal requested revert: ${action.reason}`,
+          source: { taskId: "", component: "parsifal" },
+          relevance: 1.0,
+          observedAt: new Date(),
+          status: "new",
+          systemHealth: true,
+        });
+        emit("parsifal-action:revert", { reason: action.reason });
+        break;
+      }
+
+      case "skip": {
+        // Store as observation — task-dispatch will see it at next scheduling decision
+        this.deps.wm.addObservation({
+          id: newId(),
+          fact: `Parsifal requested skip task ${action.taskId}: ${action.reason}`,
+          source: { taskId: action.taskId, component: "parsifal" },
+          relevance: 1.0,
+          observedAt: new Date(),
+          status: "new",
+          systemHealth: true,
+        });
+        emit("parsifal-action:skip", { taskId: action.taskId, reason: action.reason });
+        break;
+      }
+
+      case "add-task": {
+        // Store as observation — the next planning/triage cycle will pick it up
+        this.deps.wm.addObservation({
+          id: newId(),
+          fact: `Parsifal requested new task: ${action.description} (reason: ${action.reason})`,
+          source: { taskId: "", component: "parsifal" },
+          relevance: 1.0,
+          observedAt: new Date(),
+          status: "new",
+          systemHealth: true,
+        });
+        emit("parsifal-action:add-task", { description: action.description, reason: action.reason });
+        break;
+      }
+
+      case "none":
+        break;
     }
   }
 
