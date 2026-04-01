@@ -133,6 +133,19 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     );
   }
 
+  // Self-knowledge — what the system knows about its own tendencies and identity
+  if (enrichment.selfMaxims && enrichment.selfMaxims.length > 0) {
+    const selfParts = enrichment.selfMaxims.map((m) => `- ${m}`);
+    if (enrichment.selfNarratives && enrichment.selfNarratives.length > 0) {
+      for (const n of enrichment.selfNarratives.slice(0, 3)) {
+        selfParts.push(`- _${n}_`);
+      }
+    }
+    enrichmentSections.push(
+      `SELF-KNOWLEDGE (what ${sysName()} knows about itself — account for tendencies and biases):\n${selfParts.join("\n")}`
+    );
+  }
+
   // Dissolved taste comes after the worldview frame — natural language guidance
   // shaped for this consumer, rather than raw taste fields.
   if (enrichment.dissolvedTaste) {
@@ -809,6 +822,19 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
   if (enrichment.awareness && enrichment.awareness.length > 0) {
     enrichmentSections.push(
       `STREAM OF AWARENESS (what ${sysName()} has noticed — account for this in your approach):\n${enrichment.awareness.map((a) => `- ${a}`).join("\n")}`
+    );
+  }
+
+  // Self-knowledge — what the system knows about its own tendencies and identity
+  if (enrichment.selfMaxims && enrichment.selfMaxims.length > 0) {
+    const selfParts = enrichment.selfMaxims.map((m) => `- ${m}`);
+    if (enrichment.selfNarratives && enrichment.selfNarratives.length > 0) {
+      for (const n of enrichment.selfNarratives.slice(0, 3)) {
+        selfParts.push(`- _${n}_`);
+      }
+    }
+    enrichmentSections.push(
+      `SELF-KNOWLEDGE (what ${sysName()} knows about itself — account for tendencies and biases):\n${selfParts.join("\n")}`
     );
   }
 

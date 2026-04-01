@@ -1084,6 +1084,8 @@ export class Thalamus {
 
     const lfb = this.forwardBriefing;
     const legacyConsultAwareness = this.getAwarenessSummaries(task.id);
+    const lcSelfMaxims = this.getSelfMaximStatements();
+    const lcSelfNarratives = this.getSelfNarrativeStrings();
 
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
@@ -1111,6 +1113,8 @@ export class Thalamus {
         capabilitySummary: hasCaps ? capSummary : undefined,
         principles: principles.length > 0 ? principles : undefined,
         worldModelMaxims: maxims.length > 0 ? maxims : undefined,
+        selfMaxims: lcSelfMaxims.length > 0 ? lcSelfMaxims : undefined,
+        selfNarratives: lcSelfNarratives.length > 0 ? lcSelfNarratives : undefined,
         awareness: legacyConsultAwareness.length > 0 ? legacyConsultAwareness : undefined,
         predictedTensions: lfb?.predictedTensions.length
           ? lfb.predictedTensions : undefined,
@@ -1163,6 +1167,8 @@ export class Thalamus {
 
     const lmfb = this.forwardBriefing;
     const legacyMotorAwareness = this.getAwarenessSummaries(task.id);
+    const lmSelfMaxims = this.getSelfMaximStatements();
+    const lmSelfNarratives = this.getSelfNarrativeStrings();
 
     const counts: Record<string, number> = {
       patterns: accumulated.patterns.length,
@@ -1190,6 +1196,8 @@ export class Thalamus {
         prediction: prediction ?? undefined,
         speedOfLight: speedOfLight ?? undefined,
         worldModelMaxims: maxims.length > 0 ? maxims : undefined,
+        selfMaxims: lmSelfMaxims.length > 0 ? lmSelfMaxims : undefined,
+        selfNarratives: lmSelfNarratives.length > 0 ? lmSelfNarratives : undefined,
         awareness: legacyMotorAwareness.length > 0 ? legacyMotorAwareness : undefined,
         predictedCycles: lmfb?.predictedCycles ?? undefined,
         approachNotes: lmfb?.convictionCarryForward.reshapeGuidance
@@ -1865,6 +1873,8 @@ export class Thalamus {
     const fb = g.forwardBriefing;
     const ec = g.efferenceCopy;
     const awarenessSummaries = this.getAwarenessSummaries(taskId);
+    const selfMaximStmts = this.getSelfMaximStatements();
+    const selfNarrativeStrs = this.getSelfNarrativeStrings();
 
     const counts: Record<string, number> = {
       patterns: g.accumulated.patterns.length,
@@ -1912,6 +1922,8 @@ export class Thalamus {
         capabilitySummary: compressed ? undefined : (hasCaps ? g.capabilities.description : undefined),
         principles: compressed ? undefined : (principles && principles.length > 0 ? principles : undefined),
         worldModelMaxims: compressed ? undefined : (maxims && maxims.length > 0 ? maxims : undefined),
+        selfMaxims: compressed ? undefined : (selfMaximStmts.length > 0 ? selfMaximStmts : undefined),
+        selfNarratives: compressed ? undefined : (selfNarrativeStrs.length > 0 ? selfNarrativeStrs : undefined),
         awareness: compressed ? undefined : (awarenessSummaries.length > 0 ? awarenessSummaries : undefined),
         predictedTensions: fb?.predictedTensions.length
           ? fb.predictedTensions : undefined,
@@ -1992,6 +2004,8 @@ export class Thalamus {
     const maxims = g.weltanschauung?.maxims;
     const mfb = g.forwardBriefing;
     const motorAwareness = this.getAwarenessSummaries(taskId);
+    const motorSelfMaxims = this.getSelfMaximStatements();
+    const motorSelfNarratives = this.getSelfNarrativeStrings();
 
     const counts: Record<string, number> = {
       patterns: g.accumulated.patterns.length,
@@ -2031,6 +2045,8 @@ export class Thalamus {
         prediction: motorCompressed ? undefined : (g.prediction ?? undefined),
         speedOfLight: motorCompressed ? undefined : (g.speedOfLight ?? undefined),
         worldModelMaxims: motorCompressed ? undefined : (maxims && maxims.length > 0 ? maxims : undefined),
+        selfMaxims: motorCompressed ? undefined : (motorSelfMaxims.length > 0 ? motorSelfMaxims : undefined),
+        selfNarratives: motorCompressed ? undefined : (motorSelfNarratives.length > 0 ? motorSelfNarratives : undefined),
         awareness: motorCompressed ? undefined : (motorAwareness.length > 0 ? motorAwareness : undefined),
         predictedCycles: mfb?.predictedCycles ?? undefined,
         approachNotes: mfb?.convictionCarryForward.reshapeGuidance
@@ -2352,6 +2368,18 @@ export class Thalamus {
   private getWorldModelMaxims(): string[] {
     if (!this.worldModel) return [];
     return this.worldModel.getMaximsForBriefing();
+  }
+
+  /** Self-model maxim statements for briefing inclusion. */
+  private getSelfMaximStatements(): string[] {
+    if (!this.worldModel) return [];
+    return this.worldModel.getSelfMaxims().map((m) => m.statement);
+  }
+
+  /** Self-model narrative strings for briefing inclusion. */
+  private getSelfNarrativeStrings(): string[] {
+    if (!this.worldModel) return [];
+    return this.worldModel.getSelfNarratives().map((n) => n.narrative);
   }
 
   /** Get principles relevant to a specific sense. */

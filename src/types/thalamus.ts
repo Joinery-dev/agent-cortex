@@ -94,6 +94,10 @@ export interface ConsultationEnrichment {
   principles?: PrincipleSummary[];
   /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
+  /** Self-knowledge maxims — what Claus knows about itself. */
+  selfMaxims?: string[];
+  /** Self-knowledge narratives — identity-shaping stories. */
+  selfNarratives?: string[];
   /** Stream of awareness — what Claus has noticed across the project. */
   awareness?: string[];
   /** Sense pairs predicted to conflict — from prospective preparation. */
@@ -205,6 +209,10 @@ export interface MotorEnrichment {
   speedOfLight?: SpeedOfLight;
   /** Weltanschauung maxims — Cortex's integrated understanding. The frame. */
   worldModelMaxims?: string[];
+  /** Self-knowledge maxims — what Claus knows about itself. */
+  selfMaxims?: string[];
+  /** Self-knowledge narratives — identity-shaping stories. */
+  selfNarratives?: string[];
   /** Stream of awareness — what Claus has noticed across the project. */
   awareness?: string[];
   /** Predicted build cycles based on similar past tasks. */
