@@ -15,6 +15,13 @@
 
 import { Cortex } from "./index.js";
 import type { ProjectIntent, TasteProfile } from "./index.js";
+import type { Worldview } from "./types/worldview.js";
+import {
+  SHAELA_WORLDVIEW, PROJECT_WORLDVIEW, HYBRID_WORLDVIEW,
+  COVENANT_WORLDVIEW, GROOVE_WORLDVIEW, ECOSYSTEM_WORLDVIEW,
+  DIALECTIC_WORLDVIEW, CARTOGRAPH_WORLDVIEW, SCULPTOR_WORLDVIEW,
+  NARRATIVE_WORLDVIEW,
+} from "./types/worldview.js";
 import { RichTerminalTransport } from "./conversation/rich-terminal-transport.js";
 import { HumanParsifal } from "./kernel/human-parsifal.js";
 import { AutonomousParsifal } from "./kernel/autonomous-parsifal.js";
@@ -34,6 +41,7 @@ const flags = {
   dashboardPort: 3000,
   logLevel: "warn" as "info" | "warn" | "debug",
   resume: false,
+  worldview: "" as string,
   help: false,
 };
 
@@ -51,6 +59,8 @@ for (let i = 0; i < args.length; i++) {
     flags.logLevel = "info";
   } else if (arg === "--resume" || arg === "-r") {
     flags.resume = true;
+  } else if (arg === "--worldview" || arg === "-w") {
+    flags.worldview = args[++i] ?? "";
   } else if (arg === "--debug") {
     flags.logLevel = "debug";
   } else if (arg === "--help" || arg === "-h") {
@@ -74,6 +84,7 @@ if (flags.help || (positional.length === 0 && !flags.resume)) {
     -a, --autonomous   Run without Parsifal input (bounded autonomy)
     -d, --dashboard    Start the live dashboard
     -r, --resume       Resume from the latest checkpoint
+    -w, --worldview <name>  Set worldview (shaela, project, hybrid, groove, etc.)
     -p, --port <n>     Dashboard port (default 3000)
     -v, --verbose      Show info-level logs
     --debug            Show debug-level logs
@@ -137,11 +148,34 @@ async function main() {
   // Use saved taste if available, else defaults
   const taste: TasteProfile = discovered.taste ?? DEFAULT_TASTE;
 
+  // Resolve worldview
+  const WORLDVIEWS: Record<string, Worldview> = {
+    shaela: SHAELA_WORLDVIEW, project: PROJECT_WORLDVIEW, hybrid: HYBRID_WORLDVIEW,
+    covenant: COVENANT_WORLDVIEW, groove: GROOVE_WORLDVIEW, ecosystem: ECOSYSTEM_WORLDVIEW,
+    dialectic: DIALECTIC_WORLDVIEW, cartograph: CARTOGRAPH_WORLDVIEW, sculptor: SCULPTOR_WORLDVIEW,
+    narrative: NARRATIVE_WORLDVIEW,
+  };
+
+  const worldview = flags.worldview
+    ? WORLDVIEWS[flags.worldview.toLowerCase()]
+    : undefined;
+
+  if (flags.worldview && !worldview) {
+    console.error(`${BOLD}Unknown worldview:${RESET} ${flags.worldview}`);
+    console.error(`${DIM}Available: ${Object.keys(WORLDVIEWS).join(", ")}${RESET}`);
+    process.exit(1);
+  }
+
+  if (worldview) {
+    console.log(`${DIM}Worldview: ${worldview.name}${RESET}`);
+  }
+
   // Set up Parsifal
   const cortexOpts: ConstructorParameters<typeof Cortex>[0] = {
     intent,
     taste,
     logLevel: flags.logLevel,
+    worldview,
   };
 
   if (flags.autonomous) {

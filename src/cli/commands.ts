@@ -104,6 +104,7 @@ export class CommandRouter {
     this.register(planCommand);
     this.register(tasteCommand);
     this.register(configCommand);
+    this.register(worldviewCommand);
   }
 }
 
@@ -615,5 +616,106 @@ const configCommand: CommandHandler = {
     write(formatKV("Evaluation", config.models.evaluation));
     if (config.models.premotor) write(formatKV("Premotor", config.models.premotor));
     write("");
+  },
+};
+
+// ─── Worldview Command ────────────────────────────────────────
+
+const WORLDVIEW_DESCRIPTIONS: Record<string, string> = {
+  shaela: "Questions to be lived — hermeneutic epistemology",
+  project: "Forces to be resolved — engineering epistemology",
+  hybrid: "Engineering questions with deliverable answers — pragmatic",
+  covenant: "Commitments honored — relational epistemology",
+  groove: "Play seriously — improvisational epistemology",
+  ecosystem: "Cultivate living systems — ecological epistemology",
+  dialectic: "Contradiction drives progress — dialectical epistemology",
+  cartograph: "Map unknown territory — exploratory epistemology",
+  sculptor: "Remove what doesn't belong — subtractive epistemology",
+  narrative: "Tell the story — narrative epistemology",
+};
+
+const worldviewCommand: CommandHandler = {
+  name: "worldview",
+  aliases: ["wv"],
+  description: "Current worldview + list available worldviews",
+  usage: "/worldview — show current. /worldview list — show all. /worldview set <name> — change (next run).",
+  execute(args, cortex, write) {
+    const current = cortex.getWorldview();
+
+    if (args.length === 0 || args[0] === "show") {
+      // Show current worldview
+      write(formatHeader("Worldview: " + current.name));
+      write(formatKV("Name", current.name));
+      if (current.description) write(formatKV("Description", current.description));
+      write(formatKV("System name", current.systemName));
+      write(formatKV("Entity name", current.entityName));
+      write(formatKV("Voice name", current.voiceName));
+
+      write(`\n  ${DIM}Vocabulary${RESET}`);
+      write(formatKV("Top unit", `${current.vocabulary.topUnit.singular} / ${current.vocabulary.topUnit.plural}`));
+      write(formatKV("Leaf unit", `${current.vocabulary.leafUnit.singular} / ${current.vocabulary.leafUnit.plural}`));
+      write(formatKV("Artifact", `${current.vocabulary.artifact.singular} / ${current.vocabulary.artifact.plural}`));
+      write(formatKV("Decompose verb", current.vocabulary.decomposeVerb));
+
+      write(`\n  ${DIM}Preamble${RESET}`);
+      // Wrap preamble to reasonable width
+      const preambleLines = current.preamble.split(/\s+/).reduce((lines: string[], word) => {
+        const last = lines[lines.length - 1];
+        if (last && last.length + word.length + 1 <= 70) {
+          lines[lines.length - 1] = `${last} ${word}`;
+        } else {
+          lines.push(word);
+        }
+        return lines;
+      }, []);
+      for (const line of preambleLines) {
+        write(`  ${DIM}${line}${RESET}`);
+      }
+
+      // Show loaded frames
+      const frameNames = Object.keys(current.frames).filter(
+        (k) => !!(current.frames as Record<string, string>)[k],
+      );
+      if (frameNames.length > 0) {
+        write(`\n  ${DIM}Frames loaded (${frameNames.length}):${RESET} ${frameNames.join(", ")}`);
+      }
+      write("");
+      return;
+    }
+
+    if (args[0] === "list" || args[0] === "ls") {
+      write(formatHeader("Available Worldviews"));
+      write("");
+
+      for (const [name, desc] of Object.entries(WORLDVIEW_DESCRIPTIONS)) {
+        const marker = name === current.name ? `${GREEN}▸${RESET}` : " ";
+        const label = name === current.name ? `${BOLD}${name}${RESET}` : name;
+        write(`  ${marker} ${label.padEnd(name === current.name ? name.length + 8 : 14)} ${DIM}${desc}${RESET}`);
+      }
+
+      write(`\n  ${DIM}To change: restart with --worldview <name>${RESET}`);
+      write(`  ${DIM}Or set in .cortex/config.json: { "worldview": "<name>" }${RESET}`);
+      write("");
+      return;
+    }
+
+    if (args[0] === "set") {
+      const name = args[1]?.toLowerCase();
+      if (!name || !WORLDVIEW_DESCRIPTIONS[name]) {
+        write(`  ${RED}Unknown worldview:${RESET} ${name ?? "(none)"}`);
+        write(`  ${DIM}Available: ${Object.keys(WORLDVIEW_DESCRIPTIONS).join(", ")}${RESET}`);
+        return;
+      }
+
+      // Can't change mid-session — worldview is structural
+      write(`  ${YELLOW}Worldview cannot be changed mid-session${RESET} — it shapes every cognitive act.`);
+      write(`  To use the ${BOLD}${name}${RESET} worldview, restart with:`);
+      write(`    ${CYAN}cortex --worldview ${name} "your task"${RESET}`);
+      write(`  Or set in .cortex/config.json: ${CYAN}{ "worldview": "${name}" }${RESET}`);
+      write("");
+      return;
+    }
+
+    write(`  Unknown subcommand: ${args[0]}. Use ${BOLD}/worldview${RESET}, ${BOLD}/worldview list${RESET}, or ${BOLD}/worldview set <name>${RESET}.`);
   },
 };
