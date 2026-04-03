@@ -1,0 +1,82 @@
+---
+title: "Metacognitive Awareness — The System Observing Itself"
+scope: global
+---
+
+flowchart TB
+    subgraph SUBSTRATE["The System (Claus)"]
+        direction TB
+
+        subgraph CREATION["Creation Loop"]
+            PLAN[Plan] --> BUILD[Build]
+            BUILD --> EVAL[Evaluate]
+            EVAL --> GATE{Gate}
+            GATE -->|accept| LEARN[Learn]
+            GATE -->|revise| BUILD
+            LEARN --> PLAN
+        end
+
+        subgraph STREAM["Event Stream"]
+            direction LR
+            E1["gate:decision"]
+            E2["evaluation:scores"]
+            E3["builder:struggle"]
+            E4["conviction:shift"]
+            E5["tension:detected"]
+            E6["flexibility:assessment"]
+            E7["communication:message"]
+            E1 ~~~ E2 ~~~ E3 ~~~ E4 ~~~ E5 ~~~ E6 ~~~ E7
+        end
+
+        CREATION -.->|emits events| STREAM
+
+        subgraph META["Metacognitive Awareness"]
+            direction TB
+            DETECT["Pattern Detectors"]
+            SALIENCE["Salience Filter"]
+            DETECT --> SALIENCE
+
+            subgraph DETECTORS["What It Watches For"]
+                D1["Tension avoidance"]
+                D2["Conviction oscillation"]
+                D3["Approach repetition"]
+                D4["Effort mismatch"]
+                D5["Satisfaction divergence"]
+                D6["Creative stagnation"]
+            end
+
+            DETECTORS --> DETECT
+        end
+
+        STREAM -->|"subscribes"| META
+
+        subgraph SHAPE["What Shapes Attention"]
+            SM["Self-Model\n(what I know about myself)"]
+            NE["NE Level\n(how vigilant I am)"]
+            WV["Worldview\n(what matters to me)"]
+            TASK["Current Task\n(what's relevant now)"]
+        end
+
+        SHAPE -->|"tunes salience\nthreshold"| SALIENCE
+    end
+
+    subgraph ACTIONS["What Metacognition Can Do"]
+        A1["🔍 Redirect\nInject awareness into\ncurrent task gestalt"]
+        A2["🔬 Deepen\nTrigger focused analysis\n(LLM when needed)"]
+        A3["💬 Share\nCommunicate to Parsifal\nvia communicate()"]
+        A4["⚙️ Adjust\nNudge attention thresholds\nor sense weights"]
+    end
+
+    SALIENCE -->|"significant\nobservation"| ACTIONS
+
+    ACTIONS -->|"observations\nfeed back"| STREAM
+
+    subgraph FEEDBACK["Maturity Loop"]
+        direction LR
+        OBS["Metacognitive\nobservations"] --> SYNTH["Self-model\nsynthesis"]
+        SYNTH --> RICHER["Richer\nself-knowledge"]
+        RICHER --> BETTER["Better pattern\ndetection"]
+        BETTER --> OBS
+    end
+
+    META -.->|"over time"| FEEDBACK
