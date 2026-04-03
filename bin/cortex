@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# cortex — run Agent Cortex from any directory.
+#
+# Usage:
+#   cortex                          Start interactive session (in current project)
+#   cortex "fix the auth bug"       Run a task
+#   cortex --worldview groove       Use a specific worldview
+#   cortex --help                   Show help
+#
+# Install: add to your PATH or symlink:
+#   ln -sf ~/Desktop/agent-cortex/bin/cortex /usr/local/bin/cortex
+
+CORTEX_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec node --import "file://${CORTEX_ROOT}/node_modules/tsx/dist/loader.mjs" "${CORTEX_ROOT}/src/cli.ts" "$@"
