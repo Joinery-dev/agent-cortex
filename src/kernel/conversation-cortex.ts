@@ -175,7 +175,8 @@ export class ConversationCortex {
 
     const msgId = newId();
 
-    // Record the incoming message
+    // Record the incoming message in history (but don't broadcast back to
+    // transport — readline already showed the user's input)
     const inbound: ConversationMessage = {
       id: msgId,
       role: "parsifal",
@@ -184,7 +185,10 @@ export class ConversationCortex {
       timestamp: new Date(),
       rhythmContext: this.currentRhythmContext(),
     };
-    this.recordAndBroadcast(inbound);
+    this.history.push(inbound);
+    if (this.history.length > 500) {
+      this.history = this.history.slice(-250);
+    }
 
     emit("conversation:received", {
       messageId: msgId,
