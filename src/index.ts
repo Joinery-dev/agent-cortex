@@ -15,6 +15,8 @@ import type { LogLevel } from "./util/logger.js";
 import { getUsage, resetUsage } from "./llm/client.js";
 import { Brainstem } from "./brainstem/index.js";
 import type { ConversationTransport } from "./types/conversation.js";
+import type { ParsifaInterface } from "./types/parsifa.js";
+
 export interface CortexOptions {
   intent: ProjectIntent;
   taste: TasteProfile;
@@ -23,9 +25,15 @@ export interface CortexOptions {
   dashboard?: boolean | number; // true = port 3000, number = custom port
   /** Ontological frame that shapes how Cortex thinks. Defaults to shaela. */
   worldview?: Worldview;
-  /** Callback for user interaction (inquiry questions, vision approval, escalations). */
+  /**
+   * The entity that directs this Cortex.
+   * Implementations: HumanParsifal, AutonomousParsifal, CortexParsifal.
+   * When provided, askUser and conversationTransports are ignored.
+   */
+  parsifa?: ParsifaInterface;
+  /** @deprecated Use parsifa instead. Callback for user interaction. */
   askUser?: (question: string) => Promise<string>;
-  /** Conversation transport(s) for bidirectional Parsifal communication. */
+  /** @deprecated Use parsifa instead. Conversation transport(s). */
   conversationTransports?: ConversationTransport[];
 }
 
@@ -53,13 +61,16 @@ export class Cortex {
       this.brainstem.initCostTracking(this.intent.budget);
     }
 
-    // Wire user interaction callback for inquiry, approval, and escalations
-    if (options.askUser) {
+    // Wire Parsifal — the entity that directs this Cortex
+    if (options.parsifa) {
+      this.brainstem.setParsifal(options.parsifa);
+    } else if (options.askUser) {
+      // Backward compat: wrap askUser callback
       this.brainstem.setAskUser(options.askUser);
     }
 
-    // Wire conversation transports
-    if (options.conversationTransports) {
+    // Backward compat: wire conversation transports
+    if (!options.parsifa && options.conversationTransports) {
       for (const transport of options.conversationTransports) {
         this.brainstem.setConversationTransport(transport);
       }

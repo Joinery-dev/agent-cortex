@@ -67,9 +67,11 @@ import {
 } from "../kernel/satisfaction-signal.js";
 import type { SatisfactionResponse, SatisfactionSignal } from "../types/satisfaction-signal.js";
 import { EscalationHandler } from "./escalation-handler.js";
-import { AgentSdkDeliveryAdapter } from "./delivery-adapters.js";
+import { AgentSdkDeliveryAdapter, formatEscalationForParsifal } from "./delivery-adapters.js";
 import { ConversationCortex } from "../kernel/conversation-cortex.js";
 import type { ConversationTransport } from "../types/conversation.js";
+import type { ParsifaInterface } from "../types/parsifa.js";
+import { HumanParsifal } from "../kernel/human-parsifal.js";
 import { CostTracker } from "./cost-tracker.js";
 import { registerCostCallback, setCostTaskId, setLlmConcurrency } from "../llm/client.js";
 import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
@@ -109,6 +111,7 @@ export class Brainstem {
   private conversationCortex: ConversationCortex;
   private costTracker: CostTracker | null = null;
   private askUser?: (question: string) => Promise<string>;
+  private parsifa?: ParsifaInterface;
 
   constructor(
     config: CortexConfig,
@@ -664,6 +667,45 @@ export class Brainstem {
 
     // Activate if not already listening
     this.conversationCortex.activate();
+  }
+
+  /**
+   * Set the Parsifal — the entity that directs this Cortex.
+   *
+   * Replaces setAskUser + setConversationTransport with a single
+   * abstraction that works for human, parent Cortex, or autonomous mode.
+   */
+  setParsifal(parsifa: ParsifaInterface): void {
+    this.parsifa = parsifa;
+
+    // Wire askUser for backward compat with project rhythm inquiry/approval
+    this.askUser = (question: string) => parsifa.ask(question, { kind: "clarification" });
+
+    // Wire escalation delivery
+    this.escalationHandler.setDeliveryAdapter({
+      async deliver(escalation, briefing) {
+        const message = formatEscalationForParsifal(escalation, briefing);
+        const answer = await parsifa.ask(message, {
+          kind: "escalation",
+          escalation,
+          briefing,
+          severity: escalation.severity === "emergency" || escalation.severity === "urgent"
+            ? "critical" : escalation.severity === "blocking" ? "high" : "medium",
+        });
+        return { answer, resolvedAt: new Date() };
+      },
+    });
+
+    // Wire direction handler — Parsifal input flows into the conversation cortex
+    parsifa.onDirection((text) => this.conversationCortex.receive(text));
+
+    // Activate conversation cortex for awareness surfacing / narration
+    this.conversationCortex.activate();
+  }
+
+  /** Get the ParsifaInterface, if set. */
+  getParsifal(): ParsifaInterface | undefined {
+    return this.parsifa;
   }
 
   /** Get the conversation cortex (bidirectional Parsifal channel). */

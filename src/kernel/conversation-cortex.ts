@@ -58,6 +58,8 @@ export class ConversationCortex {
   private transports: ConversationTransport[] = [];
   private history: ConversationMessage[] = [];
   private active = false;
+  /** External direction handlers registered by ParsifaInterface implementations. */
+  private externalDirectionHandlers: Array<(text: string) => void> = [];
 
   /** Pending question awaiting a Parsifal response (askUser replacement). */
   private pendingQuestion: {
@@ -203,6 +205,11 @@ export class ConversationCortex {
     // 3. Communication function responds + store as WM observation + soft interrupt
     this.storeAsObservation(trimmed, msgId);
     this.consciousnessRespond(trimmed, msgId);
+
+    // Notify external direction handlers (ParsifaInterface consumers)
+    for (const handler of this.externalDirectionHandlers) {
+      try { handler(trimmed); } catch { /* handler errors don't break receive */ }
+    }
   }
 
   /**
@@ -715,6 +722,19 @@ export class ConversationCortex {
     for (const t of this.transports) {
       t.sendNarration(item);
     }
+  }
+
+  // ─── ParsifaInterface support ───────────────────────────────
+
+  /** Broadcast a proactive message to all transports. Used by HumanParsifal.notify(). */
+  broadcastProactive(text: string): void {
+    const msg = this.cortexMessage("proactive", text);
+    this.recordAndBroadcast(msg);
+  }
+
+  /** Register handler for external direction. Used by HumanParsifal.onDirection(). */
+  onExternalDirection(handler: (text: string) => void): void {
+    this.externalDirectionHandlers.push(handler);
   }
 
   // ─── Queries ───────────────────────────────────────────────
