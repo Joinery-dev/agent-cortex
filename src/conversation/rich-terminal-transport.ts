@@ -1,15 +1,15 @@
 /**
- * Rich Terminal Transport — conversational terminal experience for Claus.
+ * Rich Terminal Transport — Claude Code-quality terminal UI for Claus.
  *
- * A proper terminal UI that makes the conversation feel like a partnership:
- *   - Clear visual hierarchy: Claus speaks, system narrates, you direct
- *   - Persistent status line showing current phase + task + awareness
- *   - Markdown-like formatting (bold, code, lists)
- *   - Narration collapsed into compact phase indicators
- *   - Questions and escalations visually prominent
- *   - Your input always at the bottom
- *
- * Replaces the basic TerminalTransport for the CLI experience.
+ * Visual features:
+ *   - Pixelated brain ASCII art on startup
+ *   - Framed message blocks (box-drawing characters)
+ *   - Spinner animation while thinking
+ *   - Clean input area with separator
+ *   - Status bar in terminal title
+ *   - Syntax-aware markdown rendering
+ *   - Compact narration with phase indicators
+ *   - Tool call display blocks
  */
 
 import { createInterface, type Interface } from "readline";
@@ -22,80 +22,136 @@ import type {
   ArtifactItem,
 } from "../types/conversation.js";
 
-// ─── ANSI helpers ──────────────────────────────────────────────
+// ─── ANSI ─────────────────────────────────────────────────────
 
-const RESET = "\x1b[0m";
-const BOLD = "\x1b[1m";
-const DIM = "\x1b[2m";
-const ITALIC = "\x1b[3m";
-const UNDERLINE = "\x1b[4m";
+const R = "\x1b[0m";       // reset
+const B = "\x1b[1m";       // bold
+const D = "\x1b[2m";       // dim
+const I = "\x1b[3m";       // italic
+const UL = "\x1b[4m";      // underline
 
-const BLACK = "\x1b[30m";
+const BLK = "\x1b[30m";
 const RED = "\x1b[31m";
-const GREEN = "\x1b[32m";
-const YELLOW = "\x1b[33m";
-const BLUE = "\x1b[34m";
-const MAGENTA = "\x1b[35m";
-const CYAN = "\x1b[36m";
-const WHITE = "\x1b[37m";
+const GRN = "\x1b[32m";
+const YLW = "\x1b[33m";
+const BLU = "\x1b[34m";
+const MAG = "\x1b[35m";
+const CYN = "\x1b[36m";
+const WHT = "\x1b[37m";
+const GRY = "\x1b[90m";
 
-const BG_BLUE = "\x1b[44m";
-const BG_YELLOW = "\x1b[43m";
+const BG_BLU = "\x1b[44m";
+const BG_GRN = "\x1b[42m";
+const BG_YLW = "\x1b[43m";
 const BG_RED = "\x1b[41m";
-const BG_GREEN = "\x1b[42m";
+const BG_MAG = "\x1b[45m";
+const BG_CYN = "\x1b[46m";
 
-const CLEAR_LINE = "\r\x1b[K";
-const SAVE_CURSOR = "\x1b[s";
-const RESTORE_CURSOR = "\x1b[u";
+const CLR = "\r\x1b[K";
 
-// ─── Formatting helpers ────────────────────────────────────────
+// ─── Brain ASCII Art ──────────────────────────────────────────
 
-/** Simple markdown-like formatting for terminal output. */
-function formatText(text: string): string {
+const BRAIN = `
+${D}        ██████████          ${R}
+${D}      ██${R}${MAG}░░░░░░░░░░${R}${D}██        ${R}
+${D}    ██${R}${MAG}░░${R}${D}██${R}${MAG}░░░░${R}${D}██${R}${MAG}░░${R}${D}██      ${R}
+${D}   ██${R}${MAG}░░${R}${D}██${R}${MAG}░░░░░░${R}${D}██${R}${MAG}░░${R}${D}██     ${R}
+${D}  ██${R}${MAG}░░░░░░░░${R}${D}██${R}${MAG}░░░░░░${R}${D}██    ${R}
+${D}  ██${R}${MAG}░░░░░░${R}${D}██${R}${MAG}░░░░░░░░${R}${D}██    ${R}
+${D}  ██${R}${MAG}░░░░${R}${D}██${R}${MAG}░░░░░░${R}${D}██${R}${MAG}░░${R}${D}██    ${R}
+${D}   ██${R}${MAG}░░░░░░░░░░${R}${D}██${R}${MAG}░░${R}${D}██     ${R}
+${D}    ██${R}${MAG}░░░░░░░░░░░░${R}${D}██      ${R}
+${D}      ██${R}${MAG}░░░░░░░░${R}${D}██        ${R}
+${D}        ██████████          ${R}`;
+
+// ─── Box Drawing ──────────────────────────────────────────────
+
+const BOX = {
+  tl: "╭", tr: "╮", bl: "╰", br: "╯",
+  h: "─", v: "│",
+  ltee: "├", rtee: "┤",
+};
+
+function boxTop(label: string, color: string, width: number): string {
+  const labelStr = ` ${label} `;
+  const lineLen = Math.max(0, width - labelStr.length - 4);
+  return `  ${color}${BOX.tl}${BOX.h}${R}${color}${B}${labelStr}${R}${color}${BOX.h.repeat(lineLen)}${BOX.tr}${R}`;
+}
+
+function boxLine(text: string, color: string, width: number): string {
+  const stripped = stripAnsi(text);
+  const pad = Math.max(0, width - stripped.length - 6);
+  return `  ${color}${BOX.v}${R} ${text}${" ".repeat(pad)} ${color}${BOX.v}${R}`;
+}
+
+function boxBottom(color: string, width: number): string {
+  return `  ${color}${BOX.bl}${BOX.h.repeat(width - 4)}${BOX.br}${R}`;
+}
+
+function boxWidth(): number {
+  return Math.min(process.stdout.columns ?? 80, 100) - 2;
+}
+
+// ─── Markdown-ish Formatting ──────────────────────────────────
+
+function formatMd(text: string): string {
   return text
-    // Code blocks (``` ... ```) → dim
-    .replace(/```[\s\S]*?```/g, (match) => `${DIM}${match.slice(3, -3).trim()}${RESET}`)
-    // Inline code (`...`) → dim
-    .replace(/`([^`]+)`/g, `${DIM}$1${RESET}`)
-    // Bold (**...**) → bold
-    .replace(/\*\*([^*]+)\*\*/g, `${BOLD}$1${RESET}`)
-    // Italic (*...*) → italic
-    .replace(/\*([^*]+)\*/g, `${ITALIC}$1${RESET}`)
-    // Bullet lists (- ...) → indented with marker
-    .replace(/^- (.+)$/gm, `  ${DIM}•${RESET} $1`);
+    // Code blocks → dim with language hint
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_m, lang, code) => {
+      const header = lang ? `${GRY}── ${lang} ──${R}\n` : "";
+      return `${header}${D}${code.trim()}${R}`;
+    })
+    // Inline code
+    .replace(/`([^`]+)`/g, `${CYN}${D}$1${R}`)
+    // Bold
+    .replace(/\*\*([^*]+)\*\*/g, `${B}$1${R}`)
+    // Italic
+    .replace(/\*([^*]+)\*/g, `${I}$1${R}`)
+    // Bullets
+    .replace(/^- (.+)$/gm, `  ${GRY}•${R} $1`)
+    // Headers
+    .replace(/^### (.+)$/gm, `${B}$1${R}`)
+    .replace(/^## (.+)$/gm, `\n${B}$1${R}`)
+    .replace(/^# (.+)$/gm, `\n${B}${UL}$1${R}`);
 }
 
-/** Wrap text to terminal width. */
-function wrap(text: string, width: number, indent = 0): string {
-  const prefix = " ".repeat(indent);
-  const maxLen = width - indent;
-  if (maxLen <= 20) return text; // Don't wrap narrow terminals
+// ─── Spinner ──────────────────────────────────────────────────
 
-  const lines: string[] = [];
-  for (const paragraph of text.split("\n")) {
-    if (paragraph.length <= maxLen) {
-      lines.push(paragraph);
-      continue;
-    }
-    let line = "";
-    for (const word of paragraph.split(" ")) {
-      if (line.length + word.length + 1 > maxLen) {
-        lines.push(line);
-        line = prefix + word;
-      } else {
-        line = line ? `${line} ${word}` : word;
-      }
-    }
-    if (line) lines.push(line);
+const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+class Spinner {
+  private interval: ReturnType<typeof setInterval> | null = null;
+  private frame = 0;
+  private message: string;
+
+  constructor(message = "thinking") {
+    this.message = message;
   }
-  return lines.join("\n");
+
+  start(): void {
+    if (this.interval) return;
+    this.frame = 0;
+    this.interval = setInterval(() => {
+      const f = SPINNER_FRAMES[this.frame % SPINNER_FRAMES.length];
+      process.stdout.write(`${CLR}  ${MAG}${f}${R} ${D}${this.message}${R}`);
+      this.frame++;
+    }, 80);
+  }
+
+  update(message: string): void {
+    this.message = message;
+  }
+
+  stop(): void {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = null;
+      process.stdout.write(`${CLR}`);
+    }
+  }
 }
 
-function termWidth(): number {
-  return process.stdout.columns ?? 80;
-}
-
-// ─── Status bar ────────────────────────────────────────────────
+// ─── Status State ─────────────────────────────────────────────
 
 interface StatusState {
   phase?: string;
@@ -103,53 +159,17 @@ interface StatusState {
   cycle?: number;
   projectState?: string;
   ne?: number;
-  awarenessCount?: number;
 }
 
-function renderStatusBar(status: StatusState): string {
-  const parts: string[] = [];
-
-  if (status.projectState) {
-    const stateColors: Record<string, string> = {
-      inquiry: BG_BLUE + WHITE,
-      planning: BG_BLUE + WHITE,
-      executing: BG_GREEN + BLACK,
-      evaluating: BG_YELLOW + BLACK,
-      complete: BG_GREEN + BLACK,
-      escalated: BG_RED + WHITE,
-    };
-    const color = stateColors[status.projectState] ?? DIM;
-    parts.push(`${color} ${status.projectState} ${RESET}`);
-  }
-
-  if (status.phase) {
-    parts.push(`${DIM}${status.phase}${RESET}`);
-  }
-
-  if (status.cycle != null) {
-    parts.push(`${DIM}cycle ${status.cycle}${RESET}`);
-  }
-
-  if (status.task) {
-    const truncated = status.task.length > 40 ? status.task.slice(0, 37) + "..." : status.task;
-    parts.push(`${CYAN}${truncated}${RESET}`);
-  }
-
-  if (status.ne != null) {
-    parts.push(`${DIM}NE: ${(status.ne * 100).toFixed(0)}%${RESET}`);
-  }
-
-  return parts.length > 0 ? parts.join(`${DIM} │ ${RESET}`) : "";
-}
-
-// ─── Transport ─────────────────────────────────────────────────
+// ─── Transport ────────────────────────────────────────────────
 
 export class RichTerminalTransport implements ConversationTransport {
   private rl: Interface;
   private handler: ((text: string) => void) | null = null;
   private closed = false;
   private status: StatusState = {};
-  private lastNarrationLevel: string | null = null;
+  private spinner = new Spinner();
+  private thinkingActive = false;
   private output: NodeJS.WritableStream;
 
   constructor(opts?: { input?: NodeJS.ReadableStream; output?: NodeJS.WritableStream }) {
@@ -171,55 +191,76 @@ export class RichTerminalTransport implements ConversationTransport {
 
     this.rl.on("close", () => {
       this.closed = true;
+      this.spinner.stop();
     });
+  }
+
+  /** Print the brain logo and welcome message. */
+  showWelcome(worldviewName?: string, techStack?: string[]): void {
+    for (const line of BRAIN.split("\n")) {
+      this.write(line);
+    }
+    this.write("");
+    this.write(`  ${B}Agent Cortex${R}`);
+    if (worldviewName) {
+      this.write(`  ${D}worldview: ${worldviewName}${R}`);
+    }
+    if (techStack && techStack.length > 0) {
+      this.write(`  ${D}stack: ${techStack.join(", ")}${R}`);
+    }
+    this.write(`  ${D}type /help for commands${R}`);
+    this.write("");
+    this.writeSeparator();
   }
 
   sendMessage(msg: ConversationMessage): void {
     if (this.closed) return;
+    this.stopThinking();
 
     if (msg.role === "parsifal") {
-      // User's own message — brief acknowledgment
-      this.write(`  ${GREEN}you ▸${RESET} ${msg.text}`);
+      // Don't display — readline already showed the input
       return;
     }
 
-    // Cortex messages — visual treatment by kind
+    const w = boxWidth();
+
     switch (msg.kind) {
       case "question": {
-        // Questions are the most prominent — they need a response
+        // Questions get a prominent framed box
         this.write("");
-        this.write(`  ${MAGENTA}${BOLD}? claus${RESET}`);
-        const formatted = formatText(msg.text);
-        for (const line of formatted.split("\n")) {
-          this.write(`  ${MAGENTA}│${RESET} ${line}`);
+        this.write(boxTop("claus asks", MAG, w));
+        for (const line of formatMd(msg.text).split("\n")) {
+          this.write(boxLine(line, MAG, w));
         }
-        this.write(`  ${MAGENTA}│${RESET}`);
-        this.write(`  ${MAGENTA}└─${RESET} ${DIM}(type your answer)${RESET}`);
+        this.write(boxLine("", MAG, w));
+        this.write(boxLine(`${D}(type your answer below)${R}`, MAG, w));
+        this.write(boxBottom(MAG, w));
         this.write("");
         break;
       }
 
       case "proactive": {
-        // Proactive insights — Claus volunteering something
+        // Proactive insights — yellow box
         this.write("");
-        this.write(`  ${YELLOW}${BOLD}💡 claus${RESET}`);
-        const formatted = formatText(msg.text);
-        for (const line of formatted.split("\n")) {
-          this.write(`  ${YELLOW}│${RESET} ${line}`);
+        this.write(boxTop("💡 claus noticed", YLW, w));
+        for (const line of formatMd(msg.text).split("\n")) {
+          this.write(boxLine(line, YLW, w));
         }
+        this.write(boxBottom(YLW, w));
         this.write("");
         break;
       }
 
-      case "acknowledgment": {
-        // Responses to Parsifal — conversational
-        this.write(`  ${CYAN}claus ▸${RESET} ${formatText(msg.text)}`);
-        break;
-      }
-
+      case "acknowledgment":
       default: {
-        // General Cortex messages
-        this.write(`  ${CYAN}claus ▸${RESET} ${formatText(msg.text)}`);
+        // Regular responses — cyan box
+        this.write("");
+        this.write(boxTop("claus", CYN, w));
+        for (const line of formatMd(msg.text).split("\n")) {
+          this.write(boxLine(line, CYN, w));
+        }
+        this.write(boxBottom(CYN, w));
+        this.write("");
         break;
       }
     }
@@ -228,98 +269,100 @@ export class RichTerminalTransport implements ConversationTransport {
   sendNarration(item: NarrationItem): void {
     if (this.closed) return;
 
-    // Compact narration — major events get full treatment, minor get one line
     switch (item.level) {
       case "major": {
+        this.stopThinking();
         this.write("");
-        this.write(`  ${DIM}──${RESET} ${BOLD}${item.headline}${RESET}`);
+        this.write(`  ${D}━━${R} ${B}${item.headline}${R}`);
         if (item.children) {
           for (const child of item.children) {
-            const color = child.severity === "warn" ? YELLOW
-              : child.severity === "success" ? GREEN : DIM;
-            this.write(`  ${DIM}  ${color}${child.label}:${RESET} ${color}${child.value}${RESET}`);
+            const color = child.severity === "warn" ? YLW
+              : child.severity === "success" ? GRN : GRY;
+            this.write(`  ${D}   ${color}${child.label}${R}${D}: ${child.value}${R}`);
           }
         }
+        // Start thinking spinner after major events
+        this.startThinking(item.headline);
         break;
       }
 
       case "normal": {
-        // Collapse consecutive normal narrations into compact form
-        this.write(`  ${DIM}· ${item.headline}${RESET}`);
+        this.spinner.update(item.headline);
         break;
       }
 
       case "minor": {
-        // Minor narrations only show if previous was also minor (grouping)
-        if (this.lastNarrationLevel === "minor") {
-          this.write(`  ${DIM}  ${item.headline}${RESET}`);
-        }
+        // Minor narrations update the spinner message
+        this.spinner.update(item.headline);
         break;
       }
     }
-
-    this.lastNarrationLevel = item.level;
   }
 
   sendStatus(status: SystemStatus): void {
     if (this.closed) return;
 
     const prevState = this.status.projectState;
-    const prevPhase = this.status.phase;
 
-    // Update internal status state
     if (status.phase) this.status.phase = status.phase;
     if (status.task) this.status.task = status.task;
     if (status.projectState) this.status.projectState = status.projectState;
     if (status.cycle != null) this.status.cycle = status.cycle;
     if (status.ne != null) this.status.ne = status.ne;
 
-    // Render status bar to terminal title
-    const bar = renderStatusBar(this.status);
-    if (bar) {
-      process.stdout.write(`\x1b]0;cortex: ${stripAnsi(bar)}\x07`);
+    // Terminal title
+    const parts: string[] = [];
+    if (this.status.projectState) parts.push(this.status.projectState);
+    if (this.status.phase) parts.push(this.status.phase);
+    if (this.status.task) {
+      const t = this.status.task.length > 30 ? this.status.task.slice(0, 27) + "..." : this.status.task;
+      parts.push(t);
+    }
+    if (parts.length > 0) {
+      process.stdout.write(`\x1b]0;cortex │ ${parts.join(" │ ")}\x07`);
     }
 
-    // Print visible status line on significant transitions
+    // Show significant state transitions
     if (status.projectState && status.projectState !== prevState) {
-      const stateLabel = status.projectState.charAt(0).toUpperCase() + status.projectState.slice(1);
-      this.write(`  ${DIM}── ${stateLabel} ──${RESET}`);
-    } else if (status.phase && status.phase !== prevPhase && status.phase !== prevState) {
-      // Phase change within same project state — subtle indicator
-      this.write(`  ${DIM}· ${status.phase}${status.cycle != null ? ` (cycle ${status.cycle})` : ""}${RESET}`);
+      this.stopThinking();
+      this.write(`  ${D}── ${status.projectState} ──${R}`);
     }
   }
 
   sendPlan(plan: PlanSnapshot): void {
     if (this.closed) return;
+    if (plan.nodes.length === 0) return;
 
-    // Show plan as compact tree when it first arrives
-    if (plan.nodes.length > 0 && plan.nodes.some((n) => n.status === "pending")) {
-      this.write("");
-      this.write(`  ${DIM}── Plan ──${RESET}`);
-      for (const node of plan.nodes.slice(0, 8)) {
-        const icon = node.status === "complete" ? `${GREEN}✓${RESET}`
-          : node.status === "active" ? `${CYAN}▸${RESET}`
-          : node.status === "escalated" ? `${RED}!${RESET}`
-          : `${DIM}○${RESET}`;
-        const indent = node.parentId ? "    " : "  ";
-        this.write(`${indent}${icon} ${node.description}`);
-      }
-      if (plan.nodes.length > 8) {
-        this.write(`  ${DIM}  ... and ${plan.nodes.length - 8} more${RESET}`);
-      }
-      this.write("");
+    this.stopThinking();
+    const w = boxWidth();
+
+    this.write("");
+    this.write(boxTop("plan", BLU, w));
+    for (const node of plan.nodes.slice(0, 10)) {
+      const icon = node.status === "complete" ? `${GRN}✓${R}`
+        : node.status === "active" ? `${CYN}▸${R}`
+        : node.status === "escalated" ? `${RED}!${R}`
+        : `${GRY}○${R}`;
+      const indent = node.parentId ? "  " : "";
+      this.write(boxLine(`${indent}${icon} ${node.description}`, BLU, w));
     }
+    if (plan.nodes.length > 10) {
+      this.write(boxLine(`${D}... and ${plan.nodes.length - 10} more${R}`, BLU, w));
+    }
+    this.write(boxBottom(BLU, w));
+    this.write("");
   }
 
   sendArtifact(artifact: ArtifactItem): void {
     if (this.closed) return;
+    this.stopThinking();
+    const w = boxWidth();
 
     this.write("");
-    this.write(`  ${GREEN}${BOLD}✓ Artifact:${RESET} ${artifact.title}`);
-    if (artifact.confidence != null) {
-      this.write(`  ${DIM}  confidence: ${(artifact.confidence * 100).toFixed(0)}%${RESET}`);
-    }
+    this.write(boxTop("✓ artifact", GRN, w));
+    this.write(boxLine(`${B}${artifact.title}${R}`, GRN, w));
+    this.write(boxLine(`${D}confidence: ${(artifact.confidence * 100).toFixed(0)}%${R}`, GRN, w));
+    this.write(boxBottom(GRN, w));
     this.write("");
   }
 
@@ -329,18 +372,36 @@ export class RichTerminalTransport implements ConversationTransport {
 
   close(): void {
     this.closed = true;
+    this.spinner.stop();
     this.rl.close();
   }
 
-  /** Get the underlying readline. */
   getReadline(): Interface {
     return this.rl;
   }
 
-  // ─── Internal ──────────────────────────────────────────────
+  // ─── Internal ──────────────────────────────────────────
 
   private write(line: string): void {
-    process.stdout.write(`${CLEAR_LINE}${line}\n`);
+    process.stdout.write(`${CLR}${line}\n`);
+  }
+
+  private writeSeparator(): void {
+    const w = Math.min(process.stdout.columns ?? 80, 100) - 4;
+    this.write(`  ${GRY}${"─".repeat(w)}${R}`);
+  }
+
+  private startThinking(context?: string): void {
+    if (this.thinkingActive) return;
+    this.thinkingActive = true;
+    this.spinner.update(context ?? "thinking");
+    this.spinner.start();
+  }
+
+  private stopThinking(): void {
+    if (!this.thinkingActive) return;
+    this.thinkingActive = false;
+    this.spinner.stop();
   }
 }
 

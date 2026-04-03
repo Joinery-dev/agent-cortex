@@ -115,24 +115,12 @@ const DEFAULT_TASTE: TasteProfile = {
 };
 
 async function main() {
-  if (interactiveMode) {
-    console.log(`\n${BOLD}cortex${RESET}\n`);
-  } else {
-    console.log(`\n${BOLD}cortex${RESET} ${DIM}—${RESET} ${taskDescription}\n`);
-  }
+  // Set log level FIRST — before anything creates loggers
+  const { setLogLevel } = await import("./util/logger.js");
+  setLogLevel(flags.logLevel);
 
   // ── Discover project context (no LLM calls) ──────────
   const discovered = await discoverProjectContext(process.cwd());
-
-  if (discovered.configFound) {
-    console.log(`${DIM}Config: .cortex/config.json${RESET}`);
-  }
-  if (discovered.techStack.length > 0) {
-    console.log(`${DIM}Stack:  ${discovered.techStack.join(", ")}${RESET}`);
-  }
-  if (discovered.gitContext) {
-    console.log(`${DIM}Branch: ${discovered.gitContext.branch}${discovered.gitContext.isDirty ? " (dirty)" : ""}${RESET}`);
-  }
 
   // ── Build intent from discovery + CLI args ────────────
   const intent: ProjectIntent = {
@@ -206,6 +194,9 @@ async function main() {
   if (!flags.autonomous) {
     const terminal = new RichTerminalTransport();
 
+    // Welcome screen with brain
+    terminal.showWelcome(worldview?.name, discovered.techStack);
+
     // Command router intercepts /commands before they reach conversation
     const router = new CommandRouter((line) => {
       process.stdout.write(`\r\x1b[K${line}\n`);
@@ -222,7 +213,6 @@ async function main() {
 
     const humanParsifal = new HumanParsifal(conversationCortex, [terminal]);
     cortex.getBrainstem().setParsifal(humanParsifal);
-    console.log(`${DIM}Mode: interactive (type /help for commands)${RESET}\n`);
 
     // Ctrl+C → soft interrupt
     process.on("SIGINT", () => {
