@@ -21,6 +21,7 @@ import { AutonomousParsifal } from "./kernel/autonomous-parsifal.js";
 import { newId } from "./util/ids.js";
 import { discoverProjectContext } from "./cli/project-context.js";
 import { persistSession, loadSession, clearSession } from "./session/state.js";
+import { CommandRouter } from "./cli/commands.js";
 import { CheckpointStore } from "./trace/checkpoint-store.js";
 
 // ─── Arg parsing ──────────────────────────────────────────────
@@ -161,15 +162,51 @@ async function main() {
 
   console.log("");
 
-  // Terminal transport for interactive mode
+  // Terminal transport + command router for interactive mode
   if (!flags.autonomous) {
     const terminal = new RichTerminalTransport();
-    const humanParsifal = new HumanParsifal(
-      cortex.getBrainstem().getConversationCortex(),
-      [terminal],
-    );
+
+    // Command router intercepts /commands before they reach conversation
+    const router = new CommandRouter((line) => {
+      process.stdout.write(`\r\x1b[K${line}\n`);
+    });
+
+    // Wrap the transport's receive handler to intercept commands
+    const conversationCortex = cortex.getBrainstem().getConversationCortex();
+    terminal.onReceive((text) => {
+      if (text.startsWith("/") && router.tryExecute(text, cortex)) {
+        return; // Command consumed
+      }
+      conversationCortex.receive(text);
+    });
+
+    const humanParsifal = new HumanParsifal(conversationCortex, [terminal]);
     cortex.getBrainstem().setParsifal(humanParsifal);
-    console.log(`${DIM}Mode: interactive (type to give direction)${RESET}\n`);
+    console.log(`${DIM}Mode: interactive (type /help for commands)${RESET}\n`);
+
+    // Ctrl+C → soft interrupt
+    process.on("SIGINT", () => {
+      const runner = cortex.getBrainstem().getRunner();
+      const rhythms = runner.getActiveRhythms();
+      if (rhythms.length > 0) {
+        runner.interrupt(rhythms[rhythms.length - 1], {
+          mode: "soft",
+          source: "cli-sigint",
+          reason: "Ctrl+C pressed",
+          context: { signal: "SIGINT" },
+        });
+        console.log(`\n${DIM}  Interrupting... (press again to force quit)${RESET}`);
+
+        // Second Ctrl+C → hard exit
+        process.once("SIGINT", () => {
+          console.log(`\n${DIM}  Force quit.${RESET}`);
+          process.exit(130);
+        });
+      } else {
+        console.log(`\n${DIM}  Goodbye.${RESET}`);
+        process.exit(0);
+      }
+    });
   }
 
   // Dashboard

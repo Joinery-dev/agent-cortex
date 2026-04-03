@@ -102,6 +102,7 @@ interface StatusState {
   task?: string;
   cycle?: number;
   projectState?: string;
+  ne?: number;
   awarenessCount?: number;
 }
 
@@ -110,9 +111,11 @@ function renderStatusBar(status: StatusState): string {
 
   if (status.projectState) {
     const stateColors: Record<string, string> = {
+      inquiry: BG_BLUE + WHITE,
       planning: BG_BLUE + WHITE,
       executing: BG_GREEN + BLACK,
       evaluating: BG_YELLOW + BLACK,
+      complete: BG_GREEN + BLACK,
       escalated: BG_RED + WHITE,
     };
     const color = stateColors[status.projectState] ?? DIM;
@@ -130,6 +133,10 @@ function renderStatusBar(status: StatusState): string {
   if (status.task) {
     const truncated = status.task.length > 40 ? status.task.slice(0, 37) + "..." : status.task;
     parts.push(`${CYAN}${truncated}${RESET}`);
+  }
+
+  if (status.ne != null) {
+    parts.push(`${DIM}NE: ${(status.ne * 100).toFixed(0)}%${RESET}`);
   }
 
   return parts.length > 0 ? parts.join(`${DIM} │ ${RESET}`) : "";
@@ -257,17 +264,29 @@ export class RichTerminalTransport implements ConversationTransport {
   sendStatus(status: SystemStatus): void {
     if (this.closed) return;
 
+    const prevState = this.status.projectState;
+    const prevPhase = this.status.phase;
+
     // Update internal status state
     if (status.phase) this.status.phase = status.phase;
     if (status.task) this.status.task = status.task;
     if (status.projectState) this.status.projectState = status.projectState;
     if (status.cycle != null) this.status.cycle = status.cycle;
+    if (status.ne != null) this.status.ne = status.ne;
 
-    // Render status bar to terminal title (non-intrusive)
+    // Render status bar to terminal title
     const bar = renderStatusBar(this.status);
     if (bar) {
-      // Set terminal title
       process.stdout.write(`\x1b]0;cortex: ${stripAnsi(bar)}\x07`);
+    }
+
+    // Print visible status line on significant transitions
+    if (status.projectState && status.projectState !== prevState) {
+      const stateLabel = status.projectState.charAt(0).toUpperCase() + status.projectState.slice(1);
+      this.write(`  ${DIM}── ${stateLabel} ──${RESET}`);
+    } else if (status.phase && status.phase !== prevPhase && status.phase !== prevState) {
+      // Phase change within same project state — subtle indicator
+      this.write(`  ${DIM}· ${status.phase}${status.cycle != null ? ` (cycle ${status.cycle})` : ""}${RESET}`);
     }
   }
 
