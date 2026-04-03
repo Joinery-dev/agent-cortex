@@ -72,6 +72,7 @@ import { ConversationCortex } from "../kernel/conversation-cortex.js";
 import type { ConversationTransport } from "../types/conversation.js";
 import type { ParsifaInterface } from "../types/parsifa.js";
 import { HumanParsifal } from "../kernel/human-parsifal.js";
+import { ReferenceStore } from "../kernel/reference-store.js";
 import { CostTracker } from "./cost-tracker.js";
 import { registerCostCallback, setCostTaskId, setLlmConcurrency } from "../llm/client.js";
 import type { CostBudget, ProjectCostSummary } from "../types/cost.js";
@@ -110,6 +111,7 @@ export class Brainstem {
   private escalationHandler: EscalationHandler;
   private conversationCortex: ConversationCortex;
   private costTracker: CostTracker | null = null;
+  private referenceStore: ReferenceStore;
   private askUser?: (question: string) => Promise<string>;
   private parsifa?: ParsifaInterface;
 
@@ -160,13 +162,17 @@ export class Brainstem {
     // PNS: I/O boundary
     this.pns = new PeripheralNervousSystem();
 
-    // Core kernel — thalamus gets hippocampus + world model + PNS as sources
+    // Reference store: persistent lookup for external system pointers
+    this.referenceStore = new ReferenceStore();
+
+    // Core kernel — thalamus gets hippocampus + world model + PNS + references as sources
     this.wm = wm ?? new WorkingMemory("default");
     this.thalamus = new Thalamus({
       wm: this.wm,
       pns: this.pns,
       hippocampus: this.hippocampus,
       worldModel: this.worldModel,
+      referenceStore: this.referenceStore,
     });
     this.scheduler = new AttentionScheduler(schedulerConfig);
     this.motorCortex = new MotorCortex(config, this.pns, worldview);
@@ -356,6 +362,7 @@ export class Brainstem {
   async runTask(context: SensoryCortexContext): Promise<SensoryCortexResult> {
     await this.hippocampus.load();
     await this.worldModel.load();
+    await this.referenceStore.load();
     await this.basalGanglia.load();
     await this.plasticityStore.loadFromDisk();
     this.thalamus.updateProject(context.intent, context.taste);
@@ -394,6 +401,7 @@ export class Brainstem {
   async runProject(context: ProjectContext): Promise<ProjectResult> {
     await this.hippocampus.load();
     await this.worldModel.load();
+    await this.referenceStore.load();
     await this.basalGanglia.load();
     await this.plasticityStore.loadFromDisk();
     if (this.hooks instanceof CompositeSubcorticalHooks) {
@@ -444,6 +452,7 @@ export class Brainstem {
     // Load persistent stores
     await this.hippocampus.load();
     await this.worldModel.load();
+    await this.referenceStore.load();
     await this.basalGanglia.load();
     await this.plasticityStore.loadFromDisk();
 
@@ -607,6 +616,11 @@ export class Brainstem {
   /** Get the world model (Weltanschauung). */
   getWorldModel(): WorldModel {
     return this.worldModel;
+  }
+
+  /** Get the reference store (external system pointers). */
+  getReferenceStore(): ReferenceStore {
+    return this.referenceStore;
   }
 
   /** Get cognitive flexibility (perseveration detection + strategy reset). */

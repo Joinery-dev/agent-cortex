@@ -98,6 +98,7 @@ export class Thalamus {
   private forwardBriefing: ForwardBriefing | null = null;
   private manifestedFuture: string | null = null;
   private guidanceStore?: import("./guidance-store.js").GuidanceStore;
+  private referenceStore?: import("./reference-store.js").ReferenceStore;
 
   /** Stream of Awareness — chronological buffer of significant findings. */
   private awarenessBuffer: AwarenessInsight[] = [];
@@ -112,12 +113,23 @@ export class Thalamus {
     this.hippocampus = sources.hippocampus;
     this.worldModel = sources.worldModel;
     this.guidanceStore = sources.guidanceStore;
+    this.referenceStore = sources.referenceStore;
     this.startAwarenessListening();
   }
 
   /** Get the guidance store (for rest cycle evolution + outcome recording). */
   getGuidanceStore(): import("./guidance-store.js").GuidanceStore | undefined {
     return this.guidanceStore;
+  }
+
+  /** Get reference summaries for briefing inclusion. */
+  getReferenceSummaries(): string[] {
+    return this.referenceStore?.getSummaries() ?? [];
+  }
+
+  /** Get the reference store (external system pointers). */
+  getReferenceStore(): import("./reference-store.js").ReferenceStore | undefined {
+    return this.referenceStore;
   }
 
   // ── Project Binding ─────────────────────────────────────────────
@@ -1116,6 +1128,7 @@ export class Thalamus {
         selfMaxims: lcSelfMaxims.length > 0 ? lcSelfMaxims : undefined,
         selfNarratives: lcSelfNarratives.length > 0 ? lcSelfNarratives : undefined,
         awareness: legacyConsultAwareness.length > 0 ? legacyConsultAwareness : undefined,
+        references: this.getReferenceSummaries().length > 0 ? this.getReferenceSummaries() : undefined,
         predictedTensions: lfb?.predictedTensions.length
           ? lfb.predictedTensions : undefined,
         convictionNotes: lfb?.convictionCarryForward.notes.length
@@ -1199,6 +1212,7 @@ export class Thalamus {
         selfMaxims: lmSelfMaxims.length > 0 ? lmSelfMaxims : undefined,
         selfNarratives: lmSelfNarratives.length > 0 ? lmSelfNarratives : undefined,
         awareness: legacyMotorAwareness.length > 0 ? legacyMotorAwareness : undefined,
+        references: this.getReferenceSummaries().length > 0 ? this.getReferenceSummaries() : undefined,
         predictedCycles: lmfb?.predictedCycles ?? undefined,
         approachNotes: lmfb?.convictionCarryForward.reshapeGuidance
           ? [lmfb.convictionCarryForward.reshapeGuidance] : undefined,
@@ -1430,6 +1444,15 @@ export class Thalamus {
         parts.push(`\n## What I've noticed`);
         for (const a of commAwareness.slice(-8)) {
           parts.push(`- ${a}`);
+        }
+      }
+
+      // External references
+      const refs = this.getReferenceSummaries();
+      if (refs.length > 0) {
+        parts.push(`\n## Known references`);
+        for (const r of refs) {
+          parts.push(`- ${r}`);
         }
       }
     } else {
@@ -1925,6 +1948,7 @@ export class Thalamus {
         selfMaxims: compressed ? undefined : (selfMaximStmts.length > 0 ? selfMaximStmts : undefined),
         selfNarratives: compressed ? undefined : (selfNarrativeStrs.length > 0 ? selfNarrativeStrs : undefined),
         awareness: compressed ? undefined : (awarenessSummaries.length > 0 ? awarenessSummaries : undefined),
+        references: compressed ? undefined : (this.getReferenceSummaries().length > 0 ? this.getReferenceSummaries() : undefined),
         predictedTensions: fb?.predictedTensions.length
           ? fb.predictedTensions : undefined,
         convictionNotes: compressed ? undefined : (fb?.convictionCarryForward.notes.length
@@ -2048,6 +2072,7 @@ export class Thalamus {
         selfMaxims: motorCompressed ? undefined : (motorSelfMaxims.length > 0 ? motorSelfMaxims : undefined),
         selfNarratives: motorCompressed ? undefined : (motorSelfNarratives.length > 0 ? motorSelfNarratives : undefined),
         awareness: motorCompressed ? undefined : (motorAwareness.length > 0 ? motorAwareness : undefined),
+        references: this.getReferenceSummaries().length > 0 ? this.getReferenceSummaries() : undefined,
         predictedCycles: mfb?.predictedCycles ?? undefined,
         approachNotes: mfb?.convictionCarryForward.reshapeGuidance
           ? [mfb.convictionCarryForward.reshapeGuidance] : undefined,

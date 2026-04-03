@@ -146,6 +146,13 @@ export function consultationUser(briefing: ConsultationBriefing): string {
     );
   }
 
+  // External references — deterministic pointers to external systems
+  if (enrichment.references && enrichment.references.length > 0) {
+    enrichmentSections.push(
+      `KNOWN REFERENCES (external systems — use these when relevant):\n${enrichment.references.map((r) => `- ${r}`).join("\n")}`
+    );
+  }
+
   // Dissolved taste comes after the worldview frame — natural language guidance
   // shaped for this consumer, rather than raw taste fields.
   if (enrichment.dissolvedTaste) {
@@ -835,6 +842,13 @@ export function assembleMotorPromptBody(briefing: MotorBriefing): string {
     }
     enrichmentSections.push(
       `SELF-KNOWLEDGE (what ${sysName()} knows about itself — account for tendencies and biases):\n${selfParts.join("\n")}`
+    );
+  }
+
+  // External references — deterministic pointers to external systems
+  if (enrichment.references && enrichment.references.length > 0) {
+    enrichmentSections.push(
+      `KNOWN REFERENCES (external systems — use these when relevant):\n${enrichment.references.map((r) => `- ${r}`).join("\n")}`
     );
   }
 

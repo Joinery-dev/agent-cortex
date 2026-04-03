@@ -100,6 +100,8 @@ export interface ConsultationEnrichment {
   selfNarratives?: string[];
   /** Stream of awareness — what Claus has noticed across the project. */
   awareness?: string[];
+  /** External references — deterministic pointers to external systems. */
+  references?: string[];
   /** Sense pairs predicted to conflict — from prospective preparation. */
   predictedTensions?: PredictedTension[];
   /** Tactical notes from the completed task's conviction loop. */
@@ -215,6 +217,8 @@ export interface MotorEnrichment {
   selfNarratives?: string[];
   /** Stream of awareness — what Claus has noticed across the project. */
   awareness?: string[];
+  /** External references — deterministic pointers to external systems. */
+  references?: string[];
   /** Predicted build cycles based on similar past tasks. */
   predictedCycles?: number;
   /** Tactical approach notes from conviction shaping. */
@@ -323,6 +327,8 @@ export interface EscalationProjectSnapshot {
   worldModelMaxims?: string[];
   /** Stream of awareness — what Claus has noticed across the project. */
   awareness?: string[];
+  /** External references — deterministic pointers to external systems. */
+  references?: string[];
   /** Per-sense assessments of the escalation — domain expert perspectives. */
   senseAssessments?: Array<{
     senseId: string;
@@ -466,6 +472,9 @@ export interface ThalamusSources {
 
   // Reflective evolution
   guidanceStore?: import("../kernel/guidance-store.js").GuidanceStore;
+
+  // External references (deterministic lookup, not learning)
+  referenceStore?: import("../kernel/reference-store.js").ReferenceStore;
 
   // Phase 4
   // getArousal?: () => number;
