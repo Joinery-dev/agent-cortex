@@ -2421,7 +2421,8 @@
       "[Reconciled] src/kernel/communication.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/parsifa.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/kernel/autonomous-parsifal.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/human-parsifal.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/human-parsifal.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/reference-store.ts exists but isn't referenced in any subtask."
     ]
   }
 }

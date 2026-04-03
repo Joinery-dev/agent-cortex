@@ -19,6 +19,7 @@ import { TerminalTransport } from "./conversation/terminal-transport.js";
 import { HumanParsifal } from "./kernel/human-parsifal.js";
 import { AutonomousParsifal } from "./kernel/autonomous-parsifal.js";
 import { newId } from "./util/ids.js";
+import { discoverProjectContext } from "./cli/project-context.js";
 
 // ─── Arg parsing ──────────────────────────────────────────────
 
@@ -75,20 +76,14 @@ if (flags.help || positional.length === 0) {
 
 const taskDescription = positional.join(" ");
 
-// ─── Minimal intent + taste ─────────────────────────────────
+// ─── Run ──────────────────────────────────────────────────────
 
-const intent: ProjectIntent = {
-  id: newId(),
-  summary: taskDescription,
-  audience: "",
-  successCriteria: [],
-  constraints: [],
-  vision: "",
-  keyDecisions: [],
-  driftLog: [],
-};
+const DIM = "\x1b[2m";
+const BOLD = "\x1b[1m";
+const RESET = "\x1b[0m";
+const CYAN = "\x1b[36m";
 
-const taste: TasteProfile = {
+const DEFAULT_TASTE: TasteProfile = {
   id: "cli-defaults",
   name: "CLI defaults",
   visual: "",
@@ -98,15 +93,41 @@ const taste: TasteProfile = {
   raw: {},
 };
 
-// ─── Run ──────────────────────────────────────────────────────
-
 async function main() {
-  const DIM = "\x1b[2m";
-  const BOLD = "\x1b[1m";
-  const RESET = "\x1b[0m";
-  const CYAN = "\x1b[36m";
-
   console.log(`\n${BOLD}cortex${RESET} ${DIM}—${RESET} ${taskDescription}\n`);
+
+  // ── Discover project context (no LLM calls) ──────────
+  const discovered = await discoverProjectContext(process.cwd());
+
+  if (discovered.configFound) {
+    console.log(`${DIM}Config: .cortex/config.json${RESET}`);
+  }
+  if (discovered.techStack.length > 0) {
+    console.log(`${DIM}Stack:  ${discovered.techStack.join(", ")}${RESET}`);
+  }
+  if (discovered.gitContext) {
+    console.log(`${DIM}Branch: ${discovered.gitContext.branch}${discovered.gitContext.isDirty ? " (dirty)" : ""}${RESET}`);
+  }
+
+  // ── Build intent from discovery + CLI args ────────────
+  const intent: ProjectIntent = {
+    id: newId(),
+    summary: taskDescription,
+    audience: discovered.intent.audience ?? "",
+    successCriteria: discovered.intent.successCriteria ?? [],
+    constraints: discovered.intent.constraints ?? [],
+    vision: discovered.intent.vision ?? "",
+    keyDecisions: [],
+    driftLog: [],
+  };
+
+  // Enrich summary with config summary if task is generic
+  if (discovered.intent.summary && taskDescription.split(" ").length <= 3) {
+    intent.summary = `${taskDescription} — ${discovered.intent.summary}`;
+  }
+
+  // Use saved taste if available, else defaults
+  const taste: TasteProfile = discovered.taste ?? DEFAULT_TASTE;
 
   // Set up Parsifal
   const cortexOpts: ConstructorParameters<typeof Cortex>[0] = {
@@ -121,6 +142,17 @@ async function main() {
   }
 
   const cortex = new Cortex(cortexOpts);
+
+  // Load references from config into the reference store
+  if (discovered.references?.length) {
+    const refStore = cortex.getBrainstem().getReferenceStore();
+    for (const ref of discovered.references) {
+      refStore.add(ref.label, ref.value, ref.category as import("./kernel/reference-store.js").ReferenceCategory, "config", ref.detail);
+    }
+    console.log(`${DIM}Refs:   ${discovered.references.length} loaded from config${RESET}`);
+  }
+
+  console.log("");
 
   // Terminal transport for interactive mode
   if (!flags.autonomous) {
