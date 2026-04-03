@@ -20,6 +20,8 @@ import { HumanParsifal } from "./kernel/human-parsifal.js";
 import { AutonomousParsifal } from "./kernel/autonomous-parsifal.js";
 import { newId } from "./util/ids.js";
 import { discoverProjectContext } from "./cli/project-context.js";
+import { persistSession, loadSession, clearSession } from "./session/state.js";
+import { CheckpointStore } from "./trace/checkpoint-store.js";
 
 // ─── Arg parsing ──────────────────────────────────────────────
 
@@ -30,6 +32,7 @@ const flags = {
   dashboard: false,
   dashboardPort: 3000,
   logLevel: "warn" as "info" | "warn" | "debug",
+  resume: false,
   help: false,
 };
 
@@ -45,6 +48,8 @@ for (let i = 0; i < args.length; i++) {
     flags.dashboardPort = parseInt(args[++i], 10) || 3000;
   } else if (arg === "--verbose" || arg === "-v") {
     flags.logLevel = "info";
+  } else if (arg === "--resume" || arg === "-r") {
+    flags.resume = true;
   } else if (arg === "--debug") {
     flags.logLevel = "debug";
   } else if (arg === "--help" || arg === "-h") {
@@ -54,7 +59,7 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-if (flags.help || positional.length === 0) {
+if (flags.help || (positional.length === 0 && !flags.resume)) {
   console.log(`
   Agent Cortex — a software engineer that solves problems.
 
@@ -62,10 +67,12 @@ if (flags.help || positional.length === 0) {
     cortex "fix the auth bug"              Run a task interactively
     cortex --autonomous "build the API"    Run without human input
     cortex --dashboard "build the hero"    Run with live dashboard
+    cortex --resume                        Resume from last checkpoint
 
   Options:
     -a, --autonomous   Run without Parsifal input (bounded autonomy)
     -d, --dashboard    Start the live dashboard
+    -r, --resume       Resume from the latest checkpoint
     -p, --port <n>     Dashboard port (default 3000)
     -v, --verbose      Show info-level logs
     --debug            Show debug-level logs
@@ -172,23 +179,71 @@ async function main() {
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  // Run
+  // ── Resume or Run ──────────────────────────────────────
   const startTime = Date.now();
 
-  try {
-    const result = await cortex.run(taskDescription);
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+  if (flags.resume) {
+    // Resume from latest checkpoint
+    const checkpointStore = new CheckpointStore();
+    const checkpoint = await checkpointStore.latest();
 
-    console.log(`\n${BOLD}Done${RESET} ${DIM}(${elapsed}s, ${result.cycles} cycle(s), ${(result.confidence * 100).toFixed(0)}% confidence)${RESET}`);
-    console.log(`${DIM}Status: ${result.status}${RESET}`);
-
-    if (result.evaluations.length > 0) {
-      console.log(`${DIM}Senses: ${result.evaluations.length} evaluated, ${result.tensions.length} tension(s)${RESET}`);
+    if (!checkpoint) {
+      console.error(`${BOLD}No checkpoints found.${RESET} Run a task first.\n`);
+      process.exit(1);
     }
-  } catch (err) {
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.error(`\n${BOLD}Failed${RESET} ${DIM}(${elapsed}s)${RESET}: ${err}`);
-    process.exit(1);
+
+    // Restore session context
+    const session = loadSession();
+    console.log(`${DIM}Resuming from checkpoint: ${checkpoint.label}${RESET}`);
+    console.log(`${DIM}Task: ${checkpoint.taskDescription}${RESET}`);
+    if (session) {
+      console.log(`${DIM}Original prompt: ${session.prompt}${RESET}`);
+    }
+    console.log("");
+
+    try {
+      const result = await cortex.getBrainstem().runFromCheckpoint(checkpoint);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      console.log(`\n${BOLD}Resumed${RESET} ${DIM}(${elapsed}s)${RESET}`);
+      if ("gateDecision" in result) {
+        console.log(`${DIM}Gate: ${result.gateDecision.action}${RESET}`);
+      }
+
+      clearSession();
+    } catch (err) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error(`\n${BOLD}Resume failed${RESET} ${DIM}(${elapsed}s)${RESET}: ${err}`);
+      process.exit(1);
+    }
+  } else {
+    // Fresh run — save session for potential resume
+    persistSession({
+      prompt: taskDescription,
+      intent,
+      taste,
+      worldviewName: "default",
+      startedAt: new Date().toISOString(),
+    });
+
+    try {
+      const result = await cortex.run(taskDescription);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+      console.log(`\n${BOLD}Done${RESET} ${DIM}(${elapsed}s, ${result.cycles} cycle(s), ${(result.confidence * 100).toFixed(0)}% confidence)${RESET}`);
+      console.log(`${DIM}Status: ${result.status}${RESET}`);
+
+      if (result.evaluations.length > 0) {
+        console.log(`${DIM}Senses: ${result.evaluations.length} evaluated, ${result.tensions.length} tension(s)${RESET}`);
+      }
+
+      clearSession();
+    } catch (err) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.error(`\n${BOLD}Failed${RESET} ${DIM}(${elapsed}s)${RESET}: ${err}`);
+      console.log(`${DIM}Session saved. Use --resume to continue from last checkpoint.${RESET}`);
+      process.exit(1);
+    }
   }
 }
 
