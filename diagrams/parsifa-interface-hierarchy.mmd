@@ -1,0 +1,72 @@
+---
+title: "ParsifaInterface — Hierarchical Cortex Composition"
+scope: global
+---
+
+flowchart TB
+    subgraph INTERFACE["ParsifaInterface Contract"]
+        direction LR
+        ASK["ask(question, context)\n→ Promise of string"]
+        NOTIFY["notify(message, category)\n→ void"]
+        DIR["onDirection(handler)\n→ unsolicited input"]
+        CAP["capabilities\n→ what this Parsifal supports"]
+    end
+
+    subgraph HUMAN["HumanParsifal"]
+        direction TB
+        TERM["Terminal / WebSocket\nTransport"]
+        CC["ConversationCortex"]
+        TERM <--> CC
+    end
+
+    subgraph CORTEX_P["CortexParsifal"]
+        direction TB
+        PARENT["Parent Cortex"]
+        REASON["Reasons about child's\nquestion using own\nworld model + awareness"]
+        CHAIN["Can't answer?\nChain to parent's\nown Parsifal"]
+        PARENT --> REASON
+        REASON -.->|uncertain| CHAIN
+    end
+
+    subgraph AUTO["AutonomousParsifal"]
+        direction TB
+        HEUR["Heuristic resolution"]
+        BUDGET["Autonomy budget\n(N self-resolves)"]
+        ABORT["Budget exhausted\n→ bounded failure"]
+        HEUR --> BUDGET
+        BUDGET -.->|exhausted| ABORT
+    end
+
+    INTERFACE --> HUMAN
+    INTERFACE --> CORTEX_P
+    INTERFACE --> AUTO
+
+    subgraph HIERARCHY["Hierarchical Composition"]
+        direction TB
+        TOP["Cortex (orchestrator)"]
+        TOP_P["Parsifal: Human"]
+
+        MID_A["Child Cortex A"]
+        MID_A_P["Parsifal: Parent Cortex"]
+
+        MID_B["Child Cortex B"]
+        MID_B_P["Parsifal: Parent Cortex"]
+
+        LEAF["Grandchild Cortex"]
+        LEAF_P["Parsifal: Child A"]
+        LEAF_M["Motor: LLM + Tools\n(base case)"]
+
+        TOP_P --> TOP
+        TOP -->|delegates| MID_A
+        TOP -->|delegates| MID_B
+        MID_A_P --> MID_A
+        MID_B_P --> MID_B
+        MID_A -->|delegates| LEAF
+        LEAF_P --> LEAF
+        LEAF --> LEAF_M
+
+        MID_A -.->|escalates| TOP
+        LEAF -.->|escalates| MID_A
+        MID_A -.->|can't resolve| TOP
+        TOP -.->|can't resolve| TOP_P
+    end
