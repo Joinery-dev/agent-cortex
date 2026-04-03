@@ -70,11 +70,12 @@ for (let i = 0; i < args.length; i++) {
   }
 }
 
-if (flags.help || (positional.length === 0 && !flags.resume)) {
+if (flags.help) {
   console.log(`
   Agent Cortex — a software engineer that solves problems.
 
   Usage:
+    cortex                                 Start interactive session
     cortex "fix the auth bug"              Run a task interactively
     cortex --autonomous "build the API"    Run without human input
     cortex --dashboard "build the hero"    Run with live dashboard
@@ -90,10 +91,11 @@ if (flags.help || (positional.length === 0 && !flags.resume)) {
     --debug            Show debug-level logs
     -h, --help         Show this help
   `);
-  process.exit(flags.help ? 0 : 1);
+  process.exit(0);
 }
 
 const taskDescription = positional.join(" ");
+const interactiveMode = !taskDescription && !flags.resume;
 
 // ─── Run ──────────────────────────────────────────────────────
 
@@ -113,7 +115,11 @@ const DEFAULT_TASTE: TasteProfile = {
 };
 
 async function main() {
-  console.log(`\n${BOLD}cortex${RESET} ${DIM}—${RESET} ${taskDescription}\n`);
+  if (interactiveMode) {
+    console.log(`\n${BOLD}cortex${RESET}\n`);
+  } else {
+    console.log(`\n${BOLD}cortex${RESET} ${DIM}—${RESET} ${taskDescription}\n`);
+  }
 
   // ── Discover project context (no LLM calls) ──────────
   const discovered = await discoverProjectContext(process.cwd());
@@ -250,10 +256,21 @@ async function main() {
     await new Promise((r) => setTimeout(r, 1000));
   }
 
-  // ── Resume or Run ──────────────────────────────────────
+  // ── Interactive, Resume, or Run ─────────────────────────
   const startTime = Date.now();
 
-  if (flags.resume) {
+  if (interactiveMode) {
+    // No task — just start up and wait for direction.
+    // The Parsifal types, Claus responds, commands work.
+    console.log(`  ${DIM}Type a task to start working, or /help for commands.${RESET}\n`);
+
+    // Keep the process alive — readline keeps the event loop open.
+    // When the user types a task, it flows through ConversationCortex
+    // as a Parsifal message. For now, they can also use /quit to exit.
+    await new Promise<void>(() => {
+      // Never resolves — process stays alive until /quit or Ctrl+C
+    });
+  } else if (flags.resume) {
     // Resume from latest checkpoint
     const checkpointStore = new CheckpointStore();
     const checkpoint = await checkpointStore.latest();
@@ -293,7 +310,7 @@ async function main() {
       prompt: taskDescription,
       intent,
       taste,
-      worldviewName: "default",
+      worldviewName: worldview?.name ?? "default",
       startedAt: new Date().toISOString(),
     });
 
