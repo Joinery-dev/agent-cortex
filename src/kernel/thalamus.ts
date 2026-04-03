@@ -1438,23 +1438,6 @@ export class Thalamus {
         }
       }
 
-      // Stream of awareness — what I've noticed
-      const commAwareness = this.getAwarenessSummaries(gestalt?.task.id);
-      if (commAwareness.length > 0) {
-        parts.push(`\n## What I've noticed`);
-        for (const a of commAwareness.slice(-8)) {
-          parts.push(`- ${a}`);
-        }
-      }
-
-      // External references
-      const refs = this.getReferenceSummaries();
-      if (refs.length > 0) {
-        parts.push(`\n## Known references`);
-        for (const r of refs) {
-          parts.push(`- ${r}`);
-        }
-      }
     } else {
       // No gestalt — use intent + taste directly
       if (this.intent) {
@@ -1463,6 +1446,23 @@ export class Thalamus {
       }
       if (this.taste) {
         parts.push(`Working for: ${this.taste.name}`);
+      }
+    }
+
+    // ── Awareness + References (always available) ────────────
+    const commAwarenessGlobal = this.getAwarenessSummaries();
+    if (commAwarenessGlobal.length > 0) {
+      parts.push(`\n## What I've noticed`);
+      for (const a of commAwarenessGlobal.slice(-8)) {
+        parts.push(`- ${a}`);
+      }
+    }
+
+    const refsGlobal = this.getReferenceSummaries();
+    if (refsGlobal.length > 0) {
+      parts.push(`\n## Known references`);
+      for (const r of refsGlobal) {
+        parts.push(`- ${r}`);
       }
     }
 
