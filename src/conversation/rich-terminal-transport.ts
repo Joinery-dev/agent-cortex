@@ -49,6 +49,20 @@ const BG_CYN = "\x1b[46m";
 
 const CLR = "\r\x1b[K";
 
+// ─── Welcome Context ──────────────────────────────────────────
+
+export interface WelcomeContext {
+  gitContext?: { branch: string; recentCommits: string[]; isDirty: boolean } | null;
+  lastSession?: { prompt: string; startedAt: string } | null;
+  selfMaxims: string[];
+  selfNarratives: string[];
+  principleCount: number;
+  episodeCount: number;
+  referenceCount: number;
+  tasteName?: string;
+  preamble?: string;
+}
+
 // ─── Brain ASCII Art ──────────────────────────────────────────
 
 const BRAIN = `
@@ -195,20 +209,69 @@ export class RichTerminalTransport implements ConversationTransport {
     });
   }
 
-  /** Print the brain logo and welcome message. */
-  showWelcome(worldviewName?: string, techStack?: string[]): void {
+  /** Print the brain logo and context-aware greeting. */
+  showWelcome(worldviewName?: string, techStack?: string[], context?: WelcomeContext): void {
     for (const line of BRAIN.split("\n")) {
       this.write(line);
     }
     this.write("");
     this.write(`  ${B}Agent Cortex${R}`);
-    if (worldviewName) {
-      this.write(`  ${D}worldview: ${worldviewName}${R}`);
+
+    // Subtitle line — worldview + stack
+    const subtitle: string[] = [];
+    if (worldviewName) subtitle.push(worldviewName);
+    if (techStack && techStack.length > 0) subtitle.push(techStack.join(", "));
+    if (subtitle.length > 0) {
+      this.write(`  ${D}${subtitle.join(" · ")}${R}`);
     }
-    if (techStack && techStack.length > 0) {
-      this.write(`  ${D}stack: ${techStack.join(", ")}${R}`);
+    this.write("");
+
+    // ── Context-aware greeting ────────────────────────
+    if (context) {
+      // Time-of-day greeting
+      const hour = new Date().getHours();
+      const timeGreeting = hour < 6 ? "Late night."
+        : hour < 12 ? "Good morning."
+        : hour < 17 ? "Good afternoon."
+        : hour < 21 ? "Good evening."
+        : "Late night.";
+
+      // Git awareness
+      const gitLine = context.gitContext
+        ? `${D}On ${B}${context.gitContext.branch}${R}${D}${context.gitContext.isDirty ? ` with uncommitted changes` : ""}${context.gitContext.recentCommits.length > 0 ? `. Last commit: ${context.gitContext.recentCommits[0]}` : ""}.${R}`
+        : null;
+
+      // Session recall
+      const sessionLine = context.lastSession
+        ? `${D}Last session: "${context.lastSession.prompt}"${R}`
+        : null;
+
+      // Self-knowledge summary
+      const selfLine = context.selfMaxims.length > 0
+        ? `${D}I know ${context.selfMaxims.length} thing${context.selfMaxims.length === 1 ? "" : "s"} about myself${context.principleCount > 0 ? ` and ${context.principleCount} principle${context.principleCount === 1 ? "" : "s"} from experience` : ""}.${R}`
+        : context.episodeCount > 0
+          ? `${D}${context.episodeCount} episode${context.episodeCount === 1 ? "" : "s"} from past work.${R}`
+          : null;
+
+      // Most prominent self-maxim
+      const topMaxim = context.selfMaxims.length > 0
+        ? `${D}${I}"${context.selfMaxims[0]}"${R}`
+        : null;
+
+      // Render greeting block
+      this.write(`  ${timeGreeting}`);
+      if (gitLine) this.write(`  ${gitLine}`);
+      if (sessionLine) this.write(`  ${sessionLine}`);
+      if (selfLine) this.write(`  ${selfLine}`);
+      if (topMaxim) this.write(`  ${topMaxim}`);
+
+      if (context.referenceCount > 0) {
+        this.write(`  ${D}${context.referenceCount} reference${context.referenceCount === 1 ? "" : "s"} loaded.${R}`);
+      }
     }
-    this.write(`  ${D}type /help for commands${R}`);
+
+    this.write("");
+    this.write(`  ${D}/help for commands${R}`);
     this.write("");
     this.writeSeparator();
   }

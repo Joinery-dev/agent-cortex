@@ -188,14 +188,38 @@ async function main() {
     console.log(`${DIM}Refs:   ${discovered.references.length} loaded from config${RESET}`);
   }
 
-  console.log("");
+  // ── Load persistent stores early for warm greeting ──────
+  const brainstem = cortex.getBrainstem();
+  await brainstem.getHippocampus().load();
+  await brainstem.getWorldModel().load();
+  await brainstem.getReferenceStore().load();
+
+  // ── Gather context for greeting ────────────────────────
+  const hippocampus = brainstem.getHippocampus();
+  const worldModel = brainstem.getWorldModel();
+  const selfMaxims = worldModel.getSelfMaxims();
+  const selfNarratives = worldModel.getSelfNarratives();
+  const principles = hippocampus.getActivePrinciples();
+  const episodeCount = hippocampus.getEpisodeCount();
+  const lastSession = loadSession();
+  const refs = brainstem.getReferenceStore().getAll();
 
   // Terminal transport + command router for interactive mode
   if (!flags.autonomous) {
     const terminal = new RichTerminalTransport();
 
-    // Welcome screen with brain
-    terminal.showWelcome(worldview?.name, discovered.techStack);
+    // Welcome screen with brain + context-aware greeting
+    terminal.showWelcome(worldview?.name, discovered.techStack, {
+      gitContext: discovered.gitContext,
+      lastSession,
+      selfMaxims: selfMaxims.map((m) => m.statement),
+      selfNarratives: selfNarratives.map((n) => n.narrative),
+      principleCount: principles.length,
+      episodeCount,
+      referenceCount: refs.length,
+      tasteName: taste.name,
+      preamble: worldview?.preamble,
+    });
 
     // Command router intercepts /commands before they reach conversation
     const router = new CommandRouter((line) => {
