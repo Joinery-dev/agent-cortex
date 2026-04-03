@@ -1,0 +1,81 @@
+---
+title: "Hierarchical Cortex Composition"
+scope: global
+---
+
+flowchart TB
+    subgraph HUMAN["Human"]
+        H["Taylor"]
+    end
+
+    subgraph PARENT["Parent Cortex (orchestrator)"]
+        direction TB
+        P_PLAN["Planner"]
+        P_MOTOR["Motor Cortex"]
+        P_EVAL["Sensory Cortex"]
+        P_GATE{Gate}
+        P_LEARN["Hippocampus"]
+        P_SELF["Self-Model"]
+        P_AWARE["Awareness Buffer"]
+
+        P_PLAN --> P_MOTOR
+        P_MOTOR --> P_EVAL
+        P_EVAL --> P_GATE
+        P_GATE -->|accept| P_LEARN
+        P_GATE -->|revise| P_MOTOR
+    end
+
+    H -->|"HumanParsifal"| PARENT
+
+    subgraph DECISION["Motor Cortex Decision"]
+        direction LR
+        D1["Simple task?\nLow risk?"]
+        D2["Complex task?\nHigh stakes?"]
+        D1 -->|yes| DIRECT["Execute directly\n(LLM + tools)"]
+        D2 -->|yes| DELEGATE["Delegate to\nchild Cortex"]
+    end
+
+    P_MOTOR --> DECISION
+
+    subgraph CHILD_A["Child Cortex A (auth system)"]
+        direction TB
+        CA_PLAN["Plan"] --> CA_BUILD["Build"]
+        CA_BUILD --> CA_EVAL["Evaluate"]
+        CA_EVAL --> CA_GATE{Gate}
+        CA_GATE -->|accept| CA_DONE["Result"]
+        CA_GATE -->|revise| CA_BUILD
+    end
+
+    subgraph CHILD_B["Child Cortex B (data layer)"]
+        direction TB
+        CB_PLAN["Plan"] --> CB_BUILD["Build"]
+        CB_BUILD --> CB_EVAL["Evaluate"]
+        CB_EVAL --> CB_GATE{Gate}
+        CB_GATE -->|accept| CB_DONE["Result"]
+        CB_GATE -->|revise| CB_BUILD
+    end
+
+    DELEGATE --> CHILD_A
+    DELEGATE --> CHILD_B
+
+    PARENT -->|"CortexParsifal"| CHILD_A
+    PARENT -->|"CortexParsifal"| CHILD_B
+
+    CHILD_A -.->|"escalate\n(can't resolve)"| PARENT
+    PARENT -.->|"chain up\n(still can't)"| H
+
+    CA_DONE -->|"result +\nepisodes +\nprinciples"| P_EVAL
+    CB_DONE -->|"result +\nepisodes +\nprinciples"| P_EVAL
+
+    CA_DONE -.->|"learning\npropagation"| P_LEARN
+    CB_DONE -.->|"learning\npropagation"| P_LEARN
+
+    subgraph GRANDCHILD["Grandchild Cortex"]
+        direction LR
+        GC["Full cognitive loop"]
+        GC_M["Motor: LLM + Tools\n(base case)"]
+        GC --> GC_M
+    end
+
+    CHILD_A -->|"delegates\ndeeper"| GRANDCHILD
+    CHILD_A -->|"CortexParsifal"| GRANDCHILD
