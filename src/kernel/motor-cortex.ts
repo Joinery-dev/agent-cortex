@@ -185,11 +185,16 @@ export class MotorCortex {
   private config: CortexConfig;
   private pns?: PeripheralNervousSystem;
   private worldview?: Worldview;
+  /** How deep in the delegation hierarchy (0 = root). */
+  private delegationDepth: number;
+  /** Max depth before delegation is disabled (prevents infinite recursion). */
+  private static readonly MAX_DELEGATION_DEPTH = 3;
 
-  constructor(config: CortexConfig, pns?: PeripheralNervousSystem, worldview?: Worldview) {
+  constructor(config: CortexConfig, pns?: PeripheralNervousSystem, worldview?: Worldview, delegationDepth = 0) {
     this.config = config;
     this.pns = pns;
     this.worldview = worldview;
+    this.delegationDepth = delegationDepth;
   }
 
   /**
@@ -239,8 +244,15 @@ export class MotorCortex {
     let work: string;
     let agenticResult: AgenticMotorResult | undefined;
     const useAgentic = plan.requiresAgentic && !!this.pns;
+    const shouldDelegate = this.shouldDelegate(plan, opts);
 
-    if (useAgentic) {
+    if (shouldDelegate) {
+      // Delegation mode: spawn a child Cortex with full cognitive loop.
+      // The child plans, builds, evaluates, and delivers autonomously.
+      const delegationResult = await this.primaryProduceViaChild(briefing, plan);
+      work = delegationResult.work;
+      agenticResult = delegationResult.agenticResult;
+    } else if (useAgentic) {
       // Agentic mode: real tools, multi-turn. The builder acts in the world.
       agenticResult = await this.primaryProduceAgentic(briefing, plan, {
         previousWork: opts?.previousWork,
@@ -455,6 +467,153 @@ export class MotorCortex {
     });
 
     return efferenceCopy;
+  }
+
+  // ── Private: Delegation ────────────────────────────────
+
+  /**
+   * Decide whether to delegate this task to a child Cortex.
+   * Returns true when the task is complex enough to benefit from
+   * a full cognitive loop (planning, evaluation, learning) rather
+   * than a single agentic LLM session.
+   */
+  private shouldDelegate(
+    plan: MotorPlan,
+    opts?: MotorCortexOpts,
+  ): boolean {
+    // Delegation must be enabled in config
+    if (this.config.enableDelegation === false) return false;
+
+    // Depth guard — prevent infinite recursion
+    if (this.delegationDepth >= MotorCortex.MAX_DELEGATION_DEPTH) return false;
+
+    // Must have PNS (tools) for delegation to make sense
+    if (!this.pns) return false;
+
+    // Low confidence + many steps → complex task benefits from child cognitive loop
+    if (plan.confidence < 0.4 && plan.steps.length >= 5) return true;
+
+    // Many risks → child can evaluate and course-correct
+    if (plan.risks.length >= 3) return true;
+
+    // Revision cycle with approach bottleneck → current approach exhausted,
+    // a fresh cognitive loop may find a different strategy
+    if (opts?.revision) {
+      const failCat = opts.revision.failureClassification?.category;
+      if (failCat === "approach-bottleneck") return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Delegate building to a child Cortex — full cognitive loop.
+   * The child plans, builds, evaluates, and delivers. The parent
+   * evaluates the result through its own senses (in the gate).
+   */
+  private async primaryProduceViaChild(
+    briefing: MotorBriefing,
+    plan: MotorPlan,
+  ): Promise<{ work: string; agenticResult?: AgenticMotorResult }> {
+    // Lazy import to avoid circular dependency (motor-cortex → index → brainstem → motor-cortex)
+    const { Cortex } = await import("../index.js");
+    const { CortexParsifal } = await import("./cortex-parsifal.js");
+
+    // Narrow the parent's intent to this specific task
+    const childIntent = {
+      ...briefing.intent,
+      id: `${briefing.intent.id}/child/${briefing.task.id}`,
+      summary: `${briefing.task.description} (delegated from parent: ${briefing.intent.summary})`,
+    };
+
+    // The parent Cortex handle — child can ask questions, parent reasons from own cognition
+    // We need the Cortex instance to get the handle. The Brainstem has it.
+    // But we can't import Cortex class directly (circular). Use the lazy import above.
+    // For now, create a minimal handle from the briefing context.
+    const parentHandle = {
+      getWorldModelMaxims: () => briefing.enrichment.worldModelMaxims ?? [],
+      getSelfMaxims: () => (briefing.enrichment.selfMaxims ?? []).map((s) => ({ statement: s })),
+      getSelfNarratives: () => (briefing.enrichment.selfNarratives ?? []).map((n) => ({ narrative: n })),
+      getAwarenessSummaries: () => briefing.enrichment.awareness ?? [],
+      getConsciousnessFrame: () => "",
+      addObservation: () => { /* Child notifications logged but not stored in parent WM from motor */ },
+    };
+
+    // Chain upward to... nothing from motor context. The child's escalations
+    // that the parent can't resolve will be caught by the parent's gate.
+    const autonomousFallback = new (await import("./autonomous-parsifal.js")).AutonomousParsifal(3);
+    const cortexParsifal = new CortexParsifal(parentHandle, autonomousFallback, 5);
+
+    const startTime = Date.now();
+
+    const child = new Cortex({
+      intent: childIntent,
+      taste: briefing.taste,
+      worldview: this.worldview,
+      parsifa: cortexParsifal,
+      delegationDepth: this.delegationDepth + 1,
+    });
+
+    log.info("Delegating to child Cortex", {
+      taskId: briefing.task.id,
+      depth: this.delegationDepth + 1,
+      planConfidence: plan.confidence,
+      planSteps: plan.steps.length,
+      planRisks: plan.risks.length,
+    });
+
+    emit("motor:delegation-start", {
+      taskId: briefing.task.id,
+      depth: this.delegationDepth + 1,
+      childIntentId: childIntent.id,
+    });
+
+    try {
+      const result = await child.run(briefing.task.description);
+
+      const durationMs = Date.now() - startTime;
+      const work = result.work || "Child Cortex completed but produced no artifact.";
+
+      emit("motor:delegation-complete", {
+        taskId: briefing.task.id,
+        depth: this.delegationDepth + 1,
+        durationMs,
+        confidence: result.confidence,
+        cycles: result.cycles,
+      });
+
+      log.info("Child Cortex completed", {
+        taskId: briefing.task.id,
+        confidence: result.confidence,
+        cycles: result.cycles,
+        durationMs,
+      });
+
+      // Map to AgenticMotorResult shape so the build-cycle sees it uniformly
+      const agenticResult: AgenticMotorResult = {
+        summary: work,
+        toolTrace: [], // Child's internal tool trace is opaque to parent
+        turns: result.cycles ?? 1,
+        usage: { inputTokens: 0, outputTokens: 0 }, // Child tracks its own usage
+        durationMs,
+      };
+
+      return { work, agenticResult };
+    } catch (err) {
+      log.warn("Child Cortex delegation failed — falling back to agentic mode", {
+        taskId: briefing.task.id,
+        error: String(err),
+      });
+
+      emit("motor:delegation-failed", {
+        taskId: briefing.task.id,
+        error: String(err),
+      });
+
+      // Graceful degradation: fall back to direct agentic execution
+      const agenticResult = await this.primaryProduceAgentic(briefing, plan, {});
+      return { work: agenticResult.summary, agenticResult };
+    }
   }
 
   // ── Private: Premotor (first cycle) ─────────────────────

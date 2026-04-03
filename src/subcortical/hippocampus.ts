@@ -622,6 +622,122 @@ export class Hippocampus {
     });
   }
 
+  // ── Child Cortex Ingestion ─────────────────────────────────────
+
+  /**
+   * Ingest episodes from a child Cortex — vicarious learning.
+   * The parent learns from the child's process, not just its output.
+   *
+   * Stores episodes with a "child-cortex" marker, runs contradiction
+   * detection against parent's principles, and may trigger potentiation
+   * if the child's cluster of episodes reveals a new pattern.
+   */
+  ingestChildEpisodes(childProjectId: string, episodes: Episode[]): void {
+    if (episodes.length === 0) return;
+
+    // Store in parent's project scope (prefixed to distinguish from own episodes)
+    const parentProjectId = `child:${childProjectId}`;
+    const existing = this.episodes.get(parentProjectId) ?? [];
+
+    for (const ep of episodes) {
+      // Only ingest significant episodes (high dopamine or contradictions)
+      if (Math.abs(ep.dopamineSignal) < 0.3 && ep.contradicts.length === 0) continue;
+
+      existing.push(ep);
+    }
+
+    this.episodes.set(parentProjectId, existing);
+
+    // Run contradiction detection — child may have discovered something
+    // that contradicts parent's existing principles
+    for (const ep of episodes) {
+      if (ep.contradicts.length > 0) {
+        for (const principleId of ep.contradicts) {
+          const principle = this.principles.find((p) => p.id === principleId);
+          if (principle) {
+            principle.contradictingEvidence.push({
+              episodeId: ep.id,
+              projectId: childProjectId,
+              taskId: ep.taskId,
+              relevance: "child-cortex experience",
+              addedAt: new Date(),
+            });
+          }
+        }
+      }
+    }
+
+    emit("hippocampus:child-episodes-ingested", {
+      childProjectId,
+      episodeCount: episodes.length,
+      significantCount: existing.length,
+    });
+
+    log.info("Ingested child Cortex episodes", {
+      childProjectId,
+      total: episodes.length,
+    });
+
+    // Persist asynchronously
+    this.store.saveEpisodes(parentProjectId, existing).catch((err) => {
+      log.warn("Failed to persist child episodes", { error: String(err) });
+    });
+  }
+
+  /**
+   * Ingest high-confidence principles from a child Cortex.
+   * Only accepts principles the child was confident about (> 0.7).
+   * Applies a trust discount (child confidence × 0.7) since the
+   * parent hasn't verified the principle from its own experience.
+   */
+  ingestChildPrinciples(childPrinciples: Principle[]): void {
+    const accepted: Principle[] = [];
+
+    for (const p of childPrinciples) {
+      // Only accept high-confidence principles
+      if (p.confidence < 0.7) continue;
+
+      // Trust discount — parent hasn't verified this from own experience
+      const discountedPrinciple: Principle = {
+        ...p,
+        id: `child:${p.id}`,
+        confidence: p.confidence * 0.7,
+        scope: "cross-project", // Child's learning applies generally
+        extractionContext: {
+          ...p.extractionContext,
+          trigger: p.extractionContext.trigger, // Preserve original trigger — ingestion source tracked by id prefix
+        },
+      };
+
+      // Check for duplicates — don't ingest if parent already has a similar principle
+      const isDuplicate = this.principles.some(
+        (existing) => existing.statement.toLowerCase() === discountedPrinciple.statement.toLowerCase(),
+      );
+      if (isDuplicate) continue;
+
+      this.principles.push(discountedPrinciple);
+      accepted.push(discountedPrinciple);
+    }
+
+    if (accepted.length > 0) {
+      emit("hippocampus:child-principles-ingested", {
+        offered: childPrinciples.length,
+        accepted: accepted.length,
+        statements: accepted.map((p) => p.statement.slice(0, 80)),
+      });
+
+      log.info("Ingested child Cortex principles", {
+        offered: childPrinciples.length,
+        accepted: accepted.length,
+      });
+
+      // Persist asynchronously
+      this.store.savePrinciples(this.principles).catch((err) => {
+        log.warn("Failed to persist ingested principles", { error: String(err) });
+      });
+    }
+  }
+
   // ── Constructive Episodic Simulation ────────────────────────────
 
   /**

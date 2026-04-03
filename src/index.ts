@@ -16,6 +16,7 @@ import { getUsage, resetUsage } from "./llm/client.js";
 import { Brainstem } from "./brainstem/index.js";
 import type { ConversationTransport } from "./types/conversation.js";
 import type { ParsifaInterface } from "./types/parsifa.js";
+import type { ParentCortexHandle } from "./kernel/cortex-parsifal.js";
 
 export interface CortexOptions {
   intent: ProjectIntent;
@@ -35,6 +36,8 @@ export interface CortexOptions {
   askUser?: (question: string) => Promise<string>;
   /** @deprecated Use parsifa instead. Conversation transport(s). */
   conversationTransports?: ConversationTransport[];
+  /** Delegation depth — 0 = root, incremented by parent when spawning child. */
+  delegationDepth?: number;
 }
 
 export class Cortex {
@@ -46,11 +49,13 @@ export class Cortex {
   private brainstem: Brainstem;
   private dashboardUrl: string | null = null;
   private worldview: Worldview;
+  private delegationDepth: number;
 
   constructor(options: CortexOptions) {
     this.intent = options.intent;
     this.taste = options.taste;
     this.worldview = options.worldview ?? DEFAULT_WORLDVIEW;
+    this.delegationDepth = options.delegationDepth ?? 0;
     this.config = buildConfig(options.config);
     this.library = SensoryCortex.withDefaults();
     this.wm = new WorkingMemory(options.intent.id);
@@ -155,6 +160,58 @@ export class Cortex {
 
   resetTokenUsage() {
     resetUsage();
+  }
+
+  /** Get the worldview this Cortex is running with. */
+  getWorldview(): Worldview {
+    return this.worldview;
+  }
+
+  /** Get the taste profile. */
+  getTaste(): TasteProfile {
+    return this.taste;
+  }
+
+  /** Get the intent. */
+  getIntent(): ProjectIntent {
+    return this.intent;
+  }
+
+  /** Get the delegation depth (0 = root, 1+ = child). */
+  getDelegationDepth(): number {
+    return this.delegationDepth;
+  }
+
+  /**
+   * Expose this Cortex as a ParentCortexHandle for CortexParsifal.
+   * Provides child Cortices access to parent's cognition without
+   * exposing the full Cortex class (prevents circular deps).
+   */
+  asParentHandle(): ParentCortexHandle {
+    const brainstem = this.brainstem;
+    const wm = this.wm;
+    return {
+      getWorldModelMaxims: () =>
+        brainstem.getWorldModel()?.getMaximsForBriefing() ?? [],
+      getSelfMaxims: () =>
+        brainstem.getWorldModel()?.getSelfMaxims() ?? [],
+      getSelfNarratives: () =>
+        brainstem.getWorldModel()?.getSelfNarratives() ?? [],
+      getAwarenessSummaries: () =>
+        brainstem.getThalamus().getAwarenessSummaries(),
+      getConsciousnessFrame: () =>
+        this.worldview?.frames?.consciousness ?? "",
+      addObservation: (fact: string, _source: string) => {
+        wm.addObservation({
+          id: newId(),
+          fact,
+          source: { taskId: "", component: "parsifal" },
+          relevance: 0.8,
+          observedAt: new Date(),
+          status: "new",
+        });
+      },
+    };
   }
 }
 

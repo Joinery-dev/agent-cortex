@@ -62,6 +62,8 @@ export interface CortexConfig {
   reliability?: Partial<ReliabilityConfig>;
   /** Hierarchical planning configuration. */
   plannerConfig?: import("./planner.js").PlannerConfig;
+  /** Enable Motor Cortex delegation to child Cortex instances. Default false (opt-in). */
+  enableDelegation?: boolean;
 }
 
 // ─── Reliability configuration ───────────────────────────────────

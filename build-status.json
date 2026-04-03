@@ -2418,7 +2418,10 @@
       "[Reconciled] src/kernel/guidance-evolver.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/conversation.ts exists but isn't referenced in any subtask.",
       "[Reconciled] src/types/communication.ts exists but isn't referenced in any subtask.",
-      "[Reconciled] src/kernel/communication.ts exists but isn't referenced in any subtask."
+      "[Reconciled] src/kernel/communication.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/types/parsifa.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/autonomous-parsifal.ts exists but isn't referenced in any subtask.",
+      "[Reconciled] src/kernel/human-parsifal.ts exists but isn't referenced in any subtask."
     ]
   }
 }
