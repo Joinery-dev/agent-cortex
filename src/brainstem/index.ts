@@ -220,6 +220,22 @@ export class Brainstem {
       costTracker: this.costTracker,
     });
 
+    // Learning propagation: when Motor delegates to a child Cortex,
+    // ingest the child's episodes and principles into the parent's hippocampus.
+    bus.onCortex((event) => {
+      if (event.type === "motor:delegation-learning") {
+        const childEpisodes = event.data.childEpisodes as import("../types/hippocampus.js").Episode[];
+        const childPrinciples = event.data.childPrinciples as import("../types/hippocampus.js").Principle[];
+        const childProjectId = event.data.childProjectId as string;
+        if (childEpisodes?.length) {
+          this.hippocampus.ingestChildEpisodes(childProjectId, childEpisodes);
+        }
+        if (childPrinciples?.length) {
+          this.hippocampus.ingestChildPrinciples(childPrinciples);
+        }
+      }
+    });
+
     // Wire sense library to components that need sense verification
     this.hippocampus.setLibrary(library);
     this.tasteFeedbackLoop.setLibrary(library);

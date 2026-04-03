@@ -589,6 +589,27 @@ export class MotorCortex {
         durationMs,
       });
 
+      // Learning propagation — parent ingests child's experience
+      try {
+        const childHippocampus = child.getBrainstem().getHippocampus();
+        const childEpisodes = childHippocampus.getRecentEpisodes(20);
+        const childPrinciples = childHippocampus.getActivePrinciples();
+
+        // Emit for parent's hippocampus to ingest (event-driven, not direct call)
+        if (childEpisodes.length > 0 || childPrinciples.length > 0) {
+          emit("motor:delegation-learning", {
+            taskId: briefing.task.id,
+            childProjectId: childIntent.id,
+            episodeCount: childEpisodes.length,
+            principleCount: childPrinciples.length,
+            childEpisodes,
+            childPrinciples,
+          });
+        }
+      } catch (learnErr) {
+        log.debug("Learning propagation from child failed — non-critical", { error: String(learnErr) });
+      }
+
       // Map to AgenticMotorResult shape so the build-cycle sees it uniformly
       const agenticResult: AgenticMotorResult = {
         summary: work,
