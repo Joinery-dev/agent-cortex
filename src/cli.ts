@@ -15,7 +15,7 @@
 
 import { Cortex } from "./index.js";
 import type { ProjectIntent, TasteProfile } from "./index.js";
-import { TerminalTransport } from "./conversation/terminal-transport.js";
+import { RichTerminalTransport } from "./conversation/rich-terminal-transport.js";
 import { HumanParsifal } from "./kernel/human-parsifal.js";
 import { AutonomousParsifal } from "./kernel/autonomous-parsifal.js";
 import { newId } from "./util/ids.js";
@@ -163,7 +163,7 @@ async function main() {
 
   // Terminal transport for interactive mode
   if (!flags.autonomous) {
-    const terminal = new TerminalTransport();
+    const terminal = new RichTerminalTransport();
     const humanParsifal = new HumanParsifal(
       cortex.getBrainstem().getConversationCortex(),
       [terminal],
