@@ -367,6 +367,12 @@ export class Brainstem {
     await this.plasticityStore.loadFromDisk();
     this.thalamus.updateProject(context.intent, context.taste);
 
+    // Assemble gestalt for the single-task path (project rhythm does this in its prepare phase)
+    this.thalamus.assembleGestalt({
+      task: context.task,
+      neLevel: context.neLevel ?? 0.5,
+    });
+
     const definition = createSensoryCortexDefinition(
       this.config,
       this.library,
