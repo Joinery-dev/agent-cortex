@@ -60,6 +60,8 @@ export class ConversationCortex {
   private active = false;
   /** External direction handlers registered by ParsifaInterface implementations. */
   private externalDirectionHandlers: Array<(text: string) => void> = [];
+  /** Guard against re-entrant receive() calls. */
+  private receiving = false;
 
   /** Pending question awaiting a Parsifal response (askUser replacement). */
   private pendingQuestion: {
@@ -158,6 +160,18 @@ export class ConversationCortex {
   receive(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
+
+    // Guard against re-entrant calls (external direction handlers can trigger receive)
+    if (this.receiving) return;
+    this.receiving = true;
+    try {
+      this.receiveInner(trimmed);
+    } finally {
+      this.receiving = false;
+    }
+  }
+
+  private receiveInner(trimmed: string): void {
 
     const msgId = newId();
 
