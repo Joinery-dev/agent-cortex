@@ -245,6 +245,8 @@ export async function call(
     }
 
     try {
+      emitInfo("llm:call-start", { purpose, model: sdkModel });
+
       const conversation = query({
         prompt: userMessage,
         options: {
@@ -569,6 +571,8 @@ export async function agenticCall(
       const combinedSignal = opts?.signal
         ? AbortSignal.any([opts.signal, checkInAbort.signal])
         : checkInAbort.signal;
+
+      emitInfo("llm:call-start", { purpose, model: sdkModel, agentic: true });
 
       const conversation = query({
         prompt: userMessage,

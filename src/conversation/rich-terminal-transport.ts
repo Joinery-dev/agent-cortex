@@ -21,6 +21,8 @@ import type {
   PlanSnapshot,
   ArtifactItem,
 } from "../types/conversation.js";
+import { bus } from "../events.js";
+import type { CortexEvent } from "../events.js";
 
 // ─── ANSI ─────────────────────────────────────────────────────
 
@@ -207,6 +209,163 @@ export class RichTerminalTransport implements ConversationTransport {
       this.closed = true;
       this.spinner.stop();
     });
+
+    // Direct event bus subscription for real-time activity indicators.
+    // These show compact status lines as the system works — the user
+    // sees what's happening without waiting for narration.
+    bus.onCortex((event) => this.handleActivityEvent(event));
+  }
+
+  /** Map raw events to compact activity indicators. */
+  private handleActivityEvent(event: CortexEvent): void {
+    if (this.closed) return;
+
+    const statusText = this.eventToStatus(event);
+    if (statusText) {
+      this.spinner.update(statusText);
+      if (!this.thinkingActive) {
+        this.startThinking(statusText);
+      }
+    }
+  }
+
+  /** Convert significant events to spinner text. Returns null for irrelevant events. */
+  private eventToStatus(event: CortexEvent): string | null {
+    switch (event.type) {
+      // ── LLM calls ──
+      case "llm:call-start": {
+        const purposeLabels: Record<string, string> = {
+          consultation: "consulting senses",
+          motorCortex: "building",
+          premotor: "planning approach",
+          proprioception: "self-assessing",
+          evaluation: "evaluating",
+          resolution: "resolving tensions",
+          inhibition: "selecting senses",
+          potentiation: "crystallizing learning",
+          weltanschauung: "synthesizing understanding",
+          "cognitive-flexibility": "diagnosing",
+          "drift-analysis": "analyzing drift",
+          planner: "planning",
+          explore: "exploring approaches",
+          "efference-copy": "predicting feasibility",
+          reconsultation: "re-consulting senses",
+          agenticMotor: "building with tools",
+          "integration-check": "checking integration",
+          simulation: "simulating scenarios",
+          communication: "formulating response",
+        };
+        const label = purposeLabels[event.data.purpose as string] ?? "thinking";
+        return `calling intelligence — ${label}`;
+      }
+      case "llm:call-complete":
+        return null; // Let the next phase update the spinner
+
+      // ── Planning ──
+      case "planner:phase-a-start":
+        return "exploring the vision";
+      case "planner:inquiry-converged":
+        return "inquiry complete — synthesizing";
+      case "planner:phase-a-approved":
+        return "vision approved";
+      case "planner:phase-b-start":
+        return "decomposing into tasks";
+      case "planner:phase-b-complete":
+        return "plan built";
+      case "planner:phase-c-start":
+        return "reviewing the plan";
+
+      // ── Task dispatch ──
+      case "dispatch:task-selected":
+        return `starting: ${(event.data.description as string)?.slice(0, 50) ?? "next task"}`;
+      case "dispatch:between-tasks":
+        return "between tasks — consolidating";
+      case "dispatch:phase-gate-check":
+        return "checking phase gate";
+
+      // ── Sensory cortex ──
+      case "task:start":
+        return "beginning task";
+      case "sensory-cortex:gate":
+        return `evaluating (cycle ${event.data.outerCycle ?? "?"})`;
+
+      // ── Consultation ──
+      case "thalamus:briefing":
+        if (event.data.consumer === "consultation") return "consulting senses";
+        if (event.data.consumer === "motor") return "briefing the builder";
+        if (event.data.consumer === "evaluation") return "briefing evaluator";
+        return null;
+
+      // ── Build cycle ──
+      case "motor:start":
+        return event.data.isRevision ? "revising approach" : "planning the build";
+      case "motor:plan-complete":
+        return event.data.requiresAgentic ? "building (agentic)" : "building";
+      case "motor:build-complete":
+        return "build complete — self-assessing";
+      case "motor:proprioception-complete":
+        return "self-assessment complete";
+      case "motor:delegation-start":
+        return "delegating to child cortex";
+      case "motor:question-asked":
+        return "asking a sense for clarification";
+
+      // ── Evaluation ──
+      case "evaluation:start":
+        return `evaluating: ${event.data.senseName ?? "sense"}`;
+      case "evaluation:complete":
+        return null; // Next event will update
+
+      // ── Gate ──
+      case "cycle:start":
+        return `build cycle ${event.data.cycle ?? "?"}`;
+      case "conviction:result": {
+        const verdict = event.data.verdict as string;
+        if (verdict === "proceed") return "conviction: proceeding";
+        if (verdict === "reshape") return "conviction: reshaping approach";
+        if (verdict === "escalate") return "conviction: escalating";
+        return null;
+      }
+      case "gate:decision":
+        return event.data.accept ? "accepted" : "revising";
+      case "gate:failure-classified":
+        return `rejected — ${event.data.failureMode ?? event.data.category ?? "revising"}`;
+
+      // ── Flexibility ──
+      case "flexibility:assessment":
+        return `diagnosing: ${event.data.diagnosis ?? "analyzing"}`;
+
+      // ── Learning ──
+      case "hippocampus:episode-recorded":
+        return "recording experience";
+      case "hippocampus:principle-extracted":
+        return "crystallizing principle";
+      case "hippocampus:potentiation-complete":
+        return "learning complete";
+
+      // ── Drift ──
+      case "drift-monitor:quick-check":
+        return "checking alignment";
+      case "drift-monitor:deep-analysis":
+        return "deep drift analysis";
+
+      // ── World model ──
+      case "world-model:rebuilt":
+        return "rebuilding understanding";
+
+      // ── Rest ──
+      case "rest:start":
+        return "resting — consolidating memory";
+      case "rest:complete":
+        return "rest complete";
+
+      // ── Task completion ──
+      case "task:complete":
+        return `task complete (${event.data.status ?? "done"})`;
+
+      default:
+        return null;
+    }
   }
 
   /** Print the brain logo and context-aware greeting. */
