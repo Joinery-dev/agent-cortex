@@ -539,6 +539,15 @@ export class ConversationCortex {
         break;
       }
 
+      case "run-task": {
+        // Start the full cognitive loop — planning, building, evaluating, learning.
+        // Emit event so the CLI can pick it up and call cortex.run().
+        // ConversationCortex doesn't have access to the Cortex instance directly,
+        // so we emit and let the CLI wire the execution.
+        emit("parsifal-action:run-task", { description: action.description });
+        break;
+      }
+
       case "none":
         break;
     }

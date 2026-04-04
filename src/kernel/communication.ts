@@ -31,7 +31,7 @@ const CommunicationResponseSchema = z.object({
   reasoning: z.string(),
   /** Action directive when the Parsifal's message implies Claus should act. */
   action: z.object({
-    type: z.enum(["pause", "resume", "redirect", "revert", "skip", "add-task", "none"]),
+    type: z.enum(["pause", "resume", "redirect", "revert", "skip", "add-task", "run-task", "none"]),
     reason: z.string().optional(),
     guidance: z.string().optional(),
     taskId: z.string().optional(),
@@ -100,8 +100,9 @@ function buildSystemPrompt(ctx: CommunicationContext): string {
   - { type: "revert", reason: "..." } — discard current work and start fresh (e.g., "undo that", "start over")
   - { type: "skip", taskId: "...", reason: "..." } — skip current task (e.g., "skip this one", "move on")
   - { type: "add-task", description: "...", reason: "..." } — add a new task to the plan (e.g., "also do X", "add a task for Y")
+  - { type: "run-task", description: "..." } — start working on something through the full cognitive loop (planning, building, evaluating, learning). Use this when the work needs real creation, not just investigation.
   - { type: "none" } — no action needed (most messages are just conversation)
-  Only include action when the Parsifal is clearly requesting you to DO something, not when they're just commenting or asking a question.`
+  If you're unsure whether the Parsifal wants you to work on something or just discuss it, ask.`
     : "";
 
   parts.push(`COMMUNICATION PRINCIPLES:

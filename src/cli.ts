@@ -30,6 +30,7 @@ import { discoverProjectContext } from "./cli/project-context.js";
 import { persistSession, loadSession, clearSession } from "./session/state.js";
 import { CommandRouter } from "./cli/commands.js";
 import { BackgroundAgentManager } from "./cli/background-agent.js";
+import { bus } from "./events.js";
 import { CheckpointStore } from "./trace/checkpoint-store.js";
 
 // ─── Arg parsing ──────────────────────────────────────────────
@@ -347,6 +348,24 @@ async function main() {
         return origEmit(event, ...args);
       } as typeof stdin.emit;
     }
+
+    // Listen for run-task actions from Claus — start the full cognitive loop
+    bus.onCortex((event) => {
+      if (event.type === "parsifal-action:run-task") {
+        const description = event.data.description as string;
+        if (!description) return;
+
+        writeLine(`\n  ${BOLD}Starting task:${RESET} ${description}\n`);
+
+        // Run asynchronously — don't block the conversation
+        cortex.run(description).then((result) => {
+          const conf = (result.confidence * 100).toFixed(0);
+          writeLine(`\n  ${BOLD}Task complete${RESET} ${DIM}(${result.cycles} cycle(s), ${conf}% confidence)${RESET}\n`);
+        }).catch((err) => {
+          writeLine(`\n  ${BOLD}Task failed:${RESET} ${err}\n`);
+        });
+      }
+    });
   }
 
   // Dashboard

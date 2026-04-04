@@ -158,4 +158,5 @@ export type ParsifaAction =
   | { type: "revert"; reason: string }
   | { type: "skip"; taskId: string; reason: string }
   | { type: "add-task"; description: string; reason: string }
+  | { type: "run-task"; description: string }
   | { type: "none" };
