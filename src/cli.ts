@@ -302,44 +302,55 @@ async function main() {
     const humanParsifal = new HumanParsifal(conversationCortex, [terminal]);
     cortex.getBrainstem().setParsifal(humanParsifal);
 
-    // Ctrl+C → soft interrupt
-    process.on("SIGINT", () => {
+    // ── Keyboard handling ──────────────────────────────────
+
+    // Helper: stop all active work and return to prompt
+    const stopWork = () => {
       const runner = cortex.getBrainstem().getRunner();
       const rhythms = runner.getActiveRhythms();
       if (rhythms.length > 0) {
-        runner.interrupt(rhythms[rhythms.length - 1], {
-          mode: "soft",
-          source: "cli-sigint",
-          reason: "Ctrl+C pressed",
-          context: { signal: "SIGINT" },
-        });
-        console.log(`\n${DIM}  Interrupting... (press again to force quit)${RESET}`);
+        // Hard interrupt — stops immediately, work done so far stays
+        for (const rid of rhythms) {
+          runner.interrupt(rid, {
+            mode: "hard",
+            source: "cli-escape",
+            reason: "Stopped by user",
+            context: { signal: "escape" },
+          });
+        }
+        writeLine(`\n  ${DIM}Stopped.${RESET}\n`);
+        return true;
+      }
+      return false;
+    };
 
-        // Second Ctrl+C → hard exit
-        process.once("SIGINT", () => {
-          console.log(`\n${DIM}  Force quit.${RESET}`);
-          process.exit(130);
-        });
-      } else {
+    // Ctrl+C: stop work if running, exit if idle
+    process.on("SIGINT", () => {
+      if (!stopWork()) {
         console.log(`\n${DIM}  Goodbye.${RESET}`);
         process.exit(0);
       }
     });
 
-    // Raw mode for Ctrl+B detection (spawn background agent with current line)
+    // Raw mode: intercept Escape and Ctrl+B before readline
     const stdin = process.stdin;
     if (stdin.isTTY && typeof stdin.setRawMode === "function") {
-      // Save original mode — readline manages raw mode, we intercept before it
       const origEmit = stdin.emit.bind(stdin);
       stdin.emit = function(event: string, ...args: unknown[]) {
         if (event === "data" && Buffer.isBuffer(args[0])) {
           const buf = args[0];
-          // Ctrl+B = 0x02
+
+          // Escape (0x1b) — stop current work, return to prompt
+          if (buf.length === 1 && buf[0] === 0x1b) {
+            stopWork();
+            return true;
+          }
+
+          // Ctrl+B (0x02) — spawn background agent with current line
           if (buf.length === 1 && buf[0] === 0x02) {
-            // Read the current readline buffer and spawn background agent
             const currentLine = terminal.getReadline().line?.trim();
             if (currentLine) {
-              terminal.getReadline().write(null, { ctrl: true, name: "u" }); // Clear line
+              terminal.getReadline().write(null, { ctrl: true, name: "u" });
               bgManager.spawn(currentLine);
               return true;
             }
