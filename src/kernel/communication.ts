@@ -265,9 +265,16 @@ export async function communicate(
         "Respond to Parsifal — investigate if needed",
         0.3, // Low NE — conversational, not high-stakes
         "evaluator", // Read-only consumer — Claus doesn't write files in conversation
+        ["AskUserQuestion"], // Exclude — our readline handles user interaction, SDK would conflict
       );
 
-      const agenticSystem = system + `\n\nYou have tools available to investigate the project (Read files, Glob for patterns, Grep for code, Bash for commands). Use them when the Parsifal asks about the codebase, system state, or anything you need to look up. When done investigating, respond with your final answer.\n\nYour FINAL message must be valid JSON: { "message": "your response", "reasoning": "internal reasoning", "action": { "type": "none" } }`;
+      const agenticSystem = system + `\n\nYou have tools available to investigate the project (Read files, Glob for patterns, Grep for code, Bash for commands). Use them freely when the Parsifal asks about the codebase, system state, or anything you need to look up.
+
+If you need clarification from the Parsifal before you can answer fully, just ask in your message — the conversation will continue and they can respond. Don't try to call AskUserQuestion — just include your question in the message.
+
+When done investigating, respond with your final answer.
+
+Your FINAL message must be valid JSON: { "message": "your response", "reasoning": "internal reasoning", "action": { "type": "none" } }`;
 
       const result = await agenticCall(
         "communication",
