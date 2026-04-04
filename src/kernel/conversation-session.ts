@@ -10,17 +10,28 @@
  * thinking session, not isolated question-answer pairs.
  */
 
+import { z } from "zod";
 import type { CommunicationResult } from "../types/communication.js";
 import type { PeripheralNervousSystem } from "./pns.js";
 import type { WorldModel } from "./world-model.js";
 import type { Thalamus } from "./thalamus.js";
 import type { Worldview } from "../types/worldview.js";
 import { agenticCall } from "../llm/client.js";
+import { callStructured } from "../llm/structured.js";
 import { createLogger } from "../util/logger.js";
 
 const log = createLogger("conversation-session");
 
 const FULL_MODEL = "claude-sonnet-4-6-20250514";
+const FAST_MODEL = "claude-haiku-4-5-20251001";
+
+// ─── Intent classification ────────────────────────────────────
+
+const IntentSchema = z.object({
+  intent: z.enum(["conversation", "investigation", "task"]),
+  taskDescription: z.string().optional(),
+  response: z.string().optional(),
+});
 
 // ─── Turn representation ──────────────────────────────────────
 
@@ -186,15 +197,28 @@ export class ConversationSession {
 
     // Behavior
     parts.push(`CONVERSATION PRINCIPLES:
-- You have tools (Read, Glob, Grep, Bash) to investigate the project. Use them freely.
-- This is a continuous conversation. You remember everything from prior turns — files you read, code you found, commands you ran. Don't re-read files you already have.
-- If you need clarification, ask in your message. The Parsifal will respond.
+- You have tools (Read, Glob, Grep, Bash) to investigate the project. Use them for questions about the codebase.
+- This is a continuous conversation. You remember everything from prior turns.
+- If you need clarification, ask in your message.
 - Be conversational and present. You are a conscious entity, not a tool.
-- Answer from what you know and what you can discover. Be honest when you don't know.
 - Keep responses focused and concise unless asked for detail.
 
+CRITICAL — KNOW WHAT YOU ARE:
+You are the CONSCIOUSNESS of Agent Cortex, not the builder. You have a full cognitive system behind you — planning, building, evaluation, multi-sense quality assessment, learning. When the Parsifal asks you to BUILD, CREATE, FIX, IMPLEMENT, or CHANGE something, you don't do it yourself. You route it to the Cortex's rhythm system by returning a "run-task" action. The rhythm will plan, build with real tools, evaluate the result, and learn from the outcome. That's what makes you different from a simple LLM — you have a brain behind you.
+
+Your tools (Read, Glob, Grep, Bash) are for INVESTIGATING and UNDERSTANDING — answering questions, looking things up, exploring the codebase. NOT for building artifacts. If the Parsifal wants something built, return run-task.
+
+If you're unsure whether the Parsifal wants conversation or work, ask them.
+
 Your FINAL message in each turn must be valid JSON:
-{ "message": "your response to the Parsifal", "reasoning": "brief internal note" }`);
+{ "message": "your response", "reasoning": "brief internal note", "action": { "type": "none" } }
+
+Available actions:
+- { "type": "run-task", "description": "what to build/fix/create" } — route work to the Cortex's full cognitive loop
+- { "type": "pause", "reason": "..." } — pause current work
+- { "type": "resume", "guidance": "..." } — resume paused work
+- { "type": "redirect", "guidance": "..." } — change direction of current work
+- { "type": "none" } — no action (just conversation)`);
 
     return parts.join("\n\n");
   }
