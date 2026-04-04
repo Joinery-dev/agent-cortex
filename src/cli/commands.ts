@@ -75,6 +75,11 @@ export class CommandRouter {
     return true;
   }
 
+  /** Register a command from outside (e.g., CLI wiring). */
+  registerExternal(handler: CommandHandler): void {
+    this.register(handler);
+  }
+
   private register(handler: CommandHandler): void {
     this.commands.set(handler.name, handler);
     if (handler.aliases) {

@@ -29,6 +29,7 @@ import { newId } from "./util/ids.js";
 import { discoverProjectContext } from "./cli/project-context.js";
 import { persistSession, loadSession, clearSession } from "./session/state.js";
 import { CommandRouter } from "./cli/commands.js";
+import { BackgroundAgentManager } from "./cli/background-agent.js";
 import { CheckpointStore } from "./trace/checkpoint-store.js";
 
 // ─── Arg parsing ──────────────────────────────────────────────
@@ -222,17 +223,79 @@ async function main() {
     });
 
     // Command router intercepts /commands before they reach conversation
-    const router = new CommandRouter((line) => {
-      process.stdout.write(`\r\x1b[K${line}\n`);
+    const writeLine = (line: string) => process.stdout.write(`\r\x1b[K${line}\n`);
+    const router = new CommandRouter(writeLine);
+
+    // Background agent manager — spawns sibling Cortices for Ctrl+B
+    const bgManager = new BackgroundAgentManager({
+      pns: brainstem.getPns(),
+      worldModel: brainstem.getWorldModel(),
+      thalamus: brainstem.getThalamus(),
+      worldview,
+      write: writeLine,
     });
 
-    // Wrap the transport's receive handler to intercept commands
+    // Message queue: accumulate input while Claus is thinking
+    const messageQueue: string[] = [];
+    let processing = false;
+
+    const processQueue = async () => {
+      if (processing) return;
+      processing = true;
+      while (messageQueue.length > 0) {
+        const msg = messageQueue.shift()!;
+        conversationCortex.receive(msg);
+        // Wait for the response to complete before processing next
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      processing = false;
+    };
+
+    // Wrap the transport's receive handler
     const conversationCortex = cortex.getBrainstem().getConversationCortex();
     terminal.onReceive((text) => {
+      // Commands always execute immediately
       if (text.startsWith("/") && router.tryExecute(text, cortex)) {
-        return; // Command consumed
+        return;
       }
-      conversationCortex.receive(text);
+      // Queue the message and process
+      messageQueue.push(text);
+      processQueue();
+    });
+
+    // Register /bg command for background agents
+    router.registerExternal({
+      name: "bg",
+      aliases: ["background"],
+      description: "Run a query in a background agent: /bg what is this project?",
+      execute(args, _cortex, write) {
+        const query = args.join(" ");
+        if (!query) {
+          write(`  ${DIM}Usage: /bg <question>${RESET}`);
+          return;
+        }
+        bgManager.spawn(query);
+      },
+    });
+
+    // Register /jobs command to see background tasks
+    router.registerExternal({
+      name: "jobs",
+      description: "Show background agent tasks",
+      execute(_args, _cortex, write) {
+        const tasks = bgManager.getTasks();
+        if (tasks.length === 0) {
+          write(`  ${DIM}No background tasks. Use /bg <question> or Ctrl+B to spawn one.${RESET}`);
+          return;
+        }
+        for (const t of tasks) {
+          const icon = t.status === "complete" ? "\x1b[32m✓\x1b[0m"
+            : t.status === "running" ? "\x1b[36m⟳\x1b[0m"
+            : t.status === "failed" ? "\x1b[31m✗\x1b[0m"
+            : "\x1b[90m○\x1b[0m";
+          write(`  ${icon} #${t.id} ${t.status} — ${t.query.slice(0, 50)}`);
+        }
+      },
     });
 
     const humanParsifal = new HumanParsifal(conversationCortex, [terminal]);
@@ -261,6 +324,29 @@ async function main() {
         process.exit(0);
       }
     });
+
+    // Raw mode for Ctrl+B detection (spawn background agent with current line)
+    const stdin = process.stdin;
+    if (stdin.isTTY && typeof stdin.setRawMode === "function") {
+      // Save original mode — readline manages raw mode, we intercept before it
+      const origEmit = stdin.emit.bind(stdin);
+      stdin.emit = function(event: string, ...args: unknown[]) {
+        if (event === "data" && Buffer.isBuffer(args[0])) {
+          const buf = args[0];
+          // Ctrl+B = 0x02
+          if (buf.length === 1 && buf[0] === 0x02) {
+            // Read the current readline buffer and spawn background agent
+            const currentLine = terminal.getReadline().line?.trim();
+            if (currentLine) {
+              terminal.getReadline().write(null, { ctrl: true, name: "u" }); // Clear line
+              bgManager.spawn(currentLine);
+              return true;
+            }
+          }
+        }
+        return origEmit(event, ...args);
+      } as typeof stdin.emit;
+    }
   }
 
   // Dashboard
