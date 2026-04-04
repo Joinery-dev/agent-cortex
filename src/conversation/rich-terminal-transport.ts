@@ -229,10 +229,12 @@ export class RichTerminalTransport implements ConversationTransport {
     }
   }
 
-  /** Convert significant events to spinner text. Returns null for irrelevant events. */
+  /** Convert events to spinner text. Returns null for irrelevant events. */
   private eventToStatus(event: CortexEvent): string | null {
+    // ── Tier 1: Explicit mappings for high-value events ──
+
     switch (event.type) {
-      // ── LLM calls ──
+      // ── LLM calls (the most visible activity) ──
       case "llm:call-start": {
         const purposeLabels: Record<string, string> = {
           consultation: "consulting senses",
@@ -244,36 +246,84 @@ export class RichTerminalTransport implements ConversationTransport {
           inhibition: "selecting senses",
           potentiation: "crystallizing learning",
           weltanschauung: "synthesizing understanding",
-          "cognitive-flexibility": "diagnosing",
+          "cognitive-flexibility": "diagnosing stuck state",
           "drift-analysis": "analyzing drift",
           planner: "planning",
           explore: "exploring approaches",
           "efference-copy": "predicting feasibility",
           reconsultation: "re-consulting senses",
           agenticMotor: "building with tools",
-          "integration-check": "checking integration",
+          "integration-check": "checking cross-task coherence",
           simulation: "simulating scenarios",
           communication: "formulating response",
+          "taste-proposal": "preparing taste observation",
+          "sense-question": "answering builder question",
+          "approach-classification": "classifying failure",
+          "collapse-detection": "detecting collapse",
+          "prospective-matching": "matching prospective triggers",
+          "project-diagnostics": "running diagnostics",
         };
         const label = purposeLabels[event.data.purpose as string] ?? "thinking";
         return `calling intelligence — ${label}`;
       }
-      case "llm:call-complete":
-        return null; // Let the next phase update the spinner
+      case "llm:retry-success":
+        return "retried successfully";
+      case "llm:agentic-complete":
+        return "agentic session complete";
+      case "llm:schema-validation-failed":
+        return "response validation failed — retrying";
 
-      // ── Planning ──
+      // ── Project lifecycle ──
+      case "project:start":
+        return "project starting";
+      case "project:complete":
+        return "project complete";
+      case "project:greeting":
+        return "greeting the Parsifal";
+
+      // ── Inquiry ──
+      case "planner:inquiry-start":
+        return "senses asking questions";
+      case "planner:inquiry-round":
+        return `inquiry round ${event.data.round ?? "?"}`;
+      case "planner:inquiry-converged":
+        return `inquiry converged after ${event.data.rounds ?? "?"} rounds`;
+      case "planner:inquiry-synthesized":
+        return "synthesizing questions";
+
+      // ── Vision / Manifestation ──
       case "planner:phase-a-start":
         return "exploring the vision";
-      case "planner:inquiry-converged":
-        return "inquiry complete — synthesizing";
+      case "planner:phase-a-redirect":
+        return "redirecting vision based on feedback";
       case "planner:phase-a-approved":
         return "vision approved";
+      case "planner:phase-a-complete":
+        return "vision crystallized";
+      case "manifestation:start":
+        return "senses manifesting the future";
+      case "manifestation:sense-complete":
+        return `sense manifested: ${event.data.senseName ?? ""}`;
+      case "manifestation:synthesis-complete":
+        return "vision synthesized";
+      case "manifestation:evaluation-complete":
+        return "vision evaluated";
+
+      // ── Decomposition / Planning ──
       case "planner:phase-b-start":
         return "decomposing into tasks";
       case "planner:phase-b-complete":
-        return "plan built";
+        return "decomposition complete";
       case "planner:phase-c-start":
         return "reviewing the plan";
+      case "planner:phase-c-complete":
+        return "plan reviewed";
+      case "planner:graph-build-start":
+        return "building dependency graph";
+      case "planner:graph-build-complete":
+        return "graph built";
+      case "planner:pfc-review":
+        return "PFC reviewing plan";
 
       // ── Task dispatch ──
       case "dispatch:task-selected":
@@ -281,91 +331,374 @@ export class RichTerminalTransport implements ConversationTransport {
       case "dispatch:between-tasks":
         return "between tasks — consolidating";
       case "dispatch:phase-gate-check":
-        return "checking phase gate";
+        return `checking phase gate: ${event.data.phaseGroup ?? ""}`;
+      case "dispatch:observed":
+        return "observing territory";
+      case "dispatch:calibration-check":
+        return "calibrating predictions";
+      case "dispatch:rest-requested":
+        return "rest requested";
+
+      // ── Attention scheduler ──
+      case "attention-budget:computed":
+        return "computing attention budget";
+      case "ne:enriched":
+      case "ne:novelty-enriched":
+        return "computing arousal level";
+      case "ne:recomputed":
+        return "recomputing arousal";
 
       // ── Sensory cortex ──
       case "task:start":
         return "beginning task";
+      case "task:complete":
+        return `task complete (${event.data.status ?? "done"})`;
       case "sensory-cortex:gate":
-        return `evaluating (cycle ${event.data.outerCycle ?? "?"})`;
+        return `outer cycle ${event.data.outerCycle ?? "?"} — ${event.data.action ?? "evaluating"}`;
+      case "sensory-cortex:double-expected":
+        return "taking longer than predicted";
+
+      // ── Thalamus briefing ──
+      case "thalamus:briefing": {
+        const labels: Record<string, string> = {
+          consultation: "assembling sense briefing",
+          motor: "briefing the builder",
+          evaluation: "briefing evaluator",
+          scheduling: "briefing scheduler",
+          escalation: "assembling escalation briefing",
+          inhibition: "briefing inhibition gate",
+          "integration-check": "briefing integration checker",
+        };
+        return labels[event.data.consumer as string] ?? null;
+      }
+      case "thalamus:gestalt-assembled":
+        return "context snapshot assembled";
+      case "thalamus:awareness-insight":
+        return null; // Don't show awareness digestion in spinner
+      case "thalamus:forward-briefing-set":
+        return "forward briefing prepared";
+
+      // ── Inhibition / Sense selection ──
+      case "inhibition:result":
+        return `${event.data.inhibitedCount ?? 0} sense(s) inhibited`;
+      case "basal-ganglia:routine-match":
+        return "routine match found";
+      case "basal-ganglia:routine-formed":
+        return "new routine learned";
+      case "basal-ganglia:collapse-detected":
+        return "collapse detected — broadening search";
 
       // ── Consultation ──
-      case "thalamus:briefing":
-        if (event.data.consumer === "consultation") return "consulting senses";
-        if (event.data.consumer === "motor") return "briefing the builder";
-        if (event.data.consumer === "evaluation") return "briefing evaluator";
-        return null;
+      case "consultation:complete":
+        return "consultation complete";
+      case "consultation:sense-complete":
+        return `consulted: ${event.data.senseName ?? "sense"}`;
+
+      // ── Explore phase ──
+      case "explore:start":
+        return "exploring alternative approaches";
+      case "explore:path-selected":
+        return `approach selected: ${(event.data.approach as string)?.slice(0, 40) ?? ""}`;
+      case "explore:complete":
+        return "exploration complete";
+
+      // ── Efference copy ──
+      case "motor:efference-copy":
+        return "predicting build feasibility";
 
       // ── Build cycle ──
+      case "cycle:start":
+        return `build cycle ${event.data.cycle ?? "?"}`;
       case "motor:start":
         return event.data.isRevision ? "revising approach" : "planning the build";
       case "motor:plan-complete":
-        return event.data.requiresAgentic ? "building (agentic)" : "building";
+        return event.data.requiresAgentic ? "building with tools" : "building";
+      case "motor:text-only-shortcut":
+        return "text-only build (no tools needed)";
       case "motor:build-complete":
-        return "build complete — self-assessing";
-      case "motor:proprioception-complete":
-        return "self-assessment complete";
-      case "motor:delegation-start":
-        return "delegating to child cortex";
+        return "build complete";
+      case "motor:proprioception-complete": {
+        const adh = event.data.planAdherence as number;
+        return adh > 0.7
+          ? "self-assessment: on track"
+          : `self-assessment: drifted (${((adh ?? 0) * 100).toFixed(0)}% adherence)`;
+      }
       case "motor:question-asked":
-        return "asking a sense for clarification";
+        return "builder asking sense for clarification";
+      case "motor:question-answered":
+        return "clarification received";
+      case "motor:complete":
+        return "motor cycle complete";
+
+      // ── Delegation ──
+      case "motor:delegation-start":
+        return `delegating to child cortex (depth ${event.data.depth ?? "?"})`;
+      case "motor:delegation-complete":
+        return "child cortex completed";
+      case "motor:delegation-failed":
+        return "delegation failed — falling back";
+      case "motor:delegation-learning":
+        return "ingesting child experience";
+
+      // ── Sandbox ──
+      case "sandbox:created":
+        return "created sandbox branch";
+      case "sandbox:accepted":
+        return "merging sandbox";
+      case "sandbox:discarded":
+        return "discarding sandbox";
 
       // ── Evaluation ──
       case "evaluation:start":
         return `evaluating: ${event.data.senseName ?? "sense"}`;
-      case "evaluation:complete":
-        return null; // Next event will update
+      case "evaluation:receptor-complete":
+        return `scored: ${event.data.receptorName ?? "receptor"}`;
+      case "evaluation:sense-complete":
+        return `sense complete: ${event.data.senseName ?? ""}`;
 
-      // ── Gate ──
-      case "cycle:start":
-        return `build cycle ${event.data.cycle ?? "?"}`;
+      // ── Tension ──
+      case "tension:detection-complete":
+        return `${event.data.tensionCount ?? 0} tension(s) detected`;
+      case "tension:resolution-start":
+        return "resolving tensions";
+      case "tension:resolution-complete":
+        return "tensions resolved";
+
+      // ── Gate decision ──
+      case "conviction:start":
+        return "testing conviction";
       case "conviction:result": {
-        const verdict = event.data.verdict as string;
-        if (verdict === "proceed") return "conviction: proceeding";
-        if (verdict === "reshape") return "conviction: reshaping approach";
-        if (verdict === "escalate") return "conviction: escalating";
-        return null;
+        const v = event.data.verdict as string;
+        return v === "proceed" ? "conviction: proceeding"
+          : v === "reshape" ? "conviction: reshaping approach"
+          : v === "escalate" ? "conviction: needs help"
+          : `conviction: ${v}`;
       }
       case "gate:decision":
-        return event.data.accept ? "accepted" : "revising";
+        return event.data.accept ? "gate: accepted ✓" : "gate: revising";
       case "gate:failure-classified":
-        return `rejected — ${event.data.failureMode ?? event.data.category ?? "revising"}`;
+        return `failure: ${event.data.failureMode ?? event.data.category ?? "classified"}`;
+      case "gate:strategy-selected":
+        return `gate strategy: ${event.data.strategy ?? "evaluating"}`;
 
-      // ── Flexibility ──
+      // ── Cognitive flexibility ──
       case "flexibility:assessment":
-        return `diagnosing: ${event.data.diagnosis ?? "analyzing"}`;
+        return `flexibility: ${event.data.diagnosis ?? "diagnosing"}`;
+      case "flexibility:dispatch-assessment":
+        return `dispatch flexibility: ${event.data.diagnosis ?? "diagnosing"}`;
+      case "flexibility:reset":
+        return "strategy reset — starting fresh";
 
-      // ── Learning ──
+      // ── Communication ──
+      case "communication:message":
+        return null; // Messages handled by sendMessage
+      case "cortex-parsifal:resolved":
+        return "parent resolved child question";
+
+      // ── Escalation ──
+      case "escalation:created":
+        return "escalating to Parsifal";
+      case "escalation:resolved":
+        return "Parsifal responded";
+
+      // ── Parsifal actions ──
+      case "parsifal-action:pause":
+        return "pausing";
+      case "parsifal-action:resume":
+        return "resuming";
+      case "parsifal-action:redirect":
+        return "redirecting approach";
+      case "parsifal-action:revert":
+        return "reverting work";
+      case "parsifal-action:skip":
+        return "skipping task";
+      case "parsifal-action:add-task":
+        return "adding task to plan";
+
+      // ── Dopamine / Reward ──
+      case "dopamine:distributed":
+        return "processing reward signal";
+      case "dopamine:tonic-update":
+        return `baseline motivation: ${event.data.trend ?? "stable"}`;
+
+      // ── Hippocampus / Learning ──
+      case "hippocampus:loaded":
+        return "loading memory";
       case "hippocampus:episode-recorded":
         return "recording experience";
-      case "hippocampus:principle-extracted":
-        return "crystallizing principle";
       case "hippocampus:potentiation-complete":
-        return "learning complete";
+        return `learning: ${event.data.principlesExtracted ?? 0} principle(s) extracted`;
+      case "hippocampus:principle-extracted":
+        return "crystallized a principle";
+      case "hippocampus:principle-refined":
+        return "refined a principle";
+      case "hippocampus:principle-replaced":
+        return "understanding changed";
+      case "hippocampus:simulation":
+        return "simulating future scenarios";
+      case "hippocampus:simulation-outcome":
+        return "simulation outcome recorded";
+      case "hippocampus:child-episodes-ingested":
+        return "learning from child experience";
+      case "hippocampus:child-principles-ingested":
+        return "inheriting child principles";
+
+      // ── Plasticity ──
+      case "plasticity:updated":
+        return "updating connection weights";
+      case "plasticity:fixation-window":
+        return "weight fixation window active";
+
+      // ── World model ──
+      case "world-model:loaded":
+        return "loading world model";
+      case "world-model:rebuilt":
+        return "rebuilding understanding";
+      case "world-model:maxim-evolved":
+        return "understanding shifted";
+      case "world-model:maxim-dropped":
+        return "dropped a maxim";
+      case "world-model:narratives-updated":
+        return "self-narratives evolved";
+      case "world-model:project-bound":
+        return "bound to project";
 
       // ── Drift ──
       case "drift-monitor:quick-check":
         return "checking alignment";
       case "drift-monitor:deep-analysis":
         return "deep drift analysis";
+      case "drift-monitor:level-changed":
+        return `drift level changed: ${event.data.direction ?? ""}`;
 
-      // ── World model ──
-      case "world-model:rebuilt":
-        return "rebuilding understanding";
+      // ── Homeostasis ──
+      case "vitals:update":
+        return null; // Too frequent
+      case "vitals:reflex":
+        return `health reflex: ${(event.data.actions as Array<{type: string}>)?.map(a => a.type).join(", ") ?? ""}`;
+      case "vitals:cumulative-ne":
+        return null; // Too frequent
 
       // ── Rest ──
       case "rest:start":
         return "resting — consolidating memory";
+      case "rest:potentiation":
+        return "rest: extracting principles";
+      case "rest:wm-prune":
+        return "rest: pruning working memory";
       case "rest:complete":
         return "rest complete";
 
-      // ── Task completion ──
-      case "task:complete":
-        return `task complete (${event.data.status ?? "done"})`;
+      // ── Graph surgery ──
+      case "surgery:insert":
+        return "inserting new task";
+      case "surgery:amend":
+        return "amending task";
+      case "surgery:rework":
+        return "reopening task for rework";
+      case "surgery:reorder":
+        return "reordering dependencies";
+      case "surgery:complete":
+        return "plan updated";
 
-      default:
-        return null;
+      // ── Nursery ──
+      case "nursery:start":
+        return "stress-testing completed phase";
+      case "nursery:graduate":
+        return "phase graduated from nursery";
+      case "nursery:fix-task-inserted":
+        return "nursery found issue — fix task added";
+
+      // ── Quick triage / Deep synthesis ──
+      case "quick-triage:complete":
+        return "observations triaged";
+      case "deep-synthesis:complete":
+        return "deep synthesis complete";
+      case "deep-synthesis:surgery-proposed":
+        return "synthesis proposed plan changes";
+
+      // ── Prospective memory ──
+      case "prospective-memory:trigger-fired":
+        return `triggered: ${(event.data.description as string)?.slice(0, 40) ?? "prospective memory"}`;
+      case "prospective-memory:registered":
+        return "registered future intention";
+
+      // ── Exteroception ──
+      case "exteroception:signal-stored":
+        return "external signal detected";
+      case "exteroception:urgent-signal":
+        return "urgent external signal!";
+      case "exteroception:cadence-adjusted":
+        return "monitoring cadence adjusted";
+
+      // ── Checkpoints ──
+      case "checkpoint:created":
+        return "checkpoint saved";
+
+      // ── PNS ──
+      case "pns:tools-activated":
+        return `${event.data.toolCount ?? "?"} tool(s) activated`;
+      case "pns:capability-acquired":
+        return "new capability acquired";
+
+      // ── Amygdala ──
+      case "amygdala:alarm":
+        return "threat detected!";
+      case "amygdala:alarm-resolved":
+        return "threat resolved";
+
+      // ── References ──
+      case "references:loaded":
+        return "references loaded";
+      case "references:added":
+        return `reference added: ${event.data.label ?? ""}`;
+
+      // ── Taste feedback ──
+      case "taste-feedback:divergence-detected":
+        return "taste divergence detected";
+      case "taste-feedback:proposal-generated":
+        return "taste proposal ready";
+      case "taste-feedback:response-received":
+        return "taste feedback received";
+
+      // ── Integration check ──
+      case "integration-check:complete":
+        return event.data.passed ? "integration check passed" : "integration issues found";
     }
+
+    // ── Tier 2: Namespace-based fallback ──
+    // For the ~200 events not explicitly mapped, use the namespace
+    const ns = event.type.split(":")[0];
+    const fallbacks: Record<string, string | null> = {
+      exec: "controlling execution",
+      llm: "calling intelligence",
+      planner: "planning",
+      motor: "building",
+      evaluation: "evaluating",
+      gate: "gate decision",
+      conviction: "testing conviction",
+      consultation: "consulting",
+      thalamus: "routing context",
+      wm: "updating memory",
+      hippocampus: "learning",
+      plasticity: "updating weights",
+      dispatch: "dispatching",
+      project: "project",
+      task: "working",
+      "drift-monitor": "monitoring drift",
+      vitals: null, // Too noisy
+      "world-model": "synthesizing",
+      flexibility: "diagnosing",
+      rest: "resting",
+      surgery: "updating plan",
+      nursery: "stress-testing",
+      exteroception: "monitoring",
+      amygdala: "threat assessment",
+      cerebellum: "predicting",
+      dopamine: "processing reward",
+      "basal-ganglia": "checking routines",
+    };
+    return fallbacks[ns] ?? null;
   }
 
   /** Print the brain logo and context-aware greeting. */
