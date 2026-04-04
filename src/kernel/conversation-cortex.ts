@@ -51,6 +51,7 @@ export interface ConversationCortexDeps {
   worldview?: Worldview;
   worldModel?: WorldModel;
   costTracker?: import("../brainstem/cost-tracker.js").CostTracker | null;
+  pns?: import("../kernel/pns.js").PeripheralNervousSystem;
 }
 
 export class ConversationCortex {
@@ -248,6 +249,7 @@ export class ConversationCortex {
           text: m.text,
         })),
         consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+        pns: this.deps.pns,
       });
       const msg = this.cortexMessage("acknowledgment", result.message ?? "Got it.", { inReplyTo });
       this.recordAndBroadcast(msg);

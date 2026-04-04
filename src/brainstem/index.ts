@@ -224,6 +224,7 @@ export class Brainstem {
       worldview,
       worldModel: this.worldModel,
       costTracker: this.costTracker,
+      pns: this.pns,
     });
 
     // Learning propagation: when Motor delegates to a child Cortex,

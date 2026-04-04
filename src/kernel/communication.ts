@@ -19,6 +19,7 @@ import type {
   CommunicationTrigger,
 } from "../types/communication.js";
 import { callStructured } from "../llm/structured.js";
+import { agenticCall } from "../llm/client.js";
 import { createLogger } from "../util/logger.js";
 
 const log = createLogger("communication");
@@ -248,32 +249,78 @@ export async function communicate(
   const system = buildSystemPrompt(ctx);
   const user = buildUserPrompt(ctx);
 
-  try {
-    const response = await callStructured<z.infer<typeof CommunicationResponseSchema>>(
-      "communication",
-      model,
-      system,
-      user,
-      CommunicationResponseSchema,
-      1024,
-    );
+  // Interactive mode: when the Parsifal is talking and tools are available,
+  // use an agentic call so Claus can read files, grep code, run commands
+  // before responding. This is what makes idle conversation useful.
+  const useAgentic = ctx.trigger === "parsifal-inbound" && !!ctx.pns;
 
-    if (response.message) {
-      log.info("Speaking", {
+  try {
+    let message: string | null;
+    let reasoning: string;
+    let rawAction: z.infer<typeof CommunicationResponseSchema>["action"];
+
+    if (useAgentic) {
+      // Agentic mode: multi-turn with read-only tools
+      const toolSet = ctx.pns!.activateToolsForTask(
+        "Respond to Parsifal — investigate if needed",
+        0.3, // Low NE — conversational, not high-stakes
+        "evaluator", // Read-only consumer — Claus doesn't write files in conversation
+      );
+
+      const agenticSystem = system + `\n\nYou have tools available to investigate the project (Read files, Glob for patterns, Grep for code, Bash for commands). Use them when the Parsifal asks about the codebase, system state, or anything you need to look up. When done investigating, respond with your final answer.\n\nYour FINAL message must be valid JSON: { "message": "your response", "reasoning": "internal reasoning", "action": { "type": "none" } }`;
+
+      const result = await agenticCall(
+        "communication",
+        model,
+        agenticSystem,
+        user,
+        toolSet,
+      );
+
+      // Parse JSON from the agentic response
+      const parsed = extractJsonFromResponse(result.summary);
+      message = parsed.message;
+      reasoning = parsed.reasoning;
+      rawAction = parsed.action;
+
+      log.info("Speaking (agentic)", {
         trigger: ctx.trigger,
-        messageLength: response.message.length,
-        reasoning: response.reasoning.slice(0, 100),
+        messageLength: message?.length ?? 0,
+        toolCalls: result.toolTrace.length,
+        turns: result.turns,
       });
     } else {
-      log.debug("Silence", {
-        trigger: ctx.trigger,
-        reasoning: response.reasoning.slice(0, 100),
-      });
+      // Structured mode: single-turn, fast, no tools
+      const response = await callStructured<z.infer<typeof CommunicationResponseSchema>>(
+        "communication",
+        model,
+        system,
+        user,
+        CommunicationResponseSchema,
+        1024,
+      );
+
+      message = response.message;
+      reasoning = response.reasoning;
+      rawAction = response.action;
+
+      if (message) {
+        log.info("Speaking", {
+          trigger: ctx.trigger,
+          messageLength: message.length,
+          reasoning: reasoning.slice(0, 100),
+        });
+      } else {
+        log.debug("Silence", {
+          trigger: ctx.trigger,
+          reasoning: reasoning.slice(0, 100),
+        });
+      }
     }
 
     // Map response action to typed ParsifaAction
-    const action = response.action && response.action.type !== "none"
-      ? response.action as import("../types/communication.js").ParsifaAction
+    const action = rawAction && rawAction.type !== "none"
+      ? rawAction as import("../types/communication.js").ParsifaAction
       : undefined;
 
     if (action) {
@@ -284,8 +331,8 @@ export async function communicate(
     }
 
     return {
-      message: response.message,
-      reasoning: response.reasoning,
+      message,
+      reasoning,
       action,
     };
   } catch (err) {
@@ -304,4 +351,40 @@ export async function communicate(
     }
     return { message: null, reasoning: `error: ${String(err)}` };
   }
+}
+
+// ─── Helpers ──────────────────────────────────────────────────
+
+/**
+ * Extract JSON response from agentic call output.
+ * The agentic call returns free-text that should contain JSON.
+ * Gracefully handles missing JSON by treating the whole response as the message.
+ */
+function extractJsonFromResponse(text: string): {
+  message: string | null;
+  reasoning: string;
+  action?: z.infer<typeof CommunicationResponseSchema>["action"];
+} {
+  // Try to find JSON in the response
+  const jsonMatch = text.match(/\{[\s\S]*"message"[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        message: parsed.message ?? null,
+        reasoning: parsed.reasoning ?? "",
+        action: parsed.action,
+      };
+    } catch {
+      // JSON parse failed — fall through
+    }
+  }
+
+  // No valid JSON found — treat the entire response as the message.
+  // This is the graceful fallback: the LLM investigated with tools
+  // and gave a natural language answer instead of JSON.
+  return {
+    message: text.trim() || null,
+    reasoning: "agentic response without JSON wrapper",
+  };
 }

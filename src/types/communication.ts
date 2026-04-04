@@ -107,6 +107,9 @@ export interface CommunicationContext {
   /** The worldview consciousness frame — shapes the voice. */
   consciousnessFrame: string;
 
+  /** PNS for tool access in interactive mode. When present, Parsifal-inbound uses agentic call. */
+  pns?: import("../kernel/pns.js").PeripheralNervousSystem;
+
   // ── Parsifal inbound ────────────────────────────────────────
 
   /** The Parsifal's message, if this is a parsifal-inbound trigger. */
