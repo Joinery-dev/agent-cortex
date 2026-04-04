@@ -34,6 +34,7 @@ import type { Thalamus } from "./thalamus.js";
 import type { Worldview } from "../types/worldview.js";
 import type { WorldModel } from "./world-model.js";
 import { communicate } from "./communication.js";
+import { ConversationSession } from "./conversation-session.js";
 import { bus, emit } from "../events.js";
 import { narrateEvent } from "../conversation/narration-rules.js";
 import { newId } from "../util/ids.js";
@@ -63,6 +64,8 @@ export class ConversationCortex {
   private externalDirectionHandlers: Array<(text: string) => void> = [];
   /** Guard against re-entrant receive() calls. */
   private receiving = false;
+  /** Persistent agentic conversation session — maintains context across turns. */
+  private session: ConversationSession | null = null;
 
   /** Pending question awaiting a Parsifal response (askUser replacement). */
   private pendingQuestion: {
@@ -233,24 +236,44 @@ export class ConversationCortex {
 
   /**
    * The Cortex responds to a Parsifal message — speaking from genuine understanding.
-   * Uses the communication cognitive function with full context.
+   *
+   * Two modes:
+   *   - With PNS: persistent agentic session with tools (Read, Grep, Bash).
+   *     Claus remembers everything it discovered across turns.
+   *   - Without PNS: single-turn structured call (fast, no tools).
    */
   private async consciousnessRespond(text: string, inReplyTo: string): Promise<void> {
     try {
-      const result = await communicate({
-        trigger: "parsifal-inbound",
-        parsifalMessage: text,
-        selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
-        selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
-        worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
-        awareness: this.deps.thalamus.getAwarenessSummaries(),
-        recentConversation: this.history.slice(-20).map((m) => ({
-          role: m.role,
-          text: m.text,
-        })),
-        consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
-        pns: this.deps.pns,
-      });
+      let result: import("../types/communication.js").CommunicationResult;
+
+      if (this.deps.pns) {
+        // Persistent session mode — Claus has tools and remembers across turns
+        if (!this.session) {
+          this.session = new ConversationSession({
+            pns: this.deps.pns,
+            worldModel: this.deps.worldModel,
+            thalamus: this.deps.thalamus,
+            worldview: this.deps.worldview,
+          });
+        }
+        result = await this.session.respond(text);
+      } else {
+        // Fallback: single-turn structured call (no tools)
+        result = await communicate({
+          trigger: "parsifal-inbound",
+          parsifalMessage: text,
+          selfMaxims: this.deps.worldModel?.getSelfMaxims()?.map((m) => m.statement) ?? [],
+          selfNarratives: this.deps.worldModel?.getSelfNarratives()?.map((n) => n.narrative) ?? [],
+          worldMaxims: this.deps.worldModel?.getMaximsForBriefing() ?? [],
+          awareness: this.deps.thalamus.getAwarenessSummaries(),
+          recentConversation: this.history.slice(-20).map((m) => ({
+            role: m.role,
+            text: m.text,
+          })),
+          consciousnessFrame: this.deps.worldview?.frames?.consciousness ?? "",
+        });
+      }
+
       const msg = this.cortexMessage("acknowledgment", result.message ?? "Got it.", { inReplyTo });
       this.recordAndBroadcast(msg);
 
@@ -784,5 +807,7 @@ export class ConversationCortex {
     this.planVision = null;
     this.planPhases = [];
     this.artifacts = [];
+    this.session?.clear();
+    this.session = null;
   }
 }
